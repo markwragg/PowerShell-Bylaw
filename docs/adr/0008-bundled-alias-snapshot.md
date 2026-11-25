@@ -36,18 +36,22 @@ Chosen option: "A bundled snapshot plus an optional refreshed cache, with lookup
   "types": {
     "Microsoft.Storage/storageAccounts": {
       "aliases": {
-        "Microsoft.Storage/storageAccounts/publicNetworkAccess": { "modifiable": true },
-        "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*]": {},
-        "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].value": {}
+        "Microsoft.Storage/storageAccounts/publicNetworkAccess": { "modifiable": true, "type": "String" },
+        "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*]": { "type": "Array" },
+        "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].value": { "type": "String" }
       }
     }
   }
 }
 ```
 
-* Whether an alias is an array is derived from `[*]` in its name. Only facts that can't be derived are stored (`modifiable`, which `Modify` needs in Milestone 2).
+* Whether an alias is an array is derived from `[*]` in its name. Only facts that can't be derived are stored, and both are optional:
+  * `modifiable`, which `Modify` needs in Milestone 2.
+  * `type`, the property's data type as Azure reports it (`DefaultMetadata.Type`). It is omitted when Azure says `NotSpecified`. Comparing mismatched types is a runtime `Error` in Azure (ADR-0004), so a later validation rule can use this to catch, for example, a numeric comparison against a `String` property at compile time.
 * The snapshot is written with the canonical writer (ADR-0009), with types and aliases sorted by ordinal comparison, so refreshing it gives minimal diffs.
+* It is read with `System.Text.Json`, not `ConvertFrom-Json`, which would turn `generatedAt` into a `DateTime`.
 * The loader parses the file once per runspace, and indexes only the resource types the build references.
+* The bundled `src/Data/aliases.json` currently holds only the types the tests and examples use (storage accounts, virtual machines, network security groups, key vaults). The maintainers will generate the full snapshot.
 
 ### Where the snapshot is loaded from (first match wins)
 

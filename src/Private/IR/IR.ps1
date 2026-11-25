@@ -383,8 +383,10 @@ class BylawApplicability : BylawNode {
 }
 
 class BylawResourceScope : BylawNode {
-    # Resource type, or '*' for no type condition.
+    # Resource type as written, or '*' for no type condition.
     [string] $Type
+    # Type in the alias snapshot's casing, set by the alias resolution pass.
+    [string] $ResolvedType
     [System.Collections.Generic.List[BylawApplicability]] $When = [System.Collections.Generic.List[BylawApplicability]]::new()
     [System.Collections.Generic.List[BylawRequirement]] $Requirements = [System.Collections.Generic.List[BylawRequirement]]::new()
 
@@ -456,6 +458,80 @@ class BylawPolicy : BylawNode {
             }
         }
         return $null
+    }
+}
+
+#endregion
+
+#region Alias snapshot (ADR-0008)
+
+class BylawAliasSnapshot {
+    # Where the snapshot was loaded from, for diagnostics.
+    [string] $Path
+    [string] $GeneratedAt
+
+    # Parsed 'types' object: type name -> @{ aliases = @{ alias name -> @{ modifiable; type } } }.
+    hidden [System.Collections.IDictionary] $Types
+    # Case-insensitive indexes, built lazily so a full snapshot only pays for the types a build uses.
+    hidden [System.Collections.Generic.Dictionary[string, string]] $TypeNames
+    hidden [System.Collections.Generic.Dictionary[string, System.Collections.Generic.Dictionary[string, string]]] $TypeIndex
+    hidden [System.Collections.Generic.Dictionary[string, string]] $GlobalIndex
+
+    BylawAliasSnapshot([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types) {
+        $this.Path = $path
+        $this.GeneratedAt = $generatedAt
+        $this.Types = $types
+        $this.TypeNames = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($name in $types.Keys) {
+            $this.TypeNames[$name] = $name
+        }
+        $this.TypeIndex = [System.Collections.Generic.Dictionary[string, System.Collections.Generic.Dictionary[string, string]]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    }
+
+    # Canonical type name, or '' when the type is not in the snapshot.
+    [string] GetTypeName([string] $type) {
+        $canonical = $null
+        if ($this.TypeNames.TryGetValue($type, [ref] $canonical)) {
+            return $canonical
+        }
+        return ''
+    }
+
+    # Case-insensitive map of alias name -> canonical alias name for one type (empty if unknown).
+    [System.Collections.Generic.Dictionary[string, string]] GetAliases([string] $type) {
+        $canonicalType = $this.GetTypeName($type)
+        $index = $null
+        if ($canonicalType -and $this.TypeIndex.TryGetValue($canonicalType, [ref] $index)) {
+            return $index
+        }
+        $index = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($canonicalType) {
+            $entry = $this.Types[$canonicalType]
+            if ($entry -is [System.Collections.IDictionary] -and $entry['aliases'] -is [System.Collections.IDictionary]) {
+                foreach ($alias in $entry['aliases'].Keys) {
+                    $index[$alias] = $alias
+                }
+            }
+            $this.TypeIndex[$canonicalType] = $index
+        }
+        return $index
+    }
+
+    # Canonical alias name for a full alias of any type, or '' when it is not in the snapshot.
+    [string] FindAlias([string] $alias) {
+        if ($null -eq $this.GlobalIndex) {
+            $this.GlobalIndex = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($type in $this.Types.Keys) {
+                foreach ($entry in $this.GetAliases($type).GetEnumerator()) {
+                    $this.GlobalIndex[$entry.Key] = $entry.Value
+                }
+            }
+        }
+        $canonical = $null
+        if ($this.GlobalIndex.TryGetValue($alias, [ref] $canonical)) {
+            return $canonical
+        }
+        return ''
     }
 }
 

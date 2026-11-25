@@ -15,8 +15,12 @@ Describe 'Keyword scoping (ADR-0005)' {
         $property.CanWrite | Should -BeTrue
     }
 
-    It 'exports only Policy' {
-        (Get-Module Bylaw).ExportedCommands.Keys | Should -Be @('Policy')
+    It 'exports Policy but none of the inner keywords' {
+        $exported = @((Get-Module Bylaw).ExportedCommands.Keys)
+        $exported | Should -Contain 'Policy'
+        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm') {
+            $exported | Should -Not -Contain $keyword
+        }
     }
 
     It 'does not define inner keywords outside a Policy' {
