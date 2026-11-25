@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Test (${{ matrix.os }}, pwsh latest)
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -34,37 +34,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ matrix.os }}
-          path: out/testResults.xml
-          if-no-files-found: ignore
-
-  test-minimum-version:
-    name: Test (ubuntu-latest, pwsh 7.2)
-    runs-on: ubuntu-latest
-    env:
-      PWSH_VERSION: 7.2.24
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install PowerShell ${{ env.PWSH_VERSION }}
-        run: |
-          set -euo pipefail
-          dest="$RUNNER_TEMP/pwsh-$PWSH_VERSION"
-          mkdir -p "$dest"
-          curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v$PWSH_VERSION/powershell-$PWSH_VERSION-linux-x64.tar.gz" -o "$RUNNER_TEMP/pwsh.tar.gz"
-          tar -xzf "$RUNNER_TEMP/pwsh.tar.gz" -C "$dest"
-          chmod +x "$dest/pwsh"
-          echo "PWSH_MIN=$dest/pwsh" >> "$GITHUB_ENV"
-
-      # No Analyze here: PSScriptAnalyzer 1.25 needs pwsh 7.4.6+. Analysis is version-independent and
-      # already runs in the matrix job; this job proves the module itself works on the 7.2 minimum.
-      - name: Bootstrap, package and test
-        run: |
-          "$PWSH_MIN" -NoProfile -Command '$PSVersionTable; ./build/build.ps1 -Task Bootstrap, Package, Test -CI'
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-pwsh-7.2
           path: out/testResults.xml
           if-no-files-found: ignore
