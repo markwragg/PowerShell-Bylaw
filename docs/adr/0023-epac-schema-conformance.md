@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-25
 decision-makers: Bylaw maintainers
 ---
@@ -36,7 +36,7 @@ How should Bylaw's EPAC emitter handle these differences?
 
 ## Decision Outcome
 
-Proposed: "Generate what can be derived, and fail the EPAC build for what can't". The EPAC emitter checks a policy before it emits it, and reports `BYL4xxx` diagnostics with the source location.
+Chosen option: "Generate what can be derived, and fail the EPAC build for what can't". The EPAC emitter checks a policy before it emits it, and reports `BYL4xxx` diagnostics with the source location.
 
 **Generated:**
 
