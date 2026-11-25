@@ -27,17 +27,20 @@ The DSL uses short, generic command names (`Field`, `Resource`, `When`, `Each`, 
 Chosen option: "Inject into the caller's session state for the duration of `Policy`".
 
 * **Exported:** `Policy`, `Build-Bylaw`, `Update-BylawAliasCache` (and `ConvertFrom-PolicyJson` in Milestone 3).
-* When `Policy` runs, it creates function entries for each inner keyword in the **caller's** session state, through `$PSCmdlet.SessionState`. Each entry is a thin, module-bound proxy, so the keyword's implementation runs in module scope, with access to the compiler context. Then `Policy` invokes the author's scriptblock, and removes the entries in a `finally` block. If an entry with the same name already existed, it is saved and restored.
-* **Context stack.** Each keyword checks that its parent is valid, for example that `Field` is inside `When`, `Require` or `Each`, and that `Properties` is directly inside `Policy`. A violation throws `BylawKeywordContextException`, with the file, line and keyword.
-* **Outside `Policy`.** On import, the module registers a `CommandNotFoundAction` handler that recognises Bylaw keyword names. It replaces the generic error with "`Field` can only be used inside a `Policy` block". The handler chains to any previously registered handler and is removed when the module is removed.
-* Nested `Policy` blocks are a compile error.
+* **Mechanism (revised after the spike).** `Policy` creates a small wrapper scriptblock inside the module, then rebinds it to the session state the author's `Policy` body is bound to, which is the caller's. It does this by setting the internal `ScriptBlock.SessionStateInternal` property through reflection, the same technique Pester uses. The wrapper runs in a new child scope of the caller. It defines each inner keyword there as a function whose body is the module-bound keyword implementation, so the keywords run in module scope with access to the compiler state. The wrapper then dot-sources the author's body into the same scope. When the wrapper's scope ends, normally or through an exception, the keywords disappear with it, so no cleanup code is needed. An author's own function with the same name is hidden inside `Policy` and visible again afterwards.
+  * The first design added and removed the functions through `$PSCmdlet.SessionState`. The spike showed that this resolves to the **module's** session state, so it would have overwritten and then deleted the module's own functions.
+  * The wrapper sets `$ErrorActionPreference = 'Stop'` for the body, so that PowerShell errors (for example a misspelt `-Bee` parameter) become terminating. `Policy` can then catch and report them.
+* **Context stack.** Each keyword checks that its parent is valid, for example that `Field` is inside `When`, `Require` or `Each`, and that `Properties` is directly inside `Policy`. A violation does not throw. It records a diagnostic (`BYL1002`) with the file, line and keyword, and the build continues, so that every error is reported in one run (ADR-0013).
+* **Outside `Policy`.** On import, the module registers a `CommandNotFoundAction` handler that recognises Bylaw keyword names. It replaces the generic error with "BYL1001: '`Field`' is a Bylaw keyword and can only be used inside a Policy block". The handler chains to any previously registered handler and is removed when the module is removed.
+  * Known limitation: PowerShell retries an unknown command with a `Get-` prefix *before* the handler runs. Outside a `Policy`, `Item` therefore resolves to `Get-Item` and prompts for `-Path`. Inside a `Policy`, `Item` works as intended.
+* Nested `Policy` blocks are a compile error (`BYL1003`).
 
 ### Consequences
 
 * Good, because the session stays clean, and file-level variables and helper functions work inside policies.
 * Good, because misuse gives clear, located errors.
 * Bad, because `Get-Help Field` and argument completers don't work outside a running policy. Help will be provided as `about_Bylaw_Keywords`. Editor completion (planned for later) will need a separate mechanism, such as registered completers or a language-server extension.
-* Bad, because injecting into a session state goes slightly against the grain of PowerShell. A spike at the start of the keyword step will validate it on all three operating systems before anything is built on it.
+* Bad, because it depends on an internal PowerShell property (`ScriptBlock.SessionStateInternal`). Pester has relied on the same property for many years, which lowers the risk. A unit test fails loudly if a PowerShell release removes or changes it. The spike passed on Windows. CI runs the keyword tests on Linux and macOS.
 
 ### Confirmation
 
