@@ -39,7 +39,7 @@ Bylaw/
     Bylaw.psm1
     Public/          # Build-Bylaw, ConvertFrom-PolicyJson, Update-BylawAliasCache, Policy
     Private/
-      Keywords/      # Properties, Parameter, Resource, When, Require, Each, Field, Tag, Must, Effect, Modify, Param, Expr
+      Keywords/      # Properties, Parameter, Resource, When, Require, Each, Field, Tag, Must, Element, Effect, Modify, Param, Arm
       IR/            # IR node classes
       Compiler/      # inversion, flattening, alias resolution, validation
       Emitters/      # Epac, PlainJson (Bicep later)
@@ -134,22 +134,28 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 | `Require 'description' { }` | A named compliance requirement. Inverted. |
 | `Each path[*] { }` | Array condition, compiles to `count` / `where`. |
 | `Field name` | Field reference, resolved to a full alias. |
+| `Element` | The current element of an array of plain values, inside `Each`. |
 | `Tag name` | Tag field reference (`tags['name']`), parameter-aware. |
 | `Must` | Assertion, takes a field reference from the pipeline. |
 | `Effect value` | The `then` block for simple effects. |
 | `Modify -Role ... { AddOrReplace / Add / Remove }` | Modify effect with operations. |
 | `Param Name` | Reference a parameter (emits `[parameters('name')]`). |
-| `Expr '[...]'` | Raw ARM template expression escape hatch. |
+| `Arm '[...]'` | Raw ARM template expression escape hatch. |
+
+`Element` and `Arm` were originally `Item` and `Expr`. They were renamed because, outside a `Policy`, those names resolved to `Get-Item` and the native `expr` program (ADR-0005).
 
 ### Must operators
+
+The operator names follow ADR-0015.
 
 | DSL | Policy operator | Inverted form |
 |---|---|---|
 | `-Be` | `equals` | `notEquals` |
 | `-BeIn` | `in` | `notIn` |
 | `-BeLike` | `like` | `notLike` |
-| `-Match` | `match` | `notMatch` |
-| `-Contain` | `contains` | `notContains` |
+| `-Match` | `matchInsensitively` | `notMatchInsensitively` |
+| `-MatchCase` | `match` | `notMatch` |
+| `-ContainText` | `contains` | `notContains` |
 | `-ContainKey` | `containsKey` | `notContainsKey` |
 | `-Exist` | `exists: true` | `exists: false` |
 | `-BeGreaterThan` | `greater` | `lessOrEquals` |
@@ -157,6 +163,10 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 | `-BeLessThan` | `less` | `greaterOrEquals` |
 | `-BeLessOrEqual` | `lessOrEquals` | `greater` |
 | `-Not` | flips any of the above | |
+| `-IfPresent` | a missing field is compliant (not inside `Each`) | |
+| `-Strict` | a missing element field is a violation (inside `Each` only) | |
+
+Azure `match` patterns are not regular expressions: `#` matches a digit, `?` a letter and `.` any character.
 
 Use `Must` rather than `Should` to avoid clashing with Pester, which users will run in the same session.
 
@@ -180,7 +190,7 @@ Use `Must` rather than `Should` to avoid clashing with Pester, which users will 
 
 - Parameter name casing in emitted JSON
 - Whether to stamp provenance metadata (e.g. `metadata.generatedBy`) and how to keep it from adding diff noise
-- Representation of ARM expressions: which typed helpers ship in v1 beyond `Param`, `Tag`, `ResourceGroupTag`, `Expr`
+- Representation of ARM expressions: which typed helpers ship in v1 beyond `Param`, `Tag`, `ResourceGroupTag`, `Arm`
 - Compile-time validation of parameter usage (e.g. array parameter used with `-Be`)
 - Built-in role name to ID resolution for `Modify -Role` (bundled map vs lookup)
 
@@ -190,7 +200,7 @@ Use `Must` rather than `Should` to avoid clashing with Pester, which users will 
 
 - Module scaffold, manifest, build script, CI
 - IR classes
-- Keywords: `Policy`, `Properties`, `Parameter`, `Resource`, `When`, `Require`, `Field`, `Must` (all operators), `Each`, `Effect`, `Param`, `Expr`
+- Keywords: `Policy`, `Properties`, `Parameter`, `Resource`, `When`, `Require`, `Field`, `Element`, `Must` (all operators), `Each`, `Effect`, `Param`, `Arm`
 - Compiler passes: alias resolution, inversion, `allOf`/`anyOf` flattening, validation
 - EPAC emitter
 - `Build-Bylaw` with `-Path`, `-OutputPath`, `-Format`, `-PassThru`
