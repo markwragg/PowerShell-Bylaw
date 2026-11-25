@@ -29,6 +29,15 @@ function Invoke-BylawTestScript {
     }
 }
 
+function Get-BylawLeakedKeyword {
+    # A Bylaw keyword function still visible outside Policy: defined by Bylaw or by no module.
+    # Reads the function: drive so it never auto-loads other modules.
+    param([Parameter(Mandatory)] [string] $Name)
+
+    Get-Item -LiteralPath "function:$Name" -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.ModuleName -or $_.ModuleName -eq 'Bylaw' }
+}
+
 function Format-BylawTestPolicy {
     # Wraps requirement/When text in a minimal valid policy, so tests can focus on one keyword.
     param(

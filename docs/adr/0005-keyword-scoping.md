@@ -32,7 +32,10 @@ Chosen option: "Inject into the caller's session state for the duration of `Poli
   * The wrapper sets `$ErrorActionPreference = 'Stop'` for the body, so that PowerShell errors (for example a misspelt `-Bee` parameter) become terminating. `Policy` can then catch and report them.
 * **Context stack.** Each keyword checks that its parent is valid, for example that `Field` is inside `When`, `Require` or `Each`, and that `Properties` is directly inside `Policy`. A violation does not throw. It records a diagnostic (`BYL1002`) with the file, line and keyword, and the build continues, so that every error is reported in one run (ADR-0013).
 * **Outside `Policy`.** On import, the module registers a `CommandNotFoundAction` handler that recognises Bylaw keyword names. It replaces the generic error with "BYL1001: '`Field`' is a Bylaw keyword and can only be used inside a Policy block". The handler chains to any previously registered handler and is removed when the module is removed.
-  * Known limitation: PowerShell retries an unknown command with a `Get-` prefix *before* the handler runs. Outside a `Policy`, `Item` therefore resolves to `Get-Item` and prompts for `-Path`. Inside a `Policy`, `Item` works as intended.
+  * Known limitation: the handler only runs when no command of that name exists. Outside a `Policy`, a keyword name exported by another installed module resolves to that module's command (for example psake's `Properties`). Two keywords also resolve to something else first:
+    * `Item` becomes `Get-Item`, because PowerShell retries an unknown command with a `Get-` prefix, and prompts for `-Path`.
+    * `Expr` runs the native `expr` program on macOS, and on Windows when Git's tools are on the `PATH`, because command lookup is case-insensitive there.
+    Inside a `Policy` both work as keywords, because functions take precedence over cmdlets and programs.
 * Nested `Policy` blocks are a compile error (`BYL1003`).
 
 ### Consequences

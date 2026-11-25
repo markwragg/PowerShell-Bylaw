@@ -20,8 +20,10 @@ Describe 'Keyword scoping (ADR-0005)' {
     }
 
     It 'does not define inner keywords outside a Policy' {
-        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'Field', 'Must', 'Effect', 'Param', 'Expr') {
-            Get-Command -Name $keyword -CommandType Function -ErrorAction SilentlyContinue | Should -BeNullOrEmpty -Because "$keyword must not leak"
+        # A leak would be a function from Bylaw (or from no module) visible to the caller. Other
+        # modules may legitimately export the same names, e.g. psake's Properties.
+        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'Field', 'Item', 'Must', 'Effect', 'Param', 'Expr') {
+            Get-BylawLeakedKeyword -Name $keyword | Should -BeNullOrEmpty -Because "$keyword must not leak"
         }
     }
 
@@ -31,7 +33,8 @@ Policy 'a' { Effect Deny; throw 'boom' }
 $script:afterError = [bool](Get-Command Field -ErrorAction SilentlyContinue)
 '@
         $result.Codes | Should -Contain 'BYL1014'
-        Get-Command Field -CommandType Function -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+        Get-BylawLeakedKeyword -Name 'Field' | Should -BeNullOrEmpty
+        Get-BylawLeakedKeyword -Name 'Effect' | Should -BeNullOrEmpty
     }
 
     It 'makes file-level variables and helper functions visible inside Policy' {
@@ -81,12 +84,29 @@ Set-Content -Path (Join-Path $TestDrive 'user-field.txt') -Value (Field)
         Get-Content -Path (Join-Path $TestDrive 'user-field.txt') | Should -Be 'user-field'
     }
 
+    # Outside a Policy, a keyword name that matches a real command (e.g. the native 'expr' on macOS
+    # and Windows-with-Git, or 'Item' -> Get-Item) resolves to that command before the handler runs.
+    # That's a documented limitation (ADR-0005); inside a Policy the keyword always wins.
     It 'gives a clear error for <Keyword> outside a Policy' -ForEach @(
-        @{ Keyword = 'Properties' }, @{ Keyword = 'Parameter' }, @{ Keyword = 'Resource' }, @{ Keyword = 'When' },
-        @{ Keyword = 'Require' }, @{ Keyword = 'Each' }, @{ Keyword = 'Field' }, @{ Keyword = 'Must' },
-        @{ Keyword = 'Effect' }, @{ Keyword = 'Param' }, @{ Keyword = 'Expr' }
+        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'Field', 'Must', 'Effect', 'Param', 'Expr') {
+            $existing = Get-Command -Name $keyword, "Get-$keyword" -ErrorAction SilentlyContinue | Where-Object { $_.ModuleName -ne 'Bylaw' }
+            @{ Keyword = $keyword; Skip = [bool] $existing }
+        }
     ) {
+        if ($Skip) {
+            Set-ItResult -Skipped -Because "'$Keyword' resolves to an existing command on this machine"
+            return
+        }
         { & $Keyword 'x' } | Should -Throw "*BYL1001: '$Keyword' is a Bylaw keyword and can only be used inside a Policy block.*"
+    }
+
+    It 'still runs <Keyword> as the keyword inside a Policy even when a same-named command exists' -ForEach @(
+        @{ Keyword = 'Expr' }
+    ) {
+        $requirements = "Require 'r' { Field location | Must -Be (Expr '[resourceGroup().location]') }"
+        $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Requirements $requirements)
+        $result.Diagnostics | Should -BeNullOrEmpty
+        $result.Policies[0].Resource.Requirements[0].Children[0].Value.Text | Should -Be '[resourceGroup().location]'
     }
 
     It 'leaves the CommandNotFoundAction for other commands alone' {
