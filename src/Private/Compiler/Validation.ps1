@@ -34,8 +34,15 @@ function Invoke-BylawValidation {
     Test-BylawEffect -Policy $Policy -Add $add
 
     $scope = $Policy.Resource
+    $assertions = if ($null -ne $scope) { @(Get-BylawAssertion -Scope $scope) } else { @() }
+    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions $assertions
+    foreach ($parameter in $Policy.Parameters) {
+        if (-not $used.Contains($parameter.Name)) {
+            & $add 'BYL3029' "Parameter '$($parameter.Name)' is declared but never used." $parameter.Location ([BylawSeverity]::Warning)
+        }
+    }
+
     if ($null -ne $scope) {
-        $assertions = @(Get-BylawAssertion -Scope $scope)
         foreach ($assertion in $assertions) {
             Test-BylawAssertionValue -Assertion $assertion -Policy $Policy -Add $add
         }
@@ -128,8 +135,23 @@ function Test-BylawPolicyParameter {
         else {
             $seen[$key] = $parameter.Name
         }
-        if ($parameter.HasDefault -and $parameter.AllowedValues -and -not (Test-BylawValueIn -Value $parameter.DefaultValue -Values $parameter.AllowedValues)) {
-            & $Add 'BYL3021' "Parameter '$($parameter.Name)' has default '$($parameter.DefaultValue)', which is not one of its allowed values ($($parameter.AllowedValues -join ', '))." $parameter.Location
+        # For an Array parameter, allowedValues lists the values each element may take.
+        $isArray = $parameter.Type -eq 'Array'
+        if ($parameter.HasDefault -and -not (Test-BylawParameterValueType -Value $parameter.DefaultValue -Type $parameter.Type)) {
+            & $Add 'BYL3027' "Parameter '$($parameter.Name)' is of type $($parameter.Type), but its default '$($parameter.DefaultValue)' is not." $parameter.Location
+        }
+        elseif ($parameter.HasDefault -and $parameter.AllowedValues -and $null -ne $parameter.DefaultValue) {
+            $defaults = if ($isArray) { @($parameter.DefaultValue) } else { , $parameter.DefaultValue }
+            $outside = @($defaults | Where-Object { -not (Test-BylawValueIn -Value $_ -Values $parameter.AllowedValues) })
+            if ($outside.Count -gt 0) {
+                & $Add 'BYL3021' "Parameter '$($parameter.Name)' has default '$($outside -join ', ')', which is not one of its allowed values ($($parameter.AllowedValues -join ', '))." $parameter.Location
+            }
+        }
+        if ($parameter.AllowedValues -and -not $isArray) {
+            $wrong = @($parameter.AllowedValues | Where-Object { -not (Test-BylawParameterValueType -Value $_ -Type $parameter.Type) })
+            if ($wrong.Count -gt 0) {
+                & $Add 'BYL3028' "Parameter '$($parameter.Name)' is of type $($parameter.Type), but these allowed values are not: $($wrong -join ', ')." $parameter.Location
+            }
         }
     }
 }
@@ -197,9 +219,12 @@ function Test-BylawAssertionValue {
     $operatorName = '-' + $Assertion.DslOperator
 
     if ($value -is [BylawParamRef]) {
-        if ($null -eq $Policy.FindParameter($value.Name)) {
+        $parameter = $Policy.FindParameter($value.Name)
+        if ($null -eq $parameter) {
             & $Add 'BYL3020' "Parameter '$($value.Name)' is used but not declared. Add a Parameter $($value.Name) declaration." $value.Location
+            return
         }
+        Test-BylawParameterOperator -Parameter $parameter -DslOperator $Assertion.DslOperator -Location $value.Location -Add $Add
         return
     }
     if ($value -isnot [BylawLiteral]) {
@@ -235,6 +260,99 @@ function Test-BylawAssertionValue {
             & $Add 'BYL3016' "$operatorName needs a number, string or date string to compare with." $location
         }
     }
+}
+
+function Test-BylawParameterOperator {
+    # A parameter's type against the operator that uses it (ADR-0021).
+    param(
+        [Parameter(Mandatory)] [BylawParameter] $Parameter,
+        [Parameter(Mandatory)] [string] $DslOperator,
+        [BylawSourceLocation] $Location,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $name = $Parameter.Name
+    $type = $Parameter.Type
+    $operatorName = '-' + $DslOperator
+    $singleValue = @('Be', 'BeLike', 'Match', 'MatchCase', 'ContainText', 'ContainKey', 'BeGreaterThan', 'BeGreaterOrEqual', 'BeLessThan', 'BeLessOrEqual')
+    $comparison = @('BeGreaterThan', 'BeGreaterOrEqual', 'BeLessThan', 'BeLessOrEqual')
+    $text = @('BeLike', 'Match', 'MatchCase', 'ContainText')
+
+    if ($DslOperator -eq 'BeIn') {
+        if ($type -ne 'Array') {
+            & $Add 'BYL3024' "-BeIn needs a list, but parameter '$name' is of type $type. Declare it with -Type Array, or use -Be." $Location
+        }
+        return
+    }
+    if ($type -eq 'Array' -and $DslOperator -in $singleValue) {
+        $hint = if ($DslOperator -eq 'Be') { ' Use -BeIn to match any value in the list.' } else { '' }
+        & $Add 'BYL3023' "$operatorName compares with a single value, but parameter '$name' is an Array.$hint" $Location
+        return
+    }
+    if ($type -in 'Boolean', 'Object' -and $DslOperator -in $text) {
+        & $Add 'BYL3025' "$operatorName needs a string, but parameter '$name' is of type $type." $Location
+        return
+    }
+    if ($DslOperator -in $comparison -and $type -notin 'Integer', 'Float', 'String', 'DateTime') {
+        & $Add 'BYL3026' "$operatorName needs a number, string or date, but parameter '$name' is of type $type." $Location
+    }
+}
+
+function Test-BylawParameterValueType {
+    # Whether a PowerShell value fits an Azure parameter type (ADR-0021).
+    param([AllowNull()] [object] $Value, [Parameter(Mandatory)] [string] $Type)
+
+    if ($null -eq $Value) {
+        return $true
+    }
+    switch ($Type) {
+        'String' { return $Value -is [string] }
+        'Boolean' { return $Value -is [bool] }
+        'Integer' { return $Value -is [int] -or $Value -is [long] }
+        'Float' { return $Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal] }
+        'DateTime' {
+            if ($Value -is [datetime]) {
+                return $true
+            }
+            $parsed = [datetime]::MinValue
+            return $Value -is [string] -and [datetime]::TryParse($Value, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref] $parsed)
+        }
+        'Object' { return $Value -is [System.Collections.IDictionary] }
+        'Array' { return $Value -is [System.Collections.IEnumerable] -and $Value -isnot [string] -and $Value -isnot [System.Collections.IDictionary] }
+    }
+    $false
+}
+
+function Get-BylawUsedParameterName {
+    # Lower-cased DSL names of the parameters a policy references: Param values in assertions, the
+    # effect, and parameters('...') inside Arm expressions (ADR-0021).
+    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [BylawAssertion[]] $Assertions = @())
+
+    $values = [System.Collections.Generic.List[BylawValue]]::new()
+    foreach ($assertion in $Assertions) {
+        if ($null -ne $assertion.Value) {
+            $values.Add($assertion.Value)
+        }
+    }
+    if ($null -ne $Policy.Effect -and $null -ne $Policy.Effect.Value) {
+        $values.Add($Policy.Effect.Value)
+    }
+
+    $used = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($value in $values) {
+        if ($value -is [BylawParamRef]) {
+            $null = $used.Add($value.Name)
+        }
+        elseif ($value -is [BylawExpr]) {
+            foreach ($parameter in $Policy.Parameters) {
+                $jsonName = Get-BylawParameterJsonName -Name $parameter.Name -JsonName $parameter.JsonName
+                if ($value.Text -match ("parameters\(\s*'" + [regex]::Escape($jsonName) + "'\s*\)")) {
+                    $null = $used.Add($parameter.Name)
+                }
+            }
+        }
+    }
+    , $used
 }
 
 function Get-BylawAssertion {

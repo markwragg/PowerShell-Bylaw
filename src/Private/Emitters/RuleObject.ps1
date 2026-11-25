@@ -3,7 +3,7 @@
 $script:BylawSupportedEffects = @('Audit', 'Deny', 'Disabled')
 
 function Get-BylawParameterJsonName {
-    # Emitted parameter name (ADR-0018, proposed): JsonName if set, else the DSL name with its
+    # Emitted parameter name (ADR-0018): JsonName if set, else the DSL name with its
     # first character lower-cased (Effect -> effect, AllowedLocations -> allowedLocations).
     param([Parameter(Mandatory)] [string] $Name, [string] $JsonName)
 

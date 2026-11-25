@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-25
 decision-makers: Bylaw maintainers
 ---
@@ -23,7 +23,7 @@ Azure accepts definitions whose parameter usage is wrong, for example an `Array`
 
 ## Decision Outcome
 
-Proposed: "Errors for definite mismatches, warnings for likely mistakes".
+Chosen option: "Errors for definite mismatches, warnings for likely mistakes".
 
 **Errors:**
 

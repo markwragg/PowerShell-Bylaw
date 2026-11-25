@@ -21,8 +21,8 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0015](0015-must-operator-vocabulary.md) | Must operator names follow PowerShell expectations, not raw Azure operator names | Accepted |
 | [0016](0016-properties-mapping-and-defaults.md) | How Properties keys map into the definition, and their defaults | Accepted |
 | [0017](0017-effects-in-language-version-1-0.md) | Effects supported in Milestone 1, and how they are validated | Accepted |
-| [0018](0018-parameter-name-casing.md) | Parameter name casing in emitted JSON | Proposed |
+| [0018](0018-parameter-name-casing.md) | Parameter name casing in emitted JSON | Accepted |
 | [0019](0019-provenance-metadata.md) | Provenance metadata in emitted definitions | Proposed |
 | [0020](0020-arm-expression-helpers.md) | Which typed ARM expression helpers ship in v1 | Proposed |
-| [0021](0021-parameter-usage-validation.md) | Compile-time validation of parameter declarations and usage | Proposed |
+| [0021](0021-parameter-usage-validation.md) | Compile-time validation of parameter declarations and usage | Accepted |
 | [0022](0022-modify-role-resolution.md) | Resolving built-in role names for Modify -Role | Proposed |

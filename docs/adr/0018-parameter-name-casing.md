@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-25
 decision-makers: Bylaw maintainers
 ---
@@ -24,7 +24,7 @@ Authors declare parameters in PowerShell style (`Parameter Effect`, `Parameter A
 
 ## Decision Outcome
 
-Proposed: "Lower-case the first character, with a `JsonName` override".
+Chosen option: "Lower-case the first character, with a `JsonName` override".
 
 * `Effect` becomes `effect`, `AllowedLocations` becomes `allowedLocations`, and `VMSku` becomes `vMSku`.
 * The hashtable form of `Parameter` accepts `JsonName` to set the emitted name exactly, for example `@{ Name = 'VmSku'; JsonName = 'vmSku' }`. The decompiler sets `JsonName` whenever the original name doesn't round-trip through the rule.
