@@ -55,9 +55,11 @@ jobs:
           chmod +x "$dest/pwsh"
           echo "PWSH_MIN=$dest/pwsh" >> "$GITHUB_ENV"
 
-      - name: Bootstrap, analyze, package and test
+      # No Analyze here: PSScriptAnalyzer 1.25 needs pwsh 7.4.6+. Analysis is version-independent and
+      # already runs in the matrix job; this job proves the module itself works on the 7.2 minimum.
+      - name: Bootstrap, package and test
         run: |
-          "$PWSH_MIN" -NoProfile -Command '$PSVersionTable; ./build/build.ps1 -Task Bootstrap, Analyze, Package, Test -CI'
+          "$PWSH_MIN" -NoProfile -Command '$PSVersionTable; ./build/build.ps1 -Task Bootstrap, Package, Test -CI'
 
       - name: Upload test results
         if: always()
