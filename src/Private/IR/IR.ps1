@@ -461,6 +461,25 @@ class BylawPolicy : BylawNode {
 
 #endregion
 
+#region Front-end state
+
+class BylawFrame {
+    # One open keyword block (Policy, Resource, When, Require, Each) while the DSL runs.
+    [string] $Keyword
+    [BylawNode] $Node
+    # Field references produced in this block that no Must has consumed yet.
+    [System.Collections.Generic.List[BylawFieldRef]] $PendingFields = [System.Collections.Generic.List[BylawFieldRef]]::new()
+    # Keywords that may appear at most once in this block, and where they first appeared.
+    [hashtable] $Singletons = @{}
+
+    BylawFrame([string] $keyword, [BylawNode] $node) {
+        $this.Keyword = $keyword
+        $this.Node = $node
+    }
+}
+
+#endregion
+
 #region Diagnostics
 
 class BylawDiagnostic {
