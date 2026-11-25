@@ -32,7 +32,7 @@ enum BylawFieldKind {
     # A named field or alias: Field name.
     Field
     # The current element of a primitive array inside Each.
-    Item
+    Element
 }
 
 class BylawSourceLocation {
@@ -142,8 +142,8 @@ class BylawFieldRef : BylawNode {
     }
 
     [string] ToString() {
-        if ($this.Kind -eq [BylawFieldKind]::Item) {
-            return 'Item'
+        if ($this.Kind -eq [BylawFieldKind]::Element) {
+            return 'Element'
         }
         if ($this.Resolved) {
             return $this.Resolved

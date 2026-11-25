@@ -63,7 +63,7 @@ Chosen option: "A bundled snapshot plus an optional refreshed cache, with lookup
 1. **Reserved fields** pass through unchanged and are not aliases: `name`, `fullName`, `kind`, `type`, `location`, `id`, `identity.type`, `identity.userAssignedIdentities`, `extendedLocation`, `extendedLocation.name`, `extendedLocation.type`, `tags`, `tags['<name>']` and `tags.<name>`.
 2. **Full alias** (the name contains `/`): checked against the snapshot. The casing from the snapshot is emitted.
 3. **Short name under `Resource '<type>'`**: an exact match on `<type>/<name>`, ignoring case. Otherwise, a unique match among that type's aliases whose name ends in `/<name>`. Not every alias is prefixed with its full type path, for example `Microsoft.Compute/imagePublisher` under `Microsoft.Compute/virtualMachines`, so this is a lookup, not string concatenation. More than one match is an error that lists the candidates.
-4. **Inside `Each <array>[*]`**: `Field x` resolves to `<array alias>[*].x`, and `Item` refers to the element itself (`<array alias>[*]`), for arrays of plain values.
+4. **Inside `Each <array>[*]`**: `Field x` resolves to `<array alias>[*].x`, and `Element` refers to the element itself (`<array alias>[*]`), for arrays of plain values.
 5. **`Resource *`**: there is no type context, so only reserved fields and full aliases are allowed.
 6. **`[*]` outside `Each`** is a compile error. Azure evaluates a `[*]` field condition as "every element satisfies it", and as true for an empty array, so negating it by swapping the operator would be wrong. See ADR-0002.
 

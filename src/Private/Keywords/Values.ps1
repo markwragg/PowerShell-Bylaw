@@ -1,7 +1,7 @@
 function ConvertTo-BylawValue {
-    # Wraps a keyword argument as an IR value. Param and Expr already return BylawValue objects;
+    # Wraps a keyword argument as an IR value. Param and Arm already return BylawValue objects;
     # everything else becomes a literal. Returns $null (after recording a diagnostic) when an array
-    # mixes literals with Param/Expr references, which language version 1.0 cannot express.
+    # mixes literals with Param/Arm references, which language version 1.0 cannot express.
     param(
         [AllowNull()] [object] $Value,
         [BylawSourceLocation] $Location
@@ -13,7 +13,7 @@ function ConvertTo-BylawValue {
         $items = @($Value)
         if (@($items | Where-Object { $_ -is [BylawValue] }).Count -gt 0) {
             Add-BylawDiagnostic -Severity Error -Code 'BYL1020' -Location $Location -Message (
-                'An array value cannot mix literals with Param or Expr. Use a single array parameter instead, e.g. (Param AllowedValues).'
+                'An array value cannot mix literals with Param or Arm. Use a single array parameter instead, e.g. (Param AllowedValues).'
             )
             return $null
         }

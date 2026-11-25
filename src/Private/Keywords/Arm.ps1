@@ -1,7 +1,7 @@
-function Expr {
+function Arm {
     <#
     .SYNOPSIS
-        A raw ARM template expression, emitted verbatim, e.g. Expr "[field('location')]".
+        A raw ARM template expression, emitted verbatim, e.g. Arm "[field('location')]".
     #>
     [CmdletBinding()]
     param(
@@ -9,10 +9,10 @@ function Expr {
         [string] $Text
     )
 
-    $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Expr')
+    $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Arm')
     if ($null -eq (Get-BylawCurrentFrame)) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1001' -Location $location -Message (
-            "'Expr' can only be used inside a Policy block."
+            "'Arm' can only be used inside a Policy block."
         )
         return
     }

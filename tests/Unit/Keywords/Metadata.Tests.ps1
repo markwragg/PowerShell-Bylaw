@@ -95,7 +95,7 @@ Describe 'Parameter' {
     }
 }
 
-Describe 'Effect, Param and Expr' {
+Describe 'Effect, Param and Arm' {
     It 'takes a literal effect' {
         $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy)
         $result.Policies[0].Effect.Value.Value | Should -Be 'Deny'
@@ -119,8 +119,8 @@ Describe 'Effect, Param and Expr' {
         $result.Codes | Should -Be @('BYL1019')
     }
 
-    It 'keeps Expr text verbatim' {
-        $requirements = "Require 'r' { Field location | Must -Be (Expr `"[resourceGroup().location]`") }"
+    It 'keeps Arm text verbatim' {
+        $requirements = "Require 'r' { Field location | Must -Be (Arm `"[resourceGroup().location]`") }"
         $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Requirements $requirements)
         $result.Diagnostics | Should -BeNullOrEmpty
         $result.Policies[0].Resource.Requirements[0].Children[0].Value.Text | Should -BeExactly '[resourceGroup().location]'

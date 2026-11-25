@@ -95,7 +95,7 @@ function New-BylawAssertion {
 
     if ($InputObject -isnot [BylawFieldRef]) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1008' -Location $Location -Message (
-            'Must needs a Field (or Item inside Each) from the pipeline, e.g. Field publicNetworkAccess | Must -Be Disabled.'
+            'Must needs a Field (or Element inside Each) from the pipeline, e.g. Field publicNetworkAccess | Must -Be Disabled.'
         )
         return $null
     }
@@ -157,7 +157,7 @@ function New-BylawAssertion {
     }
     else {
         $raw = $Bound[$dslOperator]
-        # -BeIn binds as object[]; a single Param/Expr reference stays a reference, not an array.
+        # -BeIn binds as object[]; a single Param/Arm reference stays a reference, not an array.
         if ($dslOperator -eq 'BeIn' -and $raw.Count -eq 1 -and $raw[0] -is [BylawValue]) {
             $raw = $raw[0]
         }

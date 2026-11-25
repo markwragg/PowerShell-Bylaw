@@ -6,7 +6,7 @@ function Policy {
     .DESCRIPTION
         The only top-level Bylaw DSL command. The scriptblock describes the compliant state of a
         resource using the inner keywords (Properties, Parameter, Resource, When, Require, Each,
-        Field, Item, Must, Effect, Param, Expr), which exist only while the block runs.
+        Field, Element, Must, Effect, Param, Arm), which exist only while the block runs.
 
         Errors inside the block are recorded as diagnostics with file, line and keyword, and are
         reported together by Build-Bylaw.

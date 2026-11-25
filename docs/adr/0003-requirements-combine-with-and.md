@@ -29,7 +29,7 @@ Chosen option: "AND at both levels", because a compliant resource must meet *eve
 
 * Good, because the semantics are simple and predictable.
 * Good, because each `Require` description gives a named, documented reason for compliance.
-* Bad, because "either/or" requirements cannot be expressed in 1.0 without the `Expr` escape hatch.
+* Bad, because "either/or" requirements cannot be expressed in 1.0 without the `Arm` escape hatch.
 
 ### Confirmation
 

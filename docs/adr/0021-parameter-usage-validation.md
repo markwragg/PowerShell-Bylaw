@@ -13,7 +13,7 @@ Azure accepts definitions whose parameter usage is wrong, for example an `Array`
 ## Decision Drivers
 
 * Catch definite mistakes at compile time.
-* Avoid false positives that push authors towards `Expr`.
+* Avoid false positives that push authors towards `Arm`.
 
 ## Considered Options
 
@@ -46,7 +46,7 @@ Parameter types follow Azure: `String`, `Array`, `Object`, `Boolean`, `Integer`,
 ### Consequences
 
 * Good, because the most common parameter bugs become build errors.
-* Bad, because `Expr` usage can't be checked. Parameters referenced only inside `Expr` count as used, and are not validated.
+* Bad, because `Arm` usage can't be checked. Parameters referenced only inside `Arm` count as used, and are not validated.
 
 ## Pros and Cons of the Options
 

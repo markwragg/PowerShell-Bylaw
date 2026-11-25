@@ -41,8 +41,8 @@ Chosen option: "PowerShell-flavoured names that state the Azure semantics".
 | `-Strict` | strict missing-field handling inside `Each` (ADR-0004) | | only valid inside `Each` |
 
 * Each `Must` takes exactly one operator. Zero or several is a compile error.
-* `Must` takes a field reference (`Field`, or `Item` inside `Each`) from the pipeline. Anything else is a compile error.
-* A literal, `Param` or `Expr` is accepted wherever a value is expected.
+* `Must` takes a field reference (`Field`, or `Element` inside `Each`) from the pipeline. Anything else is a compile error.
+* A literal, `Param` or `Arm` is accepted wherever a value is expected.
 * A `-Match` or `-MatchCase` pattern that looks like a regex (it contains `^`, `$`, `\d`, `[`, `(` or `+`) produces a warning, because Azure treats those characters literally.
 
 ### Consequences

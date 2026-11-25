@@ -25,7 +25,7 @@ function Field {
     $field
 }
 
-function Item {
+function Element {
     <#
     .SYNOPSIS
         The current element of a primitive array inside Each. Pipe it to Must.
@@ -33,14 +33,14 @@ function Item {
     [CmdletBinding()]
     param()
 
-    $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Item')
-    $frame = Test-BylawParent -Keyword 'Item' -Allowed 'Each' -Location $location
+    $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Element')
+    $frame = Test-BylawParent -Keyword 'Element' -Allowed 'Each' -Location $location
     if ($null -eq $frame) {
         return
     }
 
     $field = [BylawFieldRef]::new()
-    $field.Kind = [BylawFieldKind]::Item
+    $field.Kind = [BylawFieldKind]::Element
     $field.Location = $location
     $frame.PendingFields.Add($field)
     $field

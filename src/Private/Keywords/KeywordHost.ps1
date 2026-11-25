@@ -10,7 +10,7 @@
 
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each',
-    'Field', 'Item', 'Must', 'Effect', 'Param', 'Expr'
+    'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm'
 )
 
 $script:BylawSessionStateProperty = [scriptblock].GetProperty(

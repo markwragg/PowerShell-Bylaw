@@ -161,8 +161,8 @@ Describe 'Values and fields' {
     It 'represents the current element of a primitive array' {
         InModuleScope Bylaw {
             $item = [BylawFieldRef]::new()
-            $item.Kind = [BylawFieldKind]::Item
-            $item.ToString() | Should -Be 'Item'
+            $item.Kind = [BylawFieldKind]::Element
+            $item.ToString() | Should -Be 'Element'
         }
     }
 }

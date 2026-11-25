@@ -69,7 +69,7 @@ Require 'second' {
     }
 }
 
-Describe 'Each and Item' {
+Describe 'Each and Element' {
     It 'records an Each block with element fields' {
         $requirements = "Require 'r' { Each networkAcls.ipRules[*] { Field value | Must -Not -Be '0.0.0.0/0' } }"
         $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Requirements $requirements)
@@ -80,12 +80,12 @@ Describe 'Each and Item' {
         $each.Children[0].Negated | Should -BeTrue
     }
 
-    It 'supports nested Each and Item' {
-        $requirements = "Require 'r' { Each networkAcls.virtualNetworkRules[*] { Each tags[*] { Item | Must -Not -Be 'x' } } }"
+    It 'supports nested Each and Element' {
+        $requirements = "Require 'r' { Each networkAcls.virtualNetworkRules[*] { Each tags[*] { Element | Must -Not -Be 'x' } } }"
         $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Requirements $requirements)
         $result.Diagnostics | Should -BeNullOrEmpty
         $inner = (Get-FirstAssertion $result).Children[0]
-        $inner.Children[0].Field.Kind.ToString() | Should -Be 'Item'
+        $inner.Children[0].Field.Kind.ToString() | Should -Be 'Element'
     }
 
     It 'requires a path ending in [*]' {
@@ -94,8 +94,8 @@ Describe 'Each and Item' {
     }
 
     It 'rejects <Case>' -ForEach @(
-        @{ Case = 'Each in When'; Requirements = "When { Each a[*] { Item | Must -Exist } }; Require 'r' { Field name | Must -Exist }" }
-        @{ Case = 'Item outside Each'; Requirements = "Require 'r' { Item | Must -Exist }" }
+        @{ Case = 'Each in When'; Requirements = "When { Each a[*] { Element | Must -Exist } }; Require 'r' { Field name | Must -Exist }" }
+        @{ Case = 'Element outside Each'; Requirements = "Require 'r' { Element | Must -Exist }" }
     ) {
         $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Requirements $Requirements)
         $result.Codes | Should -Contain 'BYL1002'

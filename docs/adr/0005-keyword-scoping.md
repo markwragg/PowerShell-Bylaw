@@ -8,7 +8,7 @@ decision-makers: Bylaw maintainers
 
 ## Context and Problem Statement
 
-The DSL uses short, generic command names (`Field`, `Resource`, `When`, `Each`, `Effect`, `Param`, `Expr`). Authors will often have Pester and other modules loaded in the same session. Exporting these names globally would pollute the session and risk clashing with other modules. How do we make the keywords available to the code inside a `Policy` scriptblock without exporting them?
+The DSL uses short, generic command names (`Field`, `Resource`, `When`, `Each`, `Effect`, `Param`, `Arm`). Authors will often have Pester and other modules loaded in the same session. Exporting these names globally would pollute the session and risk clashing with other modules. How do we make the keywords available to the code inside a `Policy` scriptblock without exporting them?
 
 ## Decision Drivers
 
@@ -32,10 +32,8 @@ Chosen option: "Inject into the caller's session state for the duration of `Poli
   * The wrapper sets `$ErrorActionPreference = 'Stop'` for the body, so that PowerShell errors (for example a misspelt `-Bee` parameter) become terminating. `Policy` can then catch and report them.
 * **Context stack.** Each keyword checks that its parent is valid, for example that `Field` is inside `When`, `Require` or `Each`, and that `Properties` is directly inside `Policy`. A violation does not throw. It records a diagnostic (`BYL1002`) with the file, line and keyword, and the build continues, so that every error is reported in one run (ADR-0013).
 * **Outside `Policy`.** On import, the module registers a `CommandNotFoundAction` handler that recognises Bylaw keyword names. It replaces the generic error with "BYL1001: '`Field`' is a Bylaw keyword and can only be used inside a Policy block". The handler chains to any previously registered handler and is removed when the module is removed.
-  * Known limitation: the handler only runs when no command of that name exists. Outside a `Policy`, a keyword name exported by another installed module resolves to that module's command (for example psake's `Properties`). Two keywords also resolve to something else first:
-    * `Item` becomes `Get-Item`, because PowerShell retries an unknown command with a `Get-` prefix, and prompts for `-Path`.
-    * `Expr` runs the native `expr` program on macOS, and on Windows when Git's tools are on the `PATH`, because command lookup is case-insensitive there.
-    Inside a `Policy` both work as keywords, because functions take precedence over cmdlets and programs.
+  * Known limitation: the handler only runs when no command of that name exists. Outside a `Policy`, a keyword name exported by another installed module resolves to that module's command (for example psake's `Properties`). Inside a `Policy` the keyword always wins, because it is defined in the nearest scope.
+  * The keywords were originally `Item` and `Expr`. They were renamed to `Element` and `Arm` because, outside a `Policy`, `Item` resolved to `Get-Item` (PowerShell retries unknown commands with a `Get-` prefix) and `Expr` resolved to the native `expr` program on macOS and Windows.
 * Nested `Policy` blocks are a compile error (`BYL1003`).
 
 ### Consequences

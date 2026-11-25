@@ -33,7 +33,7 @@ Rules:
 
 * No keyword writes JSON.
 * Every IR node carries a `SourceLocation` (file, line, column, keyword), which compiler errors report.
-* **Lossless.** The IR keeps the DSL names (for example the short alias as written), `Require` descriptions, whether a condition came from `When` or `Require`, declaration order, and `Expr` text exactly as written. It also has `Not` and generic group nodes that the front-end never produces, but which the decompiler needs.
+* **Lossless.** The IR keeps the DSL names (for example the short alias as written), `Require` descriptions, whether a condition came from `When` or `Require`, declaration order, and `Arm` text exactly as written. It also has `Not` and generic group nodes that the front-end never produces, but which the decompiler needs.
 * Passes return new or annotated nodes. They don't change the source IR in place, so the "as written" form remains available.
 * **Classes and runspaces.** PowerShell class types are compiled per runspace, so IR objects can't be passed between runspaces without losing their type identity. Since every file is compiled in its own runspace (ADR-0014), all passes and the emitter run **inside** that runspace. Only plain data crosses back to the caller: emitted text, diagnostics and summary PSCustomObjects.
 * All IR classes live in one ordered source file, because class definitions that reference each other must be parsed together.
