@@ -120,6 +120,48 @@ Describe 'ConvertTo-BylawJson (ADR-0009)' {
     }
 }
 
+Describe 'ConvertFrom-BylawJson' {
+    It 'keeps ISO date strings as strings' {
+        InModuleScope Bylaw {
+            $data = ConvertFrom-BylawJson -Json '{ "generatedAt": "2026-11-25T19:45:04Z" }'
+            $data.generatedAt | Should -BeOfType ([string])
+            $data.generatedAt | Should -BeExactly '2026-11-25T19:45:04Z'
+        }
+    }
+
+    It 'keeps key order and value types' {
+        InModuleScope Bylaw {
+            $data = ConvertFrom-BylawJson -Json '{ "z": 1, "a": [1.5, true, null, "x"], "m": {} }'
+            @($data.Keys) | Should -Be @('z', 'a', 'm')
+            $data.z | Should -BeOfType ([long])
+            $data.a[0] | Should -BeOfType ([double])
+            $data.a[1] | Should -BeTrue
+            $data.a[2] | Should -BeNullOrEmpty
+            $data.m.Count | Should -Be 0
+        }
+    }
+
+    It 'keeps a single-element array as an array' {
+        InModuleScope Bylaw {
+            $data = ConvertFrom-BylawJson -Json '{ "in": ["only"] }'
+            , $data.in | Should -BeOfType ([object[]])
+        }
+    }
+
+    It 'round-trips through the canonical writer' {
+        InModuleScope Bylaw {
+            $json = "{`n  `"b`": [`n    1,`n    `"two`"`n  ],`n  `"a`": {}`n}`n"
+            ConvertTo-BylawJson -InputObject (ConvertFrom-BylawJson -Json $json) | Should -BeExactly $json
+        }
+    }
+
+    It 'rejects duplicate keys' {
+        InModuleScope Bylaw {
+            { ConvertFrom-BylawJson -Json '{ "a": 1, "a": 2 }' } | Should -Throw "*Duplicate JSON key 'a'*"
+        }
+    }
+}
+
 Describe 'Write-BylawJsonFile' {
     It 'writes UTF-8 without BOM, creating the folder' {
         InModuleScope Bylaw -Parameters @{ Path = (Join-Path $TestDrive 'nested/out.json') } {
