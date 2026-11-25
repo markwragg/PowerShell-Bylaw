@@ -31,7 +31,8 @@ function Invoke-BylawTestScript {
 
 function Invoke-BylawTestCompile {
     # Front-end plus compiler passes for a .bylaw.ps1 script. Returns the policy, all diagnostics,
-    # and the compiled policyRule as canonical JSON (when it compiled). Uses the bundled snapshot
+    # the compiled policyRule as canonical JSON, and the EPAC emitter result (when it compiled).
+    # Emitter diagnostics are in Emitted.Diagnostics, not Diagnostics. Uses the bundled snapshot
     # unless -SnapshotPath is given.
     param(
         [Parameter(Mandatory)] [string] $Script,
@@ -47,11 +48,13 @@ function Invoke-BylawTestCompile {
         $policy = $FrontEnd.Policies | Select-Object -First 1
         $ruleObject = $null
         $ruleJson = $null
+        $emitted = $null
         if ($policy -and $FrontEnd.Diagnostics.Count -eq 0) {
             $diagnostics.AddRange([object[]] @(Invoke-BylawCompilerPass -Policy $policy -Snapshot $snapshot -AllowUnknownAlias:$Allow))
             if ($policy.Rule) {
                 $ruleObject = ConvertTo-BylawPolicyRuleObject -Policy $policy
                 $ruleJson = ConvertTo-BylawJson -InputObject $ruleObject
+                $emitted = Invoke-BylawEmitter -Policy $policy -Format Epac
             }
         }
         [pscustomobject]@{
@@ -61,6 +64,7 @@ function Invoke-BylawTestCompile {
             Errors      = @($diagnostics | Where-Object { $_.Severity.ToString() -eq 'Error' } | ForEach-Object Code)
             RuleObject  = $ruleObject
             RuleJson    = $ruleJson
+            Emitted     = $emitted
         }
     }
 }
@@ -101,16 +105,18 @@ function Format-BylawTestPolicy {
     param(
         [string] $Requirements = "Require 'r' { Field publicNetworkAccess | Must -Be 'Disabled' }",
         [string] $Extra = '',
-        [string] $Type = 'Microsoft.Storage/storageAccounts'
+        [string] $Type = 'Microsoft.Storage/storageAccounts',
+        [string] $Properties = "DisplayName = 'Test policy'",
+        [string] $Effect = 'Deny'
     )
     @"
 Policy 'test-policy' {
-    Properties @{ DisplayName = 'Test policy' }
+    Properties @{ $Properties }
     $Extra
     Resource '$Type' {
         $Requirements
     }
-    Effect Deny
+    Effect $Effect
 }
 "@
 }

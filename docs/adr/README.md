@@ -26,3 +26,4 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0020](0020-arm-expression-helpers.md) | Which typed ARM expression helpers ship in v1 | Proposed |
 | [0021](0021-parameter-usage-validation.md) | Compile-time validation of parameter declarations and usage | Accepted |
 | [0022](0022-modify-role-resolution.md) | Resolving built-in role names for Modify -Role | Proposed |
+| [0023](0023-epac-schema-conformance.md) | Conforming to the EPAC policy definition schema | Proposed |
