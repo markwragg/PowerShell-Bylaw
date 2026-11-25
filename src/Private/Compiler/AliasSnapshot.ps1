@@ -2,6 +2,7 @@
 
 $script:BylawAliasSnapshotSchemaVersion = 1
 $script:BylawAliasSnapshotCache = @{}
+$script:BylawAliasSnapshotDataCache = @{}
 
 function Get-BylawUserAliasCachePath {
     Join-Path -Path $HOME -ChildPath '.bylaw/aliases.json'
@@ -51,19 +52,88 @@ function Get-BylawAliasSnapshot {
         return $cached.Snapshot
     }
 
+    $snapshot = New-BylawAliasSnapshot -Data (Read-BylawAliasSnapshotData -Path $fullPath)
+    $script:BylawAliasSnapshotCache[$fullPath] = @{ Stamp = $stamp; Snapshot = $snapshot }
+    $snapshot
+}
+
+function Read-BylawAliasSnapshotData {
+    # Parses and checks a snapshot file. Returns plain data (no Bylaw classes), so Build-Bylaw can
+    # read the file once and hand it to every file's runspace (ADR-0014):
+    #   @{ Path; GeneratedAt; Types = Dictionary[type name -> alias names] }
+    # Only alias names are kept; walking the JSON directly is much faster than converting it all.
+    # Cached on path and last write time.
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([Parameter(Mandatory)] [string] $Path)
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if (-not [System.IO.File]::Exists($fullPath)) {
+        throw [System.IO.FileNotFoundException]::new("BYL2010: Alias snapshot '$fullPath' was not found.")
+    }
+    $stamp = [System.IO.File]::GetLastWriteTimeUtc($fullPath).Ticks
+    $cached = $script:BylawAliasSnapshotDataCache[$fullPath]
+    if ($cached -and $cached.Stamp -eq $stamp) {
+        return $cached.Data
+    }
+
+    $notSnapshot = "BYL2010: Alias snapshot '$fullPath' is not a Bylaw alias snapshot (expected schemaVersion $($script:BylawAliasSnapshotSchemaVersion) and a 'types' object). Regenerate it with Update-BylawAliasCache."
     try {
-        $data = ConvertFrom-BylawJson -Json ([System.IO.File]::ReadAllText($fullPath))
+        $document = [System.Text.Json.JsonDocument]::Parse([System.IO.File]::ReadAllText($fullPath))
     }
     catch {
         throw [System.IO.InvalidDataException]::new("BYL2010: Alias snapshot '$fullPath' is not valid JSON: $($_.Exception.Message)")
     }
-    if ($data -isnot [System.Collections.IDictionary] -or $data['schemaVersion'] -ne $script:BylawAliasSnapshotSchemaVersion -or $data['types'] -isnot [System.Collections.IDictionary]) {
-        throw [System.IO.InvalidDataException]::new(
-            "BYL2010: Alias snapshot '$fullPath' is not a Bylaw alias snapshot (expected schemaVersion $($script:BylawAliasSnapshotSchemaVersion) and a 'types' object). Regenerate it with Update-BylawAliasCache."
-        )
+    try {
+        $root = $document.RootElement
+        # TryGetProperty's out parameter needs JsonElement variables, not $null.
+        $schemaVersion = [System.Text.Json.JsonElement]::new()
+        $typesElement = [System.Text.Json.JsonElement]::new()
+        $generatedAt = [System.Text.Json.JsonElement]::new()
+        $version = 0
+        if ($root.ValueKind -ne [System.Text.Json.JsonValueKind]::Object -or
+            -not $root.TryGetProperty('schemaVersion', [ref] $schemaVersion) -or
+            $schemaVersion.ValueKind -ne [System.Text.Json.JsonValueKind]::Number -or
+            -not $schemaVersion.TryGetInt32([ref] $version) -or
+            $version -ne $script:BylawAliasSnapshotSchemaVersion -or
+            -not $root.TryGetProperty('types', [ref] $typesElement) -or
+            $typesElement.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+            throw [System.IO.InvalidDataException]::new($notSnapshot)
+        }
+        $generated = ''
+        if ($root.TryGetProperty('generatedAt', [ref] $generatedAt) -and $generatedAt.ValueKind -eq [System.Text.Json.JsonValueKind]::String) {
+            $generated = $generatedAt.GetString()
+        }
+
+        $types = [System.Collections.Generic.Dictionary[string, string[]]]::new([System.StringComparer]::Ordinal)
+        foreach ($type in $typesElement.EnumerateObject()) {
+            $names = [System.Collections.Generic.List[string]]::new()
+            $aliases = [System.Text.Json.JsonElement]::new()
+            if ($type.Value.ValueKind -eq [System.Text.Json.JsonValueKind]::Object -and
+                $type.Value.TryGetProperty('aliases', [ref] $aliases) -and
+                $aliases.ValueKind -eq [System.Text.Json.JsonValueKind]::Object) {
+                foreach ($alias in $aliases.EnumerateObject()) {
+                    $names.Add($alias.Name)
+                }
+            }
+            $types[$type.Name] = $names.ToArray()
+        }
+    }
+    finally {
+        $document.Dispose()
     }
 
-    $snapshot = [BylawAliasSnapshot]::new($fullPath, [string] $data['generatedAt'], $data['types'])
-    $script:BylawAliasSnapshotCache[$fullPath] = @{ Stamp = $stamp; Snapshot = $snapshot }
-    $snapshot
+    $data = @{ Path = $fullPath; GeneratedAt = $generated; Types = $types }
+    $script:BylawAliasSnapshotDataCache[$fullPath] = @{ Stamp = $stamp; Data = $data }
+    $data
+}
+function New-BylawAliasSnapshot {
+    # A snapshot object from Read-BylawAliasSnapshotData output. The data is only read, never
+    # changed, so several runspaces can share it one after another.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory object only.')]
+    [CmdletBinding()]
+    [OutputType([BylawAliasSnapshot])]
+    param([Parameter(Mandatory)] [hashtable] $Data)
+
+    [BylawAliasSnapshot]::new($Data.Path, $Data.GeneratedAt, $Data.Types)
 }

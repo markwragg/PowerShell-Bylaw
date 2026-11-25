@@ -470,7 +470,7 @@ class BylawAliasSnapshot {
     [string] $Path
     [string] $GeneratedAt
 
-    # Parsed 'types' object: type name -> @{ aliases = @{ alias name -> @{ modifiable; type } } }.
+    # Type name -> alias names, from Read-BylawAliasSnapshotData.
     hidden [System.Collections.IDictionary] $Types
     # Case-insensitive indexes, built lazily so a full snapshot only pays for the types a build uses.
     hidden [System.Collections.Generic.Dictionary[string, string]] $TypeNames
@@ -506,11 +506,8 @@ class BylawAliasSnapshot {
         }
         $index = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         if ($canonicalType) {
-            $entry = $this.Types[$canonicalType]
-            if ($entry -is [System.Collections.IDictionary] -and $entry['aliases'] -is [System.Collections.IDictionary]) {
-                foreach ($alias in $entry['aliases'].Keys) {
-                    $index[$alias] = $alias
-                }
+            foreach ($alias in $this.Types[$canonicalType]) {
+                $index[$alias] = $alias
             }
             $this.TypeIndex[$canonicalType] = $index
         }
