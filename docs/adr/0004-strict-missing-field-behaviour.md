@@ -51,48 +51,68 @@ For a compliant condition `P` on field `f`:
 * **Strict:** violation = `anyOf[ {f exists: false}, inv(P) ]`
 * **Lenient:** violation = `allOf[ {f exists: true}, inv(P) ]`
 
-The guard is **omitted** when the inverted operator already gives the required result on a missing field. Omitting a guard is only an optimisation: adding a redundant guard never changes the result. So the compiler only omits a guard for operators whose missing-field behaviour is in the "omit" column below. Comparison operators always keep their guards, because their null behaviour is not documented and they may throw an error.
+The guard is **omitted** when the inverted operator already gives the required result on a missing field. Omitting a guard is only an optimisation, because a redundant guard never changes the result.
+
+### Observed behaviour on a missing field
+
+These results come from a sandbox run on 2026-11-25. The full table is in [assets/0004-missing-field-results.md](assets/0004-missing-field-results.md).
+
+* Every operator pair is an exact complement on a missing field: one side is true and the other is false. Every pair is also a complement on a present value.
+* These operators are **false** on a missing field: `equals`, `in`, `like`, `match`, `matchInsensitively`, `contains`, `containsKey`, `greater`, `less` and `exists: true`.
+* Their complements are **true** on a missing field: `notEquals`, `notIn`, `notLike`, `notMatch`, `notMatchInsensitively`, `notContains`, `notContainsKey`, `lessOrEquals`, `greaterOrEquals` and `exists: false`.
+* The comparison operators are the surprising case. `greaterOrEquals` and `lessOrEquals` are *true* on a missing field, with string and numeric operands alike, and no error is raised. They behave as "not less" and "not greater".
+* **Comparing types that don't match** (a numeric operand against a present string value) gives the compliance state `Error`. The bundled alias snapshot doesn't record property types, so this can't be caught at compile time.
+* **An empty value (`""`) is present, not missing.** `exists` is true for it, and every other operator treats it as an ordinary string. Bylaw's "missing" means *absent*. An author who wants a non-empty value writes `Must -Not -Be ''` in addition.
+
+This gives a single guard rule:
+
+* **Strict:** add `exists: false` when the inverted operator is one that is false on a missing field.
+* **Lenient:** add `exists: true` when the inverted operator is one that is true on a missing field.
 
 ### Truth table (language version 1.0)
 
-`inv(P)` on missing = what the inverted operator is *expected* to return for a missing field.
-
 | Compliant (`Must ...`) | Inverted operator | `inv(P)` on missing | Strict violation | Lenient violation | Verified |
 |---|---|---|---|---|---|
-| `-Be v` | `notEquals` | true | `notEquals v` | `allOf[exists:true, notEquals v]` | pending |
-| `-Not -Be v` | `equals` | false | `anyOf[exists:false, equals v]` | `equals v` | pending |
-| `-BeIn a` | `notIn` | true | `notIn a` | `allOf[exists:true, notIn a]` | pending |
-| `-Not -BeIn a` | `in` | false | `anyOf[exists:false, in a]` | `in a` | pending |
-| `-BeLike p` | `notLike` | true | `notLike p` | `allOf[exists:true, notLike p]` | pending |
-| `-Not -BeLike p` | `like` | false | `anyOf[exists:false, like p]` | `like p` | pending |
-| `-Match p` | `notMatchInsensitively` | true | `notMatchInsensitively p` | `allOf[exists:true, notMatchInsensitively p]` | pending |
-| `-Not -Match p` | `matchInsensitively` | false | `anyOf[exists:false, matchInsensitively p]` | `matchInsensitively p` | pending |
-| `-MatchCase p` | `notMatch` | true | `notMatch p` | `allOf[exists:true, notMatch p]` | pending |
-| `-Not -MatchCase p` | `match` | false | `anyOf[exists:false, match p]` | `match p` | pending |
-| `-ContainText s` | `notContains` | true | `notContains s` | `allOf[exists:true, notContains s]` | pending |
-| `-Not -ContainText s` | `contains` | false | `anyOf[exists:false, contains s]` | `contains s` | pending |
-| `-ContainKey k` | `notContainsKey` | true | `notContainsKey k` | `allOf[exists:true, notContainsKey k]` | pending |
-| `-Not -ContainKey k` | `containsKey` | false | `anyOf[exists:false, containsKey k]` | `containsKey k` | pending |
-| `-BeGreaterThan n` | `lessOrEquals` | unknown | `anyOf[exists:false, lessOrEquals n]` | `allOf[exists:true, lessOrEquals n]` | pending |
-| `-BeGreaterOrEqual n` | `less` | unknown | `anyOf[exists:false, less n]` | `allOf[exists:true, less n]` | pending |
-| `-BeLessThan n` | `greaterOrEquals` | unknown | `anyOf[exists:false, greaterOrEquals n]` | `allOf[exists:true, greaterOrEquals n]` | pending |
-| `-BeLessOrEqual n` | `greater` | unknown | `anyOf[exists:false, greater n]` | `allOf[exists:true, greater n]` | pending |
-| `-Exist` | `exists: false` | n/a | `exists: false` | `-IfPresent` is an error | pending |
-| `-Not -Exist` | `exists: true` | n/a | `exists: true` | `-IfPresent` is an error | pending |
+| `-Be v` | `notEquals` | true | `notEquals v` | `allOf[exists:true, notEquals v]` | tag |
+| `-Not -Be v` | `equals` | false | `anyOf[exists:false, equals v]` | `equals v` | tag |
+| `-BeIn a` | `notIn` | true | `notIn a` | `allOf[exists:true, notIn a]` | tag |
+| `-Not -BeIn a` | `in` | false | `anyOf[exists:false, in a]` | `in a` | tag |
+| `-BeLike p` | `notLike` | true | `notLike p` | `allOf[exists:true, notLike p]` | tag |
+| `-Not -BeLike p` | `like` | false | `anyOf[exists:false, like p]` | `like p` | tag |
+| `-Match p` | `notMatchInsensitively` | true | `notMatchInsensitively p` | `allOf[exists:true, notMatchInsensitively p]` | tag |
+| `-Not -Match p` | `matchInsensitively` | false | `anyOf[exists:false, matchInsensitively p]` | `matchInsensitively p` | tag |
+| `-MatchCase p` | `notMatch` | true | `notMatch p` | `allOf[exists:true, notMatch p]` | tag |
+| `-Not -MatchCase p` | `match` | false | `anyOf[exists:false, match p]` | `match p` | tag |
+| `-ContainText s` | `notContains` | true | `notContains s` | `allOf[exists:true, notContains s]` | tag |
+| `-Not -ContainText s` | `contains` | false | `anyOf[exists:false, contains s]` | `contains s` | tag |
+| `-ContainKey k` | `notContainsKey` | true | `notContainsKey k` | `allOf[exists:true, notContainsKey k]` | tag |
+| `-Not -ContainKey k` | `containsKey` | false | `anyOf[exists:false, containsKey k]` | `containsKey k` | tag |
+| `-BeGreaterThan n` | `lessOrEquals` | true | `lessOrEquals n` | `allOf[exists:true, lessOrEquals n]` | tag |
+| `-Not -BeGreaterThan n` | `greater` | false | `anyOf[exists:false, greater n]` | `greater n` | tag |
+| `-BeGreaterOrEqual n` | `less` | false | `anyOf[exists:false, less n]` | `less n` | tag |
+| `-Not -BeGreaterOrEqual n` | `greaterOrEquals` | true | `greaterOrEquals n` | `allOf[exists:true, greaterOrEquals n]` | tag |
+| `-BeLessThan n` | `greaterOrEquals` | true | `greaterOrEquals n` | `allOf[exists:true, greaterOrEquals n]` | tag |
+| `-Not -BeLessThan n` | `less` | false | `anyOf[exists:false, less n]` | `less n` | tag |
+| `-BeLessOrEqual n` | `greater` | false | `anyOf[exists:false, greater n]` | `greater n` | tag |
+| `-Not -BeLessOrEqual n` | `lessOrEquals` | true | `lessOrEquals n` | `allOf[exists:true, lessOrEquals n]` | tag |
+| `-Exist` | `exists: false` | true | `exists: false` | `-IfPresent` is an error | tag |
+| `-Not -Exist` | `exists: true` | false | `exists: true` | `-IfPresent` is an error | tag |
 
-The `-Not` forms of the comparison operators follow the same pattern. `-Not -BeGreaterThan n` inverts to `greater n`, with guards in both modes.
+"tag" in the Verified column means the row was measured on a missing **tag** (`tags['x']`). It has not yet been measured on a missing **alias property** (see Confirmation).
 
 ### Consequences
 
 * Good, because policies fail closed unless the author opts out explicitly.
 * Good, because the common cases compile to the same minimal JSON a careful human would write.
-* Bad, because the guard-omission column relies on observed Azure behaviour, not documented behaviour. If verification shows a different result, the table and the golden files change.
+* Bad, because the guard-omission rule relies on observed Azure behaviour, not documented behaviour. If Azure changes, or if missing alias properties behave differently from missing tags, the table and the golden files change. The verification script can be re-run at any time.
 * Bad, because the element-level default inside `Each` differs from the top-level default. This must be documented clearly in the README.
 
 ### Confirmation
 
 * Unit tests cover every row of the table, in strict and lenient form.
-* **Empirical verification is pending.** [build/verify-missing-field](../../build/verify-missing-field/README.md) deploys one Audit-effect policy per operator and field case to a sandbox subscription. The cases cover a present tag (the control), an empty tag, a missing tag and a missing alias. The results go into the "Verified" column. A property that is present but `null` is only covered if a suitable alias is passed with `-ExtraField`. Until then, the "Verified" column reads `pending`.
+* **Empirical verification.** [build/verify-missing-field](../../build/verify-missing-field/README.md) deploys one Audit-effect policy per operator and field case to a sandbox subscription. The first run (2026-11-25) gave valid results: every control answer on the present tag matched expectations. That run verified every row of the table for a missing tag.
+* **Still open: missing alias properties.** In the first run, the cross-type alias case (`Microsoft.Storage/storageAccounts/publicNetworkAccess` evaluated against a route table) produced no compliance state at all. A likely cause is that Azure treats a resource as not applicable when the rule references an alias of a different type, but this hasn't been confirmed. A second run should use a missing alias of the resource's **own** type, passed with `-ExtraField`. If that run differs from the tag results, this ADR and the golden files must be updated. Until then, the compiler implements the table as written.
+* Properties that are present but `null` remain unmeasured.
 
 ## Pros and Cons of the Options
 

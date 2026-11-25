@@ -211,7 +211,9 @@ function Invoke-Deploy {
     }
 
     $rejectedPath = Join-Path $OutputPath 'missing-field-rejected.json'
-    $rejected | ConvertTo-Json -Depth 5 | Set-Content -Path $rejectedPath -Encoding utf8NoBOM
+    # Always write the file (as [] when nothing was rejected) so Collect can tell "none rejected"
+    # apart from "Deploy output not found".
+    ConvertTo-Json -InputObject @($rejected) -Depth 5 | Set-Content -Path $rejectedPath -Encoding utf8NoBOM
 
     if ($members.Count -eq 0) {
         throw 'No policy definitions were created; nothing to assign.'
@@ -271,11 +273,14 @@ function Invoke-Collect {
     $rejectedById = @{}
     if (Test-Path $rejectedPath) {
         $rejectedJson = Get-Content -Path $rejectedPath -Raw
-        if ($rejectedJson.Trim()) {
+        if ($rejectedJson -and $rejectedJson.Trim()) {
             foreach ($item in @($rejectedJson | ConvertFrom-Json)) {
                 $rejectedById[$item.ReferenceId] = $item.Error
             }
         }
+    }
+    else {
+        Write-Warning "$rejectedPath not found: rejected definitions will be reported as 'missing'. Use the same -OutputPath as Deploy."
     }
 
     $results = foreach ($case in Get-VerificationCase) {
