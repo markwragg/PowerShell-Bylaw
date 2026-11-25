@@ -92,7 +92,7 @@ The `-Not` forms of the comparison operators follow the same pattern. `-Not -BeG
 ### Confirmation
 
 * Unit tests cover every row of the table, in strict and lenient form.
-* **Empirical verification is pending.** A verification script (added in a follow-up step) deploys one Audit-effect policy per row to a sandbox subscription, against a resource that lacks the field. It records the compliance results in the "Verified" column. It also checks whether `exists` treats a property that is present but `null` the same as a missing one. Until then, the "Verified" column reads `pending`.
+* **Empirical verification is pending.** [build/verify-missing-field](../../build/verify-missing-field/README.md) deploys one Audit-effect policy per operator and field case to a sandbox subscription. The cases cover a present tag (the control), an empty tag, a missing tag and a missing alias. The results go into the "Verified" column. A property that is present but `null` is only covered if a suitable alias is passed with `-ExtraField`. Until then, the "Verified" column reads `pending`.
 
 ## Pros and Cons of the Options
 
