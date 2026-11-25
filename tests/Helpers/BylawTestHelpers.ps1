@@ -29,6 +29,64 @@ function Invoke-BylawTestScript {
     }
 }
 
+function Invoke-BylawTestCompile {
+    # Front-end plus compiler passes for a .bylaw.ps1 script. Returns the policy, all diagnostics,
+    # and the compiled policyRule as canonical JSON (when it compiled). Uses the bundled snapshot
+    # unless -SnapshotPath is given.
+    param(
+        [Parameter(Mandatory)] [string] $Script,
+        [string] $SnapshotPath = (Join-Path $PSScriptRoot '../../src/Data/aliases.json'),
+        [switch] $AllowUnknownAlias
+    )
+    $frontEnd = Invoke-BylawTestScript -Script $Script
+    InModuleScope Bylaw -Parameters @{ FrontEnd = $frontEnd; SnapshotPath = $SnapshotPath; Allow = $AllowUnknownAlias.IsPresent } {
+        param($FrontEnd, $SnapshotPath, $Allow)
+        $snapshot = Get-BylawAliasSnapshot -Path $SnapshotPath
+        $diagnostics = [System.Collections.Generic.List[object]]::new()
+        $diagnostics.AddRange([object[]] @($FrontEnd.Diagnostics))
+        $policy = $FrontEnd.Policies | Select-Object -First 1
+        $ruleObject = $null
+        $ruleJson = $null
+        if ($policy -and $FrontEnd.Diagnostics.Count -eq 0) {
+            $diagnostics.AddRange([object[]] @(Invoke-BylawCompilerPass -Policy $policy -Snapshot $snapshot -AllowUnknownAlias:$Allow))
+            if ($policy.Rule) {
+                $ruleObject = ConvertTo-BylawPolicyRuleObject -Policy $policy
+                $ruleJson = ConvertTo-BylawJson -InputObject $ruleObject
+            }
+        }
+        [pscustomobject]@{
+            Policy      = $policy
+            Diagnostics = $diagnostics.ToArray()
+            Codes       = @($diagnostics | ForEach-Object Code)
+            Errors      = @($diagnostics | Where-Object { $_.Severity.ToString() -eq 'Error' } | ForEach-Object Code)
+            RuleObject  = $ruleObject
+            RuleJson    = $ruleJson
+        }
+    }
+}
+
+function Format-BylawTestCondition {
+    # Compact text for a condition object, in the notation of the ADR-0004 truth table:
+    # 'anyOf[exists:false, equals]', 'notEquals', 'count>0(where: ...)'.
+    param([Parameter(Mandatory)] [System.Collections.IDictionary] $Condition)
+
+    foreach ($kind in 'allOf', 'anyOf') {
+        if ($Condition.Contains($kind)) {
+            $children = foreach ($child in $Condition[$kind]) { Format-BylawTestCondition -Condition $child }
+            return "$kind[$($children -join ', ')]"
+        }
+    }
+    if ($Condition.Contains('count')) {
+        $where = Format-BylawTestCondition -Condition $Condition['count']['where']
+        return "count(where: $where)"
+    }
+    $operator = @($Condition.Keys | Where-Object { $_ -ne 'field' })[0]
+    if ($operator -eq 'exists') {
+        return "exists:$(([string] $Condition[$operator]).ToLowerInvariant())"
+    }
+    $operator
+}
+
 function Get-BylawLeakedKeyword {
     # A Bylaw keyword function still visible outside Policy: defined by Bylaw or by no module.
     # Reads the function: drive so it never auto-loads other modules.
