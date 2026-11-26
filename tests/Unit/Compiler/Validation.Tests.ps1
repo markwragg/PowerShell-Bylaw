@@ -116,7 +116,7 @@ Describe 'Validation pass' {
     }
 }
 
-Describe 'Policy names (ADR-0028)' {
+Describe 'Policy names (ADR-0010)' {
     It 'accepts <Name>' -ForEach @(
         @{ Name = 'Deny-Storage-minTLS' }
         @{ Name = 'storage-deny-public-network-access' }
@@ -139,7 +139,7 @@ Describe 'Policy names (ADR-0028)' {
         $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy '$($name.Replace("'", "''"))'")
         $diagnostic = $result.Diagnostics | Where-Object Code -EQ 'BYL3001'
         $diagnostic.Message | Should -BeLike "*contains '$([WildcardPattern]::Escape($Character))'*"
-        $diagnostic.Message | Should -BeLike '*ADR-0028*'
+        $diagnostic.Message | Should -BeLike '*ADR-0010*'
     }
 
     It 'lists each invalid character once' {
@@ -165,7 +165,7 @@ Describe 'Policy names (ADR-0028)' {
     It 'reports BYL3001 at the Policy for an invalid name' {
         $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy 'Deny-Storage '")
         $diagnostic = $result.Diagnostics | Where-Object Code -EQ 'BYL3001'
-        $diagnostic.Message | Should -Be "Policy name 'Deny-Storage ' starts or ends with a space (ADR-0028)."
+        $diagnostic.Message | Should -Be "Policy name 'Deny-Storage ' starts or ends with a space (ADR-0010)."
         $diagnostic.Location.Keyword | Should -Be 'Policy'
     }
 }

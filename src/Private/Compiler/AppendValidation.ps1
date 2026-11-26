@@ -1,4 +1,4 @@
-# Validation of Append blocks (ADR-0030). Called by Invoke-BylawValidation after alias resolution.
+# Validation of Append blocks (ADR-0029). Called by Invoke-BylawValidation after alias resolution.
 
 function Test-BylawAppend {
     param(

@@ -1,4 +1,4 @@
-# DenyAction and Manual (ADR-0029): keywords that take the place of Effect.
+# DenyAction and Manual (ADR-0028): keywords that take the place of Effect.
 
 # Resources tagged as protected can't be deleted, nor can their resource group. -CascadeBehavior
 # needs Mode Indexed. A literal effect gets a generated effect parameter: DenyAction, Disabled.
@@ -50,7 +50,7 @@ Policy 'golden-manual' {
     Manual -DefaultState NonCompliant
 }
 
-# Append (ADR-0030): a scalar field, and an object added to a [*] array. Each added field is
+# Append (ADR-0029): a scalar field, and an object added to a [*] array. Each added field is
 # checked by a Require. The details are an array, as Azure requires (BYL4010).
 Policy 'golden-append' {
 

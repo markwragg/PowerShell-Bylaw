@@ -26,7 +26,7 @@ function Get-BylawEpacEffectParameter {
         return $null
     }
     # A keyword in place of Effect allows its own effect and Disabled, as built-in policies do
-    # (ADR-0024, ADR-0029).
+    # (ADR-0024, ADR-0028).
     $supported = Get-BylawAllowedEffect -Effect $Policy.Effect -Generated
     $generated = [BylawParameter]::new('effect')
     $generated.JsonName = 'effect'
@@ -68,7 +68,7 @@ function Test-BylawEpacPolicy {
         return
     }
     if ($Policy.Effect -is [BylawAppend]) {
-        & $new 'BYL4010' "Append details are an array, as Azure requires. EPAC deploys it, but the EPAC schema says details is an object, so editors will flag the file (ADR-0030)." $Policy.Effect.Location ([BylawSeverity]::Warning)
+        & $new 'BYL4010' "Append details are an array, as Azure requires. EPAC deploys it, but the EPAC schema says details is an object, so editors will flag the file (ADR-0029)." $Policy.Effect.Location ([BylawSeverity]::Warning)
     }
     $effectValue = $Policy.Effect.Value
     if ($effectValue -is [BylawExpr]) {

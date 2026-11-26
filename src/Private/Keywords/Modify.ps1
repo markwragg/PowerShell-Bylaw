@@ -227,7 +227,7 @@ function Remove {
 
 function Test-BylawModifyOnlyParent {
     # The frame for AddOrReplace and Remove, which only Modify has. In Append, BYL1036 explains that
-    # Append only adds (ADR-0030).
+    # Append only adds (ADR-0029).
     param([Parameter(Mandatory)] [string] $Keyword, [BylawSourceLocation] $Location)
 
     $current = Get-BylawCurrentFrame

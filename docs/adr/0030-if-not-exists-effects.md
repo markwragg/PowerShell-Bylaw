@@ -8,7 +8,7 @@ decision-makers: Bylaw maintainers
 
 ## Context and Problem Statement
 
-`auditIfNotExists` and `deployIfNotExists` check a *related* resource: for a virtual machine, its antimalware extension; for a database, its encryption settings. `details.type` and the optional `name`, `resourceGroupName` and `existenceScope` say which related resources to look at. `details.existenceCondition` says what a related resource must look like. Learn: "If any matching related resource evaluates to true, the effect is satisfied". `deployIfNotExists` adds roles and a template deployment (ADR-0032). 74 of the 149 custom definitions in the Azure Landing Zones Library use `deployIfNotExists`. How are these effects written, and how is the existence condition compiled?
+`auditIfNotExists` and `deployIfNotExists` check a *related* resource: for a virtual machine, its antimalware extension; for a database, its encryption settings. `details.type` and the optional `name`, `resourceGroupName` and `existenceScope` say which related resources to look at. `details.existenceCondition` says what a related resource must look like. Learn: "If any matching related resource evaluates to true, the effect is satisfied". `deployIfNotExists` adds roles and a template deployment (ADR-0031). 74 of the 149 custom definitions in the Azure Landing Zones Library use `deployIfNotExists`. How are these effects written, and how is the existence condition compiled?
 
 ## Decision Drivers
 
@@ -56,7 +56,7 @@ AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
 
 ### The existence condition
 
-* The block holds `Require` blocks, which all must hold, as in `Resource`. Inside them, `Field`, `Tag`, `Each`, `AnyOf`, `AllOf`, `Count` (ADR-0033) and value conditions work as they do in a `Resource`. `When` isn't allowed: there is no applicability for a related resource.
+* The block holds `Require` blocks, which all must hold, as in `Resource`. Inside them, `Field`, `Tag`, `Each`, `AnyOf`, `AllOf`, `Count` (ADR-0032) and value conditions work as they do in a `Resource`. `When` isn't allowed: there is no applicability for a related resource.
 * Field names resolve against `-Type`, the related resource. Reserved fields such as `name` and `type` are the related resource's.
 * The block is optional. Without it there is no `existenceCondition`, and any related resource of the type satisfies the effect.
 * **The existence condition isn't inverted.** The `Require` blocks are emitted as the compliant condition they describe: `Must -Be 'x'` emits `equals 'x'`. This is the one place where `Require` compiles to the compliant form rather than the violation (ADR-0002).
@@ -65,7 +65,7 @@ AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
 ### The effect
 
 * `AuditIfNotExists` emits the effect `AuditIfNotExists`. `-Effect (Param Effect)` may allow `AuditIfNotExists` and `Disabled`.
-* `DeployIfNotExists` emits the effect `DeployIfNotExists`, and also takes `-Role` (ADR-0022) and a deployment (ADR-0032). `-Effect (Param Effect)` may allow `DeployIfNotExists`, `AuditIfNotExists` and `Disabled`. Two ALZ policies allow all three.
+* `DeployIfNotExists` emits the effect `DeployIfNotExists`, and also takes `-Role` (ADR-0022) and a deployment (ADR-0031). `-Effect (Param Effect)` may allow `DeployIfNotExists`, `AuditIfNotExists` and `Disabled`. Two ALZ policies allow all three.
 * A literal effect gets a generated EPAC parameter: `AuditIfNotExists` and `Disabled`, or `DeployIfNotExists` and `Disabled`. These are the values built-in and ALZ policies use: 70 of the 74 ALZ DeployIfNotExists policies allow exactly those two.
 
 ### Consequences
@@ -100,4 +100,4 @@ AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
 ## More Information
 
 * [AuditIfNotExists effect](https://learn.microsoft.com/azure/governance/policy/concepts/effect-audit-if-not-exists), [DeployIfNotExists effect](https://learn.microsoft.com/azure/governance/policy/concepts/effect-deploy-if-not-exists)
-* Related: [ADR-0002](0002-desired-state-semantics.md), [ADR-0004](0004-strict-missing-field-behaviour.md), [ADR-0022](0022-modify-role-resolution.md), [ADR-0032](0032-deployment-templates.md), [ADR-0033](0033-count-expressions.md)
+* Related: [ADR-0002](0002-desired-state-semantics.md), [ADR-0004](0004-strict-missing-field-behaviour.md), [ADR-0022](0022-modify-role-resolution.md), [ADR-0031](0031-deployment-templates.md), [ADR-0032](0032-count-expressions.md)

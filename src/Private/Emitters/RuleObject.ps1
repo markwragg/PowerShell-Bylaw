@@ -169,7 +169,7 @@ function ConvertTo-BylawPolicyRuleObject {
         $thenObject['details'] = ConvertTo-BylawModifyDetailsObject -Modify $then -Policy $Policy
     }
     elseif ($then -is [BylawAppend]) {
-        # [ { field, value } ], in the order written (ADR-0030).
+        # [ { field, value } ], in the order written (ADR-0029).
         $operations = foreach ($operation in $then.Operations) {
             [ordered]@{
                 field = Get-BylawFieldName -Field $operation.Field
@@ -179,7 +179,7 @@ function ConvertTo-BylawPolicyRuleObject {
         $thenObject['details'] = [object[]] @($operations)
     }
     elseif ($then -is [BylawDenyAction]) {
-        # { actionNames, cascadeBehaviors? }, in Learn's order (ADR-0029).
+        # { actionNames, cascadeBehaviors? }, in Learn's order (ADR-0028).
         $details = [ordered]@{ actionNames = [object[]] @($then.ActionNames) }
         if ($then.CascadeBehavior) {
             $details['cascadeBehaviors'] = [ordered]@{ resourceGroup = $then.CascadeBehavior }

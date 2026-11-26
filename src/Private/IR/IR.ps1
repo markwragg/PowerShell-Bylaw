@@ -368,7 +368,7 @@ class BylawModify : BylawEffect {
 }
 
 class BylawAppend : BylawEffect {
-    # Append { Field x | Add v } (ADR-0030). Value is the literal 'Append', or the -Effect parameter
+    # Append { Field x | Add v } (ADR-0029). Value is the literal 'Append', or the -Effect parameter
     # or expression. Operations are BylawModifyOperation objects with Operation 'add' and no
     # Condition, in the order written.
     [System.Collections.Generic.List[object]] $Operations = [System.Collections.Generic.List[object]]::new()
@@ -379,7 +379,7 @@ class BylawAppend : BylawEffect {
 }
 
 class BylawDenyAction : BylawEffect {
-    # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0029). Value is the literal 'DenyAction',
+    # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0028). Value is the literal 'DenyAction',
     # or the -Effect parameter or expression.
     # Action names as emitted: 'delete'.
     [string[]] $ActionNames = @()
@@ -392,7 +392,7 @@ class BylawDenyAction : BylawEffect {
 }
 
 class BylawManual : BylawEffect {
-    # Manual [-DefaultState Unknown|Compliant|NonCompliant] (ADR-0029). Value is the literal
+    # Manual [-DefaultState Unknown|Compliant|NonCompliant] (ADR-0028). Value is the literal
     # 'Manual', or the -Effect parameter or expression.
     # 'Unknown', 'Compliant' or 'Non-compliant' as emitted, or $null when not set.
     [string] $DefaultState

@@ -236,7 +236,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 
 | Keyword | Purpose |
 |---|---|
-| `Policy 'name' { }` | One policy definition. The name becomes the definition's `name` and its file name, so renaming it creates a new definition. Any name Azure accepts that is also a safe file name works, such as `Deny-Storage-minTLS` (ADR-0028); lowercase with hyphens is the suggested style for new policies. Names are unique across a build, ignoring case. |
+| `Policy 'name' { }` | One policy definition. The name becomes the definition's `name` and its file name, so renaming it creates a new definition. Any name Azure accepts that is also a safe file name works, such as `Deny-Storage-minTLS` (ADR-0010); lowercase with hyphens is the suggested style for new policies. Names are unique across a build, ignoring case. |
 | `Properties @{ }` | `DisplayName`, `Description`, `Category`, `Version`, `Mode`, `Preview`, `Deprecated`, `Metadata`. EPAC output needs `Category` and `Version`. `Mode` is `All` (the default) or `Indexed`. Unknown keys fail the build. |
 | `Parameter Name` | A policy parameter, with `-Type`, `-AllowedValues`, `-Default`, `-DisplayName`, `-Description`. `AllowedLocations` is emitted as `allowedLocations`. |
 | `Resource 'type' { }` | The resource type the rule applies to, and the type short field names resolve against. `Resource *` applies to every type; use standard fields such as `location`, or full aliases. |

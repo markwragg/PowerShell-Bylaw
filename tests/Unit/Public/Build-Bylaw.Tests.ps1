@@ -67,7 +67,7 @@ Describe 'Build-Bylaw output' {
         @(Get-ChildItem -LiteralPath $Out -Recurse -File).Count | Should -Be 2
     }
 
-    It 'keeps the case and spaces of a name in the definition and the file name (ADR-0028)' {
+    It 'keeps the case and spaces of a name in the definition and the file name (ADR-0010)' {
         $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText -Name 'Deny-Storage minTLS' }
         $out = Join-Path $project 'out'
         $result = Build-Bylaw -Path $project -OutputPath $out -PassThru

@@ -1,4 +1,4 @@
-# Append block (ADR-0030). Append takes the place of Effect; its Add operations take the field from
+# Append block (ADR-0029). Append takes the place of Effect; its Add operations take the field from
 # the pipeline, as in Modify.
 
 function Append {

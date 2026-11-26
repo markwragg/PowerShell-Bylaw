@@ -15,7 +15,7 @@ function Policy {
     .PARAMETER Name
         The definition name. It is the definition's identity and output file name, so renaming it
         creates a new definition. 1 to 64 characters, without < > * % & : \ ? . + / " | or control
-        characters, and not starting or ending with a space (ADR-0028).
+        characters, and not starting or ending with a space (ADR-0010).
 
     .PARAMETER Body
         The policy description.

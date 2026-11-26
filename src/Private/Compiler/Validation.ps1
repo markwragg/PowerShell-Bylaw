@@ -1,15 +1,15 @@
-# Validation pass (ADR-0028, ADR-0015, ADR-0016, ADR-0017, plus Azure limits).
+# Validation pass (ADR-0010, ADR-0015, ADR-0016, ADR-0017, plus Azure limits).
 #
 # Invoke-BylawValidation checks the DSL layer after alias resolution. Test-BylawRuleLimit checks
 # the compiled rule against the limits Azure enforces when a definition is created.
 
 $script:BylawLaterEffects = [ordered]@{
     Modify            = "Modify has its own block, which takes the place of Effect: Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' } (ADR-0024)."
-    Append            = 'Append has its own block, which takes the place of Effect: Append { Field supportsHttpsTrafficOnly | Add $true } (ADR-0030).'
+    Append            = 'Append has its own block, which takes the place of Effect: Append { Field supportsHttpsTrafficOnly | Add $true } (ADR-0029).'
     AuditIfNotExists  = 'AuditIfNotExists is planned for a later milestone.'
     DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
-    DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0029).'
-    Manual            = 'Manual has its own keyword, which takes the place of Effect: Manual -DefaultState Unknown (ADR-0029).'
+    DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0028).'
+    Manual            = 'Manual has its own keyword, which takes the place of Effect: Manual -DefaultState Unknown (ADR-0028).'
 }
 
 # Azure Resource Manager rejects these in a definition name; '"' and '|' aren't safe in file names.
@@ -17,7 +17,7 @@ $script:BylawNameInvalidCharacters = [char[]] '<>*%&:\?.+/"|'
 $script:BylawReservedFileNames = @('CON', 'PRN', 'AUX', 'NUL') + @(1..9 | ForEach-Object { "COM$_"; "LPT$_" })
 
 function Get-BylawNameProblem {
-    # Returns why a definition name is invalid (ADR-0028), or $null when it is valid.
+    # Returns why a definition name is invalid (ADR-0010), or $null when it is valid.
     [CmdletBinding()]
     [OutputType([string])]
     param(
@@ -59,10 +59,10 @@ function Invoke-BylawValidation {
         $diagnostics.Add([BylawDiagnostic]::new($Severity, $Code, $Message, $Location))
     }
 
-    # Name (ADR-0028).
+    # Name (ADR-0010).
     $nameProblem = Get-BylawNameProblem -Name $Policy.Name
     if ($nameProblem) {
-        & $add 'BYL3001' "Policy name '$($Policy.Name)' $nameProblem (ADR-0028)." $Policy.Location
+        & $add 'BYL3001' "Policy name '$($Policy.Name)' $nameProblem (ADR-0010)." $Policy.Location
     }
 
     Test-BylawPolicyProperty -Policy $Policy -Add $add
@@ -94,7 +94,7 @@ function Invoke-BylawValidation {
         }
 
         # DenyAction and Manual apply to every resource that matches the type and When: those are
-        # the resources that can't be deleted, or whose compliance is attested (ADR-0029).
+        # the resources that can't be deleted, or whose compliance is attested (ADR-0028).
         $selectsOnly = $Policy.Effect -is [BylawDenyAction] -or $Policy.Effect -is [BylawManual]
         if ($scope.Requirements.Count -eq 0 -and -not $selectsOnly) {
             $message = if ($scope.IsAnyType() -and $scope.When.Count -eq 0) {
@@ -265,7 +265,7 @@ $script:BylawDenyActionExemptTypes = @(
 )
 
 function Test-BylawDenyAction {
-    # -CascadeBehavior needs Mode Indexed (BYL3073); exempt resource types (BYL3074) (ADR-0029).
+    # -CascadeBehavior needs Mode Indexed (BYL3073); exempt resource types (BYL3074) (ADR-0028).
     param(
         [Parameter(Mandatory)] [BylawDenyAction] $DenyAction,
         [Parameter(Mandatory)] [BylawPolicy] $Policy,
@@ -285,7 +285,7 @@ function Test-BylawDenyAction {
 function Test-BylawKeywordEffectName {
     # An allowed value of the effect parameter of a keyword in place of Effect: Modify, Audit or
     # Disabled for Modify (ADR-0024, BYL3062); the keyword's effect or Disabled for DenyAction and
-    # Manual (ADR-0029, BYL3072).
+    # Manual (ADR-0028, BYL3072).
     param(
         [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name,
         [Parameter(Mandatory)] [string] $Keyword,

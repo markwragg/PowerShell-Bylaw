@@ -83,4 +83,4 @@ Unit tests cover the file and hashtable forms, each check, `-Scope` with and wit
 ## More Information
 
 * [DeployIfNotExists effect](https://learn.microsoft.com/azure/governance/policy/concepts/effect-deploy-if-not-exists)
-* Related: [ADR-0009](0009-deterministic-output.md), [ADR-0021](0021-parameter-usage-validation.md), [ADR-0031](0031-if-not-exists-effects.md)
+* Related: [ADR-0009](0009-deterministic-output.md), [ADR-0021](0021-parameter-usage-validation.md), [ADR-0030](0030-if-not-exists-effects.md)

@@ -1,4 +1,4 @@
-# DenyAction and Manual (ADR-0029). Each takes the place of Effect, with parameters for the details.
+# DenyAction and Manual (ADR-0028). Each takes the place of Effect, with parameters for the details.
 
 $script:BylawDenyActionNames = @('delete')
 $script:BylawCascadeBehaviors = @('deny', 'allow')

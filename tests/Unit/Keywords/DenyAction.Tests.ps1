@@ -56,7 +56,7 @@ AfterAll {
     Remove-Module -Name Bylaw -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'DenyAction (ADR-0029)' {
+Describe 'DenyAction (ADR-0028)' {
     Context 'emitted rule' {
         It 'emits the effect and the action, with no cascade behaviour by default' {
             $then = Get-Then (Invoke-EffectCompile)
@@ -174,7 +174,7 @@ Describe 'DenyAction (ADR-0029)' {
     }
 }
 
-Describe 'Manual (ADR-0029)' {
+Describe 'Manual (ADR-0028)' {
     It 'emits the effect with no details by default' {
         $then = Get-Then (Invoke-EffectCompile -Effect 'Manual' -Body '')
         $then['effect'] | Should -BeExactly 'Manual'

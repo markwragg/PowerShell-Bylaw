@@ -51,7 +51,7 @@ AfterAll {
     Remove-Module -Name Bylaw -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'Append (ADR-0030)' {
+Describe 'Append (ADR-0029)' {
     Context 'emitted rule' {
         It 'emits the effect and one { field, value } per Add, as an array' {
             $result = Invoke-AppendCompile
