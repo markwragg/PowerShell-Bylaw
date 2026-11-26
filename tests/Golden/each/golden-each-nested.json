@@ -1,0 +1,102 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-each-nested",
+  "properties": {
+    "displayName": "Golden: nested Each with plain values",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "blockedPorts": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Blocked ports"
+        },
+        "defaultValue": [
+          "22",
+          "3389",
+          "*"
+        ]
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Network/networkSecurityGroups"
+          },
+          {
+            "count": {
+              "field": "Microsoft.Network/networkSecurityGroups/securityRules[*]",
+              "where": {
+                "anyOf": [
+                  {
+                    "allOf": [
+                      {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].protocol",
+                        "exists": true
+                      },
+                      {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].protocol",
+                        "notIn": [
+                          "Tcp",
+                          "Udp",
+                          "Icmp"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRange",
+                    "in": "[parameters('blockedPorts')]"
+                  },
+                  {
+                    "count": {
+                      "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRanges[*]",
+                      "where": {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRanges[*]",
+                        "in": "[parameters('blockedPorts')]"
+                      }
+                    },
+                    "greater": 0
+                  },
+                  {
+                    "count": {
+                      "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefixes[*]",
+                      "where": {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefixes[*]",
+                        "equals": "*"
+                      }
+                    },
+                    "greater": 0
+                  }
+                ]
+              }
+            },
+            "greater": 0
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

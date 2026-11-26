@@ -1,0 +1,101 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-each-strict",
+  "properties": {
+    "displayName": "Golden: Each, lenient and strict",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "field": "kind",
+            "equals": "StorageV2"
+          },
+          {
+            "field": "Microsoft.Storage/storageAccounts/networkAcls.defaultAction",
+            "equals": "Deny"
+          },
+          {
+            "anyOf": [
+              {
+                "count": {
+                  "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*]",
+                  "where": {
+                    "anyOf": [
+                      {
+                        "allOf": [
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].action",
+                            "exists": true
+                          },
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].action",
+                            "notEquals": "Allow"
+                          }
+                        ]
+                      },
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].value",
+                        "like": "*/0"
+                      }
+                    ]
+                  }
+                },
+                "greater": 0
+              },
+              {
+                "count": {
+                  "field": "Microsoft.Storage/storageAccounts/networkAcls.virtualNetworkRules[*]",
+                  "where": {
+                    "anyOf": [
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.virtualNetworkRules[*].action",
+                        "notEquals": "Allow"
+                      },
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.virtualNetworkRules[*].id",
+                        "exists": false
+                      },
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.virtualNetworkRules[*].id",
+                        "contains": "/subscriptions/00000000-0000-0000-0000-000000000000/"
+                      }
+                    ]
+                  }
+                },
+                "greater": 0
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

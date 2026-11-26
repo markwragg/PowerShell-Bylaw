@@ -1,0 +1,72 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "storage-require-secure-transfer",
+  "properties": {
+    "displayName": "Storage accounts should use secure transfer",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Audits storage accounts that allow HTTP, use an old TLS version or allow anonymous blob access.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      },
+      "allowedTlsVersions": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed TLS versions"
+        },
+        "allowedValues": [
+          "TLS1_2",
+          "TLS1_3"
+        ],
+        "defaultValue": [
+          "TLS1_2",
+          "TLS1_3"
+        ]
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.Storage/storageAccounts/supportsHttpsTrafficOnly",
+                "notEquals": true
+              },
+              {
+                "field": "Microsoft.Storage/storageAccounts/minimumTlsVersion",
+                "notIn": "[parameters('allowedTlsVersions')]"
+              },
+              {
+                "field": "Microsoft.Storage/storageAccounts/allowBlobPublicAccess",
+                "equals": true
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

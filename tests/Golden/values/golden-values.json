@@ -1,0 +1,117 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-values",
+  "properties": {
+    "displayName": "Golden: values",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": {
+      "version": "2.1.0-preview",
+      "category": "Golden",
+      "preview": true
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      },
+      "namePattern": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Name pattern",
+          "description": "A like pattern for vault names."
+        },
+        "defaultValue": "kv-*"
+      },
+      "retentionDays": {
+        "type": "Integer",
+        "metadata": {
+          "displayName": "Retention days"
+        },
+        "allowedValues": [
+          7,
+          30,
+          90
+        ],
+        "defaultValue": 90
+      },
+      "requireRbac": {
+        "type": "Boolean",
+        "metadata": {
+          "displayName": "Require RBAC"
+        },
+        "defaultValue": true
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "name",
+                "notLike": "[parameters('namePattern')]"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "less": "[parameters('retentionDays')]"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/enableRbacAuthorization",
+                "notEquals": "[parameters('requireRbac')]"
+              },
+              {
+                "field": "name",
+                "notLike": "[concat(resourceGroup().name, '-*')]"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/sku.name",
+                "notEquals": "[toLower('Premium')]"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/enablePurgeProtection",
+                "notEquals": true
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/enableSoftDelete",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/enableSoftDelete",
+                "equals": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greater": 90
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

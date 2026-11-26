@@ -1,0 +1,131 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-operators-not",
+  "properties": {
+    "displayName": "Golden: operators, negated",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.KeyVault/vaults/sku.name",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/sku.name",
+                "equals": "standard"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/publicNetworkAccess",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/publicNetworkAccess",
+                "in": [
+                  "Enabled"
+                ]
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/networkAcls.defaultAction",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/networkAcls.defaultAction",
+                "like": "A*"
+              },
+              {
+                "field": "name",
+                "exists": false
+              },
+              {
+                "field": "name",
+                "matchInsensitively": "tmp-#"
+              },
+              {
+                "field": "name",
+                "exists": false
+              },
+              {
+                "field": "name",
+                "match": "TMP-#"
+              },
+              {
+                "field": "Microsoft.Keyvault/vaults/networkAcls.bypass",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.Keyvault/vaults/networkAcls.bypass",
+                "contains": "None"
+              },
+              {
+                "field": "tags",
+                "exists": false
+              },
+              {
+                "field": "tags",
+                "containsKey": "temporary"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/networkAcls.ipRules",
+                "exists": true
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greater": 90
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greaterOrEquals": 91
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "less": 7
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "lessOrEquals": 6
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

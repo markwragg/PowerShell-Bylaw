@@ -1,0 +1,104 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-operators-strict",
+  "properties": {
+    "displayName": "Golden: operators, strict",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.KeyVault/vaults/sku.name",
+                "notEquals": "premium"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/publicNetworkAccess",
+                "notIn": [
+                  "Disabled",
+                  "SecuredByPerimeter"
+                ]
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/networkAcls.defaultAction",
+                "notLike": "D*"
+              },
+              {
+                "field": "name",
+                "notMatchInsensitively": "kv-???-##"
+              },
+              {
+                "field": "name",
+                "notMatch": "kv-???-##"
+              },
+              {
+                "field": "Microsoft.Keyvault/vaults/networkAcls.bypass",
+                "notContains": "AzureServices"
+              },
+              {
+                "field": "tags",
+                "notContainsKey": "owner"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/enableRbacAuthorization",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "lessOrEquals": 6
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "less": 7
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greaterOrEquals": 91
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "exists": false
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greater": 90
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

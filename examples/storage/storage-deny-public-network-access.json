@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "storage-deny-public-network-access",
+  "properties": {
+    "displayName": "Storage accounts should disable public network access",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Denies storage accounts that allow public network access or allow-all IP rules.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "field": "kind",
+            "in": [
+              "StorageV2",
+              "BlockBlobStorage"
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.Storage/storageAccounts/publicNetworkAccess",
+                "notEquals": "Disabled"
+              },
+              {
+                "count": {
+                  "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*]",
+                  "where": {
+                    "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].value",
+                    "equals": "0.0.0.0/0"
+                  }
+                },
+                "greater": 0
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}
