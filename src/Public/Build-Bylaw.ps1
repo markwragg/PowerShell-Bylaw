@@ -20,7 +20,11 @@ function Build-Bylaw {
         Output folder. Required unless -PassThru is used.
 
     .PARAMETER Format
-        Output format. Epac (the default) writes EPAC policy definition files.
+        Output format:
+          Epac (the default) writes EPAC policy definition files (ADR-0011, ADR-0023).
+          PlainJson writes { name, properties } definitions, as Azure publishes built-in ones,
+          for New-AzPolicyDefinition, the Azure CLI, Bicep or Terraform (ADR-0027). The policy is
+          emitted as written: a literal effect stays literal and nothing is generated.
 
     .PARAMETER PassThru
         Returns one result per policy: Name, SourceFile, SourceLine, OutputFile, Json, Warnings.
@@ -48,6 +52,9 @@ function Build-Bylaw {
 
     .EXAMPLE
         Build-Bylaw -Path ./policies/storage.bylaw.ps1 -PassThru | Select-Object Name, Json
+
+    .EXAMPLE
+        Build-Bylaw -Path ./policies -OutputPath ./out -Format PlainJson
     #>
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType('Bylaw.BuildResult')]
@@ -59,7 +66,7 @@ function Build-Bylaw {
         [Parameter(Position = 1)]
         [string] $OutputPath,
 
-        [ValidateSet('Epac')]
+        [ValidateSet('Epac', 'PlainJson')]
         [string] $Format = 'Epac',
 
         [switch] $PassThru,

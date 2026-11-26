@@ -10,8 +10,9 @@
 *.json  text eol=lf
 
 # Golden files are compared byte for byte: never let Git transform them.
-tests/Golden/**/*.json -text
-examples/**/*.json     -text
+tests/Golden/**/*.json          -text
+tests/GoldenPlainJson/**/*.json -text
+examples/**/*.json              -text
 
 *.png binary
 *.jpg binary

@@ -48,7 +48,7 @@ Chosen option: "`{ "name", "properties" }`", because it is the layout Azure itse
   * `Category` and `Version` are optional.
   * `description`, `metadata` and `parameters` are omitted when they are empty.
   * Parameters without a `DisplayName` get no generated one.
-* Everything else is shared with EPAC: key order, formatting, parameter casing, the policy rule, `Modify` details, and all language-level validation.
+* Everything else is shared with EPAC: key order, formatting, parameter casing, the policy rule, `Modify` details, and all language-level validation. EPAC's own checks (`BYL4xxx`) don't apply, so an `Arm` effect is accepted.
 
 ### Consequences
 
@@ -58,6 +58,6 @@ Chosen option: "`{ "name", "properties" }`", because it is the layout Azure itse
 
 ### Confirmation
 
-* Golden tests compile a set of policies to plain JSON and compare them byte for byte.
-* A test checks that the plain JSON `policyRule` is identical to the EPAC one wherever the effect is the same.
-* If Azure publishes a JSON schema that matches this layout, the golden files are validated against it. Otherwise, a structural test checks the required keys.
+* Golden tests compile the policies in `tests/GoldenPlainJson/` to plain JSON and compare them byte for byte. `tests/Golden/GoldenRoots.psd1` lists each golden folder with its format, for the tests and for `build.ps1 -Task UpdateGolden`.
+* A test checks that the plain JSON `policyRule` is identical to the EPAC one wherever the effect is the same, for `Effect` and for `Modify`.
+* Azure doesn't publish a JSON schema for this layout, so a structural test checks the golden files: `name` then `properties`, the required properties, no keys outside the layout, and a `policyRule` with `if` and `then.effect`.
