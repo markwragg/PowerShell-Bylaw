@@ -26,7 +26,7 @@ function Get-BylawEpacEffectParameter {
         return $null
     }
     # A Modify block allows Modify and Disabled, as built-in Modify policies do (ADR-0024).
-    $supported = if ($Policy.Effect -is [BylawModify]) { $script:BylawModifyEffects } else { $script:BylawSupportedEffects }
+    $supported = if ($Policy.Effect -is [BylawModify]) { $script:BylawModifyGeneratedEffects } else { $script:BylawSupportedEffects }
     $generated = [BylawParameter]::new('effect')
     $generated.JsonName = 'effect'
     $generated.Type = 'String'

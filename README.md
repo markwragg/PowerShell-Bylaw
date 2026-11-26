@@ -418,13 +418,13 @@ To add the tag only where it is missing, and keep any value a resource already h
 
 - **`-Role`** names the roles the assignment's managed identity needs, as built-in role names, GUIDs or full role definition IDs. See [Roles](#roles).
 - **`-ConflictEffect`** is `Audit`, `Deny` (Azure's default) or `Disabled`. When `Modify` changes an alias rather than a tag, Azure recommends `Audit`, so that requests using an API version where the property can't be modified aren't denied. Bylaw warns otherwise.
-- **`-Effect (Param Effect)`** makes the effect a parameter you declare, allowing `Modify` and `Disabled`. Without it, EPAC output gets a generated `effect` parameter with those two values.
+- **`-Effect (Param Effect)`** makes the effect a parameter you declare, which can allow `Modify`, `Audit` and `Disabled`. `Audit` reports non-compliant resources without changing them. Without `-Effect`, EPAC output gets a generated `effect` parameter allowing `Modify` and `Disabled`, as built-in Modify policies do.
 - **`-Condition (Arm '[...]')`** on an operation applies it only when the expression is true, for example `[greaterOrEquals(requestContext().apiVersion, '2019-04-01')]`. `field()`, `resourceGroup()` and `subscription()` aren't supported there.
 - **What can be changed:** tags, `identity.type` on virtual machines and scale sets, and aliases marked Modifiable in the alias snapshot. Only tags can be removed, and array elements (`[*]`) can't be changed. Anything else fails the build.
 - **Remediation that works:** the build warns when an operation changes a field that no `Require` checks, because a remediated resource would still be non-compliant. It also warns about tag operations in a policy whose `Mode` isn't `Indexed`.
 
 > [!NOTE]
-> An assignment of a Modify policy needs a managed identity with the roles in `-Role`, even if the assignment sets the effect to something else. Bylaw only writes the definition: create the identity and its role assignments when you assign it.
+> An assignment of a Modify policy needs a managed identity with the roles in `-Role`, even if the assignment sets the effect to `Audit`. Bylaw only writes the definition: create the identity and its role assignments when you assign it.
 
 ## Building
 

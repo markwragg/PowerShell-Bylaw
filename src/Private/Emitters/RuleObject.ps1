@@ -1,8 +1,12 @@
 # Policy layer -> ordered objects, shared by every emitter (ADR-0006, ADR-0009 key order).
 
 $script:BylawSupportedEffects = @('Audit', 'Deny', 'Disabled')
-# Effects a Modify block's effect may take (ADR-0024).
-$script:BylawModifyEffects = @('Modify', 'Disabled')
+# Effects a Modify block's effect may take (ADR-0024). Audit was measured in the sandbox on
+# 2026-11-26: with a managed identity, an assignment with effect Audit reports compliance.
+$script:BylawModifyEffects = @('Modify', 'Audit', 'Disabled')
+# The allowed values of the effect parameter generated for a literal Modify, as built-in Modify
+# policies use.
+$script:BylawModifyGeneratedEffects = @('Modify', 'Disabled')
 
 function Get-BylawParameterJsonName {
     # Emitted parameter name (ADR-0018): JsonName if set, else the DSL name with its

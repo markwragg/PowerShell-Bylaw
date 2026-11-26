@@ -58,9 +58,12 @@ Modify -Role 'Tag Contributor' {
 ### Effect
 
 * With a literal effect, EPAC output gets a generated effect parameter (ADR-0023), with allowed values `Modify` and `Disabled` and a default of `Modify`. These are the values built-in Modify policies use.
-* A declared effect parameter may allow only `Modify` and `Disabled` (`BYL3062`). Whether `Audit` is valid on a definition with a `modify` details block isn't documented. It will be measured in the sandbox, and allowed only if it works.
+* A declared effect parameter may allow `Modify`, `Audit` and `Disabled`, and nothing else (`BYL3062`). Learn doesn't document whether `Audit` is valid on a definition with a `modify` details block, so it was measured in the sandbox before being allowed (below).
 * `Deny` in a Modify policy's effect parameter is a compile error (`BYL3062`).
-* Measured in the sandbox on 2026-11-26: Azure accepts a definition whose effect parameter allows `Modify`, `Audit` and `Disabled`. But it refuses to assign it without a managed identity (`ResourceIdentityRequired`), even with the effect set to `Audit`. So choosing Audit doesn't avoid the identity. Whether Audit then evaluates is still being measured.
+* Measured in the sandbox on 2026-11-26:
+  * Azure accepts a definition whose effect parameter allows `Modify`, `Audit` and `Disabled`.
+  * It refuses to assign it without a managed identity (`ResourceIdentityRequired`), even with the effect set to `Audit`. So choosing Audit doesn't avoid the identity.
+  * Assigned with a system-assigned identity and effect `Audit`, it evaluates: the matching resource reported NonCompliant.
 
 ### Validation
 
@@ -100,7 +103,7 @@ Warnings:
 
 * Unit tests cover each operation, each option, every error and warning above, and the generated effect parameter.
 * Golden tests cover tag inheritance in both forms (`add` if missing, `addOrReplace` to match), an alias operation with `-ConflictEffect` and `-Condition`, and `Remove`.
-* The sandbox script checks whether `Audit` works as an effect value on a Modify definition.
+* The sandbox script checks whether `Audit` works as an effect value on a Modify definition. It did on 2026-11-26.
 
 ## Pros and Cons of the Options
 

@@ -186,7 +186,7 @@ function Test-BylawEffect {
         # An Arm expression: can't be checked at compile time.
         return
     }
-    $example = if ($isModify) { 'Modify, Disabled -Default Modify' } else { 'Audit, Deny, Disabled -Default Deny' }
+    $example = if ($isModify) { 'Modify, Audit, Disabled -Default Modify' } else { 'Audit, Deny, Disabled -Default Deny' }
     $parameter = $Policy.FindParameter($value.Name)
     if ($null -eq $parameter) {
         & $Add 'BYL3020' "Effect uses parameter '$($value.Name)', which is not declared. Add: Parameter $($value.Name) -AllowedValues $example." $value.Location
@@ -210,7 +210,7 @@ function Test-BylawEffect {
 }
 
 function Test-BylawModifyEffectName {
-    # An allowed value of a Modify block's effect parameter: Modify or Disabled (ADR-0024).
+    # An allowed value of a Modify block's effect parameter: Modify, Audit or Disabled (ADR-0024).
     param(
         [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name,
         [Parameter(Mandatory)] [BylawParameter] $Parameter,
@@ -222,7 +222,6 @@ function Test-BylawModifyEffectName {
     }
     $reason = switch ($Name) {
         'Deny' { 'A Modify policy changes the request, so it never denies it.' }
-        'Audit' { "Whether Azure accepts Audit as the effect of a definition with a modify block hasn't been verified yet (ADR-0024)." }
         default { '' }
     }
     & $Add 'BYL3062' ("Effect parameter '$($Parameter.Name)' of a Modify block allows '$Name'. Allowed values: $($script:BylawModifyEffects -join ', '). $reason").TrimEnd() $Parameter.Location

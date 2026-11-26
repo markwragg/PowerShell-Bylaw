@@ -7,6 +7,26 @@ Results from [build/verify-missing-field](../../../build/verify-missing-field/RE
 * `missing`: no compliance state.
 * `Error`: Azure reported the compliance state `Error`.
 
+## Third run (2026-11-26)
+
+Collected 2026-11-26 14:32 UTC. Every case has a result.
+
+**Fields:** the same as the second run in every row, for the three tags and for `aliasMissing` (`Microsoft.Network/routeTables/subnets`, a missing property of the route table itself). The cross-type alias was dropped from this run.
+
+**Resource group tags in value conditions** (ADR-0025). The resource group has `bylawPresent = abc` and `bylawEmpty = ''`, and no `bylawMissing`:
+
+| Operator | Value | `[resourceGroup().tags['bylawPresent']]` | `[resourceGroup().tags['bylawEmpty']]` | `[resourceGroup().tags['bylawMissing']]` |
+|---|---|---|---|---|
+| equals | `"abc"` | true | false | false |
+| equals | `""` | false | true | true |
+| notEquals | `""` | true | false | false |
+| exists | `true` | true | true | true |
+| exists | `false` | false | false | false |
+
+A missing resource group tag compares exactly like an empty one, and `exists` is true for both. To require a value, test `notEquals ''` (`Must -Not -Be ''`).
+
+**Modify definition assigned with effect `Audit`** (ADR-0024): `true`. Azure refused the assignment without a managed identity (`ResourceIdentityRequired`). With a system-assigned identity it was accepted, and the route table reported NonCompliant.
+
 ## Second run (2026-11-26)
 
 Collected 2026-11-26 10:22 UTC, more than 12 hours after deployment.

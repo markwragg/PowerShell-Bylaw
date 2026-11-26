@@ -153,6 +153,14 @@ Describe 'Modify (ADR-0024)' {
             ($result.Emitted.Text | ConvertFrom-Json -AsHashtable)['properties']['parameters']['effect']['defaultValue'] | Should -Be 'Disabled'
         }
 
+        It 'allows Audit in a declared effect parameter, but generates only Modify and Disabled' {
+            $declared = Invoke-ModifyCompile -Extra 'Parameter Effect -AllowedValues Modify, Audit, Disabled -Default Audit' -Modify "Modify -Role 'Tag Contributor' -Effect (Param Effect) { Tag Environment | AddOrReplace 'Production' }"
+            $declared.Errors | Should -BeNullOrEmpty -Because ($declared.Diagnostics -join '; ')
+            @(($declared.Emitted.Text | ConvertFrom-Json -AsHashtable)['properties']['parameters']['effect']['allowedValues']) | Should -Be @('Modify', 'Audit', 'Disabled')
+            $generated = Invoke-ModifyCompile
+            @(($generated.Emitted.Text | ConvertFrom-Json -AsHashtable)['properties']['parameters']['effect']['allowedValues']) | Should -Be @('Modify', 'Disabled')
+        }
+
         It 'counts parameters used only in operations as used' {
             $result = Invoke-ModifyCompile -Extra 'Parameter TagValue -Type String; Parameter Version -Type String' -Requirements "Require 'r' { Tag Environment | Must -Be (Param TagValue) }" -Modify "Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace (Param TagValue) -Condition (Arm `"[equals(parameters('version'), '2')]`") }"
             $result.Codes | Should -Not -Contain 'BYL3029'
@@ -232,8 +240,7 @@ Describe 'Modify (ADR-0024)' {
 
         It 'reports <Value> in the effect parameter' -ForEach @(
             @{ Value = 'Deny'; Reason = '*never denies*' }
-            @{ Value = 'Audit'; Reason = "*hasn't been verified*" }
-            @{ Value = 'Append'; Reason = '*Allowed values: Modify, Disabled*' }
+            @{ Value = 'Append'; Reason = '*Allowed values: Modify, Audit, Disabled*' }
         ) {
             $result = Invoke-ModifyCompile -Extra "Parameter Effect -AllowedValues Modify, $Value -Default Modify" -Modify "Modify -Role 'Tag Contributor' -Effect (Param Effect) { Tag Environment | AddOrReplace 'x' }"
             $result.Errors | Should -Contain 'BYL3062'
