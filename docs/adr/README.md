@@ -7,7 +7,7 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions as MADR files | Accepted |
 | [0002](0002-desired-state-semantics.md) | Authors describe the compliant state; the compiler inverts it | Accepted |
 | [0003](0003-requirements-combine-with-and.md) | Multiple Require blocks and multiple Must statements combine with AND | Accepted |
-| [0004](0004-strict-missing-field-behaviour.md) | Missing fields fail requirements by default (strict), with explicit leniency | Accepted (verified for tags; alias properties pending) |
+| [0004](0004-strict-missing-field-behaviour.md) | Missing fields fail requirements by default (strict), with explicit leniency | Accepted |
 | [0005](0005-keyword-scoping.md) | Only Policy and the utility cmdlets are exported; inner keywords exist only inside Policy | Accepted |
 | [0006](0006-intermediate-representation.md) | Keywords build an IR of PowerShell classes; passes transform it; emitters serialise it | Accepted |
 | [0007](0007-compile-only.md) | Bylaw compiles policy definitions and never deploys them | Accepted |

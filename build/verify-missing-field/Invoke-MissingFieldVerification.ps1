@@ -3,23 +3,31 @@
 
 <#
 .SYNOPSIS
-    Empirically verifies how Azure Policy operators evaluate against missing and empty fields.
+    Measures Azure Policy behaviour that Microsoft Learn doesn't document, for Bylaw's ADRs.
 
 .DESCRIPTION
-    Developer-only script that supports ADR-0004. It is not part of the Bylaw module.
+    Developer-only script that supports ADR-0004, ADR-0024 and ADR-0025. It is not part of the
+    Bylaw module.
 
-    Deploy:  creates a resource group with one route table (free) carrying known tags, one
-             Audit-effect policy definition per (field, operator) case, an initiative containing
-             them, and an assignment of that initiative to the resource group.
+    It measures three things:
+      Fields:      how each operator evaluates against present, empty and missing fields (ADR-0004).
+      Expressions: how a missing or empty resource group tag compares in a value condition (ADR-0025).
+      Modify:      whether Audit is accepted as the effect of a definition with a modify details
+                   block, and whether it then reports compliance (ADR-0024).
+
+    Deploy:  creates a resource group (tagged) with one route table (free) carrying known tags,
+             one Audit-effect policy definition per field and expression case, an initiative
+             containing them and an assignment of it to the resource group. Also creates one
+             Modify definition and assigns it separately, with its effect set to Audit.
     Collect: triggers an on-demand compliance scan and records, for each case, whether the
              condition evaluated true (NonCompliant), false (Compliant) or something else.
              Writes a JSON and a Markdown report.
-    Remove:  deletes the assignment, initiative, definitions and resource group.
+    Remove:  deletes the assignments, initiative, definitions and resource group.
 
-    Each policy rule is: type equals routeTables AND name equals <route table> AND <case condition>.
+    Each rule is: type equals routeTables AND name equals <route table> AND <case condition>.
     So NonCompliant means "<case condition> evaluated true" and Compliant means "false".
 
-    Run Deploy, wait 15-30 minutes for the assignment to take effect, then run Collect
+    Run Deploy, wait 15-30 minutes for the assignments to take effect, then run Collect
     (re-run Collect if cases are still missing), then Remove.
 
 .PARAMETER Action
@@ -35,8 +43,8 @@
     Azure region for the resource group and route table. Default: uksouth.
 
 .PARAMETER ExtraField
-    Additional full field or alias names to test. Use this to add a same-type alias that you know
-    is absent, or present but null, on a route table.
+    Additional full field or alias names to test, for example a route-table alias that is present
+    but null.
 
 .PARAMETER OutputPath
     Folder for the reports. Default: the current folder.
@@ -75,14 +83,18 @@ $prefix = 'bylaw-verify'
 $routeTableName = "rt-$prefix"
 $setName = "$prefix-set"
 $assignmentName = "$prefix-assignment"
+$modifyDefinitionName = "$prefix-modify-audit"
+$modifyAssignmentName = "$prefix-modify-audit"
 
-# Fields under test. Tags are fully controllable; the storage alias does not apply to route tables,
-# so it is a missing alias. ExtraField adds anything else the caller wants to probe.
+# Fields under test. Tags are fully controllable. A route table with no associated subnets has no
+# 'subnets' property, so it is a missing alias of the resource's own type. (An alias of another
+# resource type is never evaluated at all, so it can't be used as a missing field: ADR-0004.)
+# ExtraField adds anything else the caller wants to probe.
 $fields = [ordered]@{
     tagPresent   = "tags['bylawPresent']"
     tagEmpty     = "tags['bylawEmpty']"
     tagMissing   = "tags['bylawMissing']"
-    aliasMissing = 'Microsoft.Storage/storageAccounts/publicNetworkAccess'
+    aliasMissing = 'Microsoft.Network/routeTables/subnets'
 }
 $extraIndex = 0
 foreach ($extra in $ExtraField) {
@@ -90,12 +102,13 @@ foreach ($extra in $ExtraField) {
     $fields["extra$extraIndex"] = $extra
 }
 
+# The same tag names go on the route table and on the resource group.
 $tags = @{
     bylawPresent = 'abc'
     bylawEmpty   = ''
 }
 
-# Operator cases. Values are chosen so the tagPresent control ('abc') has a known answer.
+# Operator cases for fields. Values are chosen so the tagPresent control ('abc') has a known answer.
 $operators = @(
     @{ Id = 'equals'; Operator = 'equals'; Value = 'abc' }
     @{ Id = 'notEquals'; Operator = 'notEquals'; Value = 'abc' }
@@ -121,6 +134,21 @@ $operators = @(
     @{ Id = 'existsFalse'; Operator = 'exists'; Value = $false }
 )
 
+# Expressions under test, as value conditions (ADR-0025). The built-in tag inheritance policies
+# assume a missing resource group tag compares equal to ''.
+$expressions = [ordered]@{
+    rgTagPresent = "[resourceGroup().tags['bylawPresent']]"
+    rgTagEmpty   = "[resourceGroup().tags['bylawEmpty']]"
+    rgTagMissing = "[resourceGroup().tags['bylawMissing']]"
+}
+$expressionOperators = @(
+    @{ Id = 'equalsValue'; Operator = 'equals'; Value = 'abc' }
+    @{ Id = 'equalsEmpty'; Operator = 'equals'; Value = '' }
+    @{ Id = 'notEqualsEmpty'; Operator = 'notEquals'; Value = '' }
+    @{ Id = 'existsTrue'; Operator = 'exists'; Value = $true }
+    @{ Id = 'existsFalse'; Operator = 'exists'; Value = $false }
+)
+
 function Get-VerificationCase {
     $index = 0
     foreach ($fieldKey in $fields.Keys) {
@@ -130,8 +158,25 @@ function Get-VerificationCase {
                 Number         = $index
                 DefinitionName = '{0}-{1:d3}' -f $prefix, $index
                 ReferenceId    = '{0}-{1}' -f $fieldKey, $op.Id
-                FieldKey       = $fieldKey
-                Field          = $fields[$fieldKey]
+                Kind           = 'field'
+                SubjectKey     = $fieldKey
+                Subject        = $fields[$fieldKey]
+                OperatorId     = $op.Id
+                Operator       = $op.Operator
+                Value          = $op.Value
+            }
+        }
+    }
+    foreach ($expressionKey in $expressions.Keys) {
+        foreach ($op in $expressionOperators) {
+            $index++
+            [pscustomobject]@{
+                Number         = $index
+                DefinitionName = '{0}-{1:d3}' -f $prefix, $index
+                ReferenceId    = '{0}-{1}' -f $expressionKey, $op.Id
+                Kind           = 'value'
+                SubjectKey     = $expressionKey
+                Subject        = $expressions[$expressionKey]
                 OperatorId     = $op.Id
                 Operator       = $op.Operator
                 Value          = $op.Value
@@ -140,21 +185,42 @@ function Get-VerificationCase {
     }
 }
 
+function Get-RouteTableCondition {
+    @(
+        [ordered]@{ field = 'type'; equals = 'Microsoft.Network/routeTables' }
+        [ordered]@{ field = 'name'; equals = $routeTableName }
+    )
+}
+
 function ConvertTo-CaseRuleJson {
     param([Parameter(Mandatory)] $Case)
 
-    $condition = [ordered]@{ field = $Case.Field }
+    $condition = [ordered]@{}
+    $condition[$Case.Kind] = $Case.Subject
     $condition[$Case.Operator] = $Case.Value
 
     $rule = [ordered]@{
-        if   = [ordered]@{
-            allOf = @(
-                [ordered]@{ field = 'type'; equals = 'Microsoft.Network/routeTables' }
-                [ordered]@{ field = 'name'; equals = $routeTableName }
-                $condition
-            )
-        }
+        if   = [ordered]@{ allOf = @(Get-RouteTableCondition) + @($condition) }
         then = [ordered]@{ effect = 'audit' }
+    }
+    $rule | ConvertTo-Json -Depth 20 -Compress
+}
+
+function ConvertTo-ModifyRuleJson {
+    # The route table has no 'bylawMissing' tag, so with effect Audit it should be NonCompliant.
+    $rule = [ordered]@{
+        if   = [ordered]@{
+            allOf = @(Get-RouteTableCondition) + @([ordered]@{ field = "tags['bylawMissing']"; exists = $false })
+        }
+        then = [ordered]@{
+            effect  = "[parameters('effect')]"
+            details = [ordered]@{
+                roleDefinitionIds = @('/providers/Microsoft.Authorization/roleDefinitions/4a9ae827-6dc8-4573-8ac7-8239d42aa03f')
+                operations        = @(
+                    [ordered]@{ operation = 'add'; field = "tags['bylawMissing']"; value = 'added' }
+                )
+            }
+        }
     }
     $rule | ConvertTo-Json -Depth 20 -Compress
 }
@@ -166,7 +232,7 @@ function Invoke-Deploy {
     $scope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName"
 
     if ($PSCmdlet.ShouldProcess($ResourceGroupName, 'Create resource group and route table')) {
-        $null = New-AzResourceGroup -Name $ResourceGroupName -Location $Location -Force
+        $null = New-AzResourceGroup -Name $ResourceGroupName -Location $Location -Tag $tags -Force
         $routeTable = @{
             ResourceGroupName = $ResourceGroupName
             ResourceType      = 'Microsoft.Network/routeTables'
@@ -191,7 +257,7 @@ function Invoke-Deploy {
             Name           = $case.DefinitionName
             SubscriptionId = $SubscriptionId
             DisplayName    = "Bylaw verify: $($case.ReferenceId)"
-            Description    = "Field $($case.Field), operator $($case.Operator)."
+            Description    = "$($case.Kind) $($case.Subject), operator $($case.Operator)."
             Mode           = 'All'
             Metadata       = '{"category":"Bylaw verification"}'
             Policy         = ConvertTo-CaseRuleJson -Case $case
@@ -209,11 +275,6 @@ function Invoke-Deploy {
             Write-Warning "Definition $($case.DefinitionName) ($($case.ReferenceId)) was rejected: $($_.Exception.Message)"
         }
     }
-
-    $rejectedPath = Join-Path $OutputPath 'missing-field-rejected.json'
-    # Always write the file (as [] when nothing was rejected) so Collect can tell "none rejected"
-    # apart from "Deploy output not found".
-    ConvertTo-Json -InputObject @($rejected) -Depth 5 | Set-Content -Path $rejectedPath -Encoding utf8NoBOM
 
     if ($members.Count -eq 0) {
         throw 'No policy definitions were created; nothing to assign.'
@@ -238,7 +299,57 @@ function Invoke-Deploy {
         $null = New-AzPolicyAssignment @assignment
     }
 
-    Write-Information "Deployed $($members.Count) definitions ($($rejected.Count) rejected, see $rejectedPath)."
+    # The Modify check has its own assignment, so a failure here can't affect the other cases.
+    # The definition and the assignment are recorded separately, because either can be refused.
+    if ($PSCmdlet.ShouldProcess($modifyDefinitionName, 'Create Modify definition and assign it with effect Audit')) {
+        $modifyDefinition = $null
+        $modifyParameters = [ordered]@{
+            effect = [ordered]@{
+                type          = 'String'
+                allowedValues = @('Modify', 'Audit', 'Disabled')
+                defaultValue  = 'Modify'
+            }
+        }
+        $definition = @{
+            Name           = $modifyDefinitionName
+            SubscriptionId = $SubscriptionId
+            DisplayName    = 'Bylaw verify: Modify definition with effect Audit'
+            Mode           = 'Indexed'
+            Metadata       = '{"category":"Bylaw verification"}'
+            Parameter      = ConvertTo-Json -InputObject $modifyParameters -Depth 5 -Compress
+            Policy         = ConvertTo-ModifyRuleJson
+        }
+        try {
+            $modifyDefinition = New-AzPolicyDefinition @definition
+        }
+        catch {
+            $rejected.Add([pscustomobject]@{ ReferenceId = 'modifyAudit-definition'; Error = $_.Exception.Message })
+            Write-Warning "The Modify definition was rejected: $($_.Exception.Message)"
+        }
+        if ($modifyDefinition) {
+            $assignment = @{
+                Name                  = $modifyAssignmentName
+                Scope                 = $scope
+                DisplayName           = 'Bylaw verify: Modify definition with effect Audit'
+                PolicyDefinition      = $modifyDefinition
+                PolicyParameterObject = @{ effect = 'Audit' }
+            }
+            try {
+                $null = New-AzPolicyAssignment @assignment
+            }
+            catch {
+                $rejected.Add([pscustomobject]@{ ReferenceId = 'modifyAudit-assignment'; Error = $_.Exception.Message })
+                Write-Warning "The Modify assignment with effect Audit was rejected: $($_.Exception.Message)"
+            }
+        }
+    }
+
+    $rejectedPath = Join-Path $OutputPath 'missing-field-rejected.json'
+    # Always write the file (as [] when nothing was rejected) so Collect can tell "none rejected"
+    # apart from "Deploy output not found".
+    ConvertTo-Json -InputObject @($rejected) -Depth 5 | Set-Content -Path $rejectedPath -Encoding utf8NoBOM
+
+    Write-Information "Deployed $($members.Count) case definitions and the Modify check ($($rejected.Count) rejected, see $rejectedPath)."
     Write-Information 'Wait 15-30 minutes, then run with -Action Collect.'
 }
 
@@ -253,21 +364,54 @@ function ConvertTo-ConditionResult {
     }
 }
 
-function Invoke-Collect {
-    Write-Information "Starting compliance scan of $ResourceGroupName (this can take several minutes)."
-    Start-AzPolicyComplianceScan -ResourceGroupName $ResourceGroupName
+function Get-AssignmentState {
+    param([Parameter(Mandatory)] [string] $Name)
 
     $stateQuery = @{
         SubscriptionId       = $SubscriptionId
         ResourceGroupName    = $ResourceGroupName
-        PolicyAssignmentName = $assignmentName
+        PolicyAssignmentName = $Name
         Filter               = "ResourceType eq 'Microsoft.Network/routeTables'"
     }
-    $states = @(Get-AzPolicyState @stateQuery)
+    try {
+        @(Get-AzPolicyState @stateQuery)
+    }
+    catch {
+        Write-Warning "No compliance states for assignment ${Name}: $($_.Exception.Message)"
+        @()
+    }
+}
+
+function Add-ResultTable {
+    param(
+        [Parameter(Mandatory)] [System.Collections.Generic.List[string]] $Lines,
+        [Parameter(Mandatory)] [object[]] $Results,
+        [Parameter(Mandatory)] [System.Collections.IDictionary] $Subjects,
+        [Parameter(Mandatory)] [object[]] $Operators
+    )
+
+    $keys = @($Subjects.Keys)
+    $Lines.Add('| Operator | Value | ' + ($keys -join ' | ') + ' |')
+    $Lines.Add('|---|---|' + ('---|' * $keys.Count))
+    foreach ($op in $Operators) {
+        $cells = foreach ($key in $keys) {
+            ($Results | Where-Object { $_.SubjectKey -eq $key -and $_.OperatorId -eq $op.Id }).Result
+        }
+        $value = ConvertTo-Json -InputObject $op.Value -Compress
+        $Lines.Add("| $($op.Operator) | ``$value`` | " + ($cells -join ' | ') + ' |')
+    }
+}
+
+function Invoke-Collect {
+    Write-Information "Starting compliance scan of $ResourceGroupName (this can take several minutes)."
+    Start-AzPolicyComplianceScan -ResourceGroupName $ResourceGroupName
+
     $byReference = @{}
-    foreach ($state in $states) {
+    foreach ($state in Get-AssignmentState -Name $assignmentName) {
         $byReference[$state.PolicyDefinitionReferenceId] = $state.ComplianceState
     }
+    $modifyStates = @(Get-AssignmentState -Name $modifyAssignmentName)
+    $modifyState = if ($modifyStates.Count -gt 0) { [string] $modifyStates[0].ComplianceState } else { '' }
 
     $rejectedPath = Join-Path $OutputPath 'missing-field-rejected.json'
     $rejectedById = @{}
@@ -283,52 +427,69 @@ function Invoke-Collect {
         Write-Warning "$rejectedPath not found: rejected definitions will be reported as 'missing'. Use the same -OutputPath as Deploy."
     }
 
-    $results = foreach ($case in Get-VerificationCase) {
-        $result = if ($rejectedById.ContainsKey($case.ReferenceId)) {
-            'rejected'
-        }
-        else {
-            ConvertTo-ConditionResult -ComplianceState ([string] $byReference[$case.ReferenceId])
-        }
-        [pscustomobject]@{
-            FieldKey   = $case.FieldKey
-            Field      = $case.Field
-            OperatorId = $case.OperatorId
-            Operator   = $case.Operator
-            Value      = $case.Value
-            Result     = $result
-        }
+    $results = @(foreach ($case in Get-VerificationCase) {
+            $result = if ($rejectedById.ContainsKey($case.ReferenceId)) {
+                'rejected'
+            }
+            else {
+                ConvertTo-ConditionResult -ComplianceState ([string] $byReference[$case.ReferenceId])
+            }
+            [pscustomobject]@{
+                Kind       = $case.Kind
+                SubjectKey = $case.SubjectKey
+                Subject    = $case.Subject
+                OperatorId = $case.OperatorId
+                Operator   = $case.Operator
+                Value      = $case.Value
+                Result     = $result
+            }
+        })
+
+    $modifyResult = if ($rejectedById.ContainsKey('modifyAudit-definition')) {
+        "definition rejected: $($rejectedById['modifyAudit-definition'])"
+    }
+    elseif ($rejectedById.ContainsKey('modifyAudit-assignment')) {
+        "assignment rejected: $($rejectedById['modifyAudit-assignment'])"
+    }
+    else {
+        ConvertTo-ConditionResult -ComplianceState $modifyState
     }
 
     $jsonPath = Join-Path $OutputPath 'missing-field-results.json'
-    $results | ConvertTo-Json -Depth 5 | Set-Content -Path $jsonPath -Encoding utf8NoBOM
+    [ordered]@{ cases = $results; modifyAudit = $modifyResult } | ConvertTo-Json -Depth 6 | Set-Content -Path $jsonPath -Encoding utf8NoBOM
 
-    $fieldKeys = @($fields.Keys)
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('# Azure Policy missing-field verification')
+    $lines.Add('# Azure Policy verification')
     $lines.Add('')
     $lines.Add("Collected $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Cell = whether the condition evaluated true.")
     $lines.Add('`true` = NonCompliant, `false` = Compliant, `missing` = no state yet (re-run Collect), `rejected` = definition refused by Azure.')
     $lines.Add('')
-    $lines.Add('Fields:')
-    foreach ($key in $fieldKeys) {
+    $lines.Add('## Fields')
+    $lines.Add('')
+    foreach ($key in $fields.Keys) {
         $lines.Add("- **$key**: ``$($fields[$key])``")
     }
     $lines.Add('')
-    $lines.Add('| Operator | Value | ' + ($fieldKeys -join ' | ') + ' |')
-    $lines.Add('|---|---|' + ('---|' * $fieldKeys.Count))
-    foreach ($op in $operators) {
-        $cells = foreach ($key in $fieldKeys) {
-            ($results | Where-Object { $_.FieldKey -eq $key -and $_.OperatorId -eq $op.Id }).Result
-        }
-        $value = ConvertTo-Json -InputObject $op.Value -Compress
-        $lines.Add("| $($op.Operator) | ``$value`` | " + ($cells -join ' | ') + ' |')
+    Add-ResultTable -Lines $lines -Results @($results | Where-Object Kind -EQ 'field') -Subjects $fields -Operators $operators
+    $lines.Add('')
+    $lines.Add('## Resource group tags in value conditions')
+    $lines.Add('')
+    foreach ($key in $expressions.Keys) {
+        $lines.Add("- **$key**: ``$($expressions[$key])``")
     }
+    $lines.Add('')
+    Add-ResultTable -Lines $lines -Results @($results | Where-Object Kind -EQ 'value') -Subjects $expressions -Operators $expressionOperators
+    $lines.Add('')
+    $lines.Add('## Modify definition assigned with effect Audit')
+    $lines.Add('')
+    $lines.Add('The rule matches the route table, so `true` means Audit was accepted and reports NonCompliant.')
+    $lines.Add('')
+    $lines.Add("Result: $modifyResult")
 
     $markdownPath = Join-Path $OutputPath 'missing-field-results.md'
     ($lines -join "`n") + "`n" | Set-Content -Path $markdownPath -Encoding utf8NoBOM -NoNewline
 
-    $pending = @($results | Where-Object Result -EQ 'missing').Count
+    $pending = @($results | Where-Object Result -EQ 'missing').Count + [int] ($modifyResult -eq 'missing')
     Write-Information "Wrote $markdownPath and $jsonPath."
     if ($pending -gt 0) {
         Write-Warning "$pending cases have no compliance state yet. Wait and run -Action Collect again."
@@ -341,15 +502,18 @@ function Invoke-Remove {
 
     $scope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName"
 
-    if ($PSCmdlet.ShouldProcess($assignmentName, 'Remove policy assignment')) {
-        Remove-AzPolicyAssignment -Name $assignmentName -Scope $scope -ErrorAction SilentlyContinue
+    foreach ($name in $assignmentName, $modifyAssignmentName) {
+        if ($PSCmdlet.ShouldProcess($name, 'Remove policy assignment')) {
+            Remove-AzPolicyAssignment -Name $name -Scope $scope -ErrorAction SilentlyContinue
+        }
     }
     if ($PSCmdlet.ShouldProcess($setName, 'Remove initiative')) {
         Remove-AzPolicySetDefinition -Name $setName -SubscriptionId $SubscriptionId -Force -ErrorAction SilentlyContinue
     }
-    foreach ($case in Get-VerificationCase) {
-        if ($PSCmdlet.ShouldProcess($case.DefinitionName, 'Remove policy definition')) {
-            Remove-AzPolicyDefinition -Name $case.DefinitionName -SubscriptionId $SubscriptionId -Force -ErrorAction SilentlyContinue
+    $definitionNames = @(Get-VerificationCase | ForEach-Object DefinitionName) + $modifyDefinitionName
+    foreach ($name in $definitionNames) {
+        if ($PSCmdlet.ShouldProcess($name, 'Remove policy definition')) {
+            Remove-AzPolicyDefinition -Name $name -SubscriptionId $SubscriptionId -Force -ErrorAction SilentlyContinue
         }
     }
     if ($PSCmdlet.ShouldProcess($ResourceGroupName, 'Remove resource group')) {

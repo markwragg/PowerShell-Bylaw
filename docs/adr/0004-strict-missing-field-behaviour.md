@@ -57,7 +57,7 @@ When several conditions in the same `anyOf` need the same guard, for example sev
 
 ### Observed behaviour on a missing field
 
-These results come from a sandbox run on 2026-11-25. The full table is in [assets/0004-missing-field-results.md](assets/0004-missing-field-results.md).
+These results come from two sandbox runs, on 2026-11-25 and 2026-11-26. A missing tag and a missing alias property of the resource's own type gave identical results. The full table is in [assets/0004-missing-field-results.md](assets/0004-missing-field-results.md).
 
 * Every operator pair is an exact complement on a missing field: one side is true and the other is false. Every pair is also a complement on a present value.
 * These operators are **false** on a missing field: `equals`, `in`, `like`, `match`, `matchInsensitively`, `contains`, `containsKey`, `greater`, `less` and `exists: true`.
@@ -75,45 +75,45 @@ This gives a single guard rule:
 
 | Compliant (`Must ...`) | Inverted operator | `inv(P)` on missing | Strict violation | Lenient violation | Verified |
 |---|---|---|---|---|---|
-| `-Be v` | `notEquals` | true | `notEquals v` | `allOf[exists:true, notEquals v]` | tag |
-| `-Not -Be v` | `equals` | false | `anyOf[exists:false, equals v]` | `equals v` | tag |
-| `-BeIn a` | `notIn` | true | `notIn a` | `allOf[exists:true, notIn a]` | tag |
-| `-Not -BeIn a` | `in` | false | `anyOf[exists:false, in a]` | `in a` | tag |
-| `-BeLike p` | `notLike` | true | `notLike p` | `allOf[exists:true, notLike p]` | tag |
-| `-Not -BeLike p` | `like` | false | `anyOf[exists:false, like p]` | `like p` | tag |
-| `-Match p` | `notMatchInsensitively` | true | `notMatchInsensitively p` | `allOf[exists:true, notMatchInsensitively p]` | tag |
-| `-Not -Match p` | `matchInsensitively` | false | `anyOf[exists:false, matchInsensitively p]` | `matchInsensitively p` | tag |
-| `-MatchCase p` | `notMatch` | true | `notMatch p` | `allOf[exists:true, notMatch p]` | tag |
-| `-Not -MatchCase p` | `match` | false | `anyOf[exists:false, match p]` | `match p` | tag |
-| `-ContainText s` | `notContains` | true | `notContains s` | `allOf[exists:true, notContains s]` | tag |
-| `-Not -ContainText s` | `contains` | false | `anyOf[exists:false, contains s]` | `contains s` | tag |
-| `-ContainKey k` | `notContainsKey` | true | `notContainsKey k` | `allOf[exists:true, notContainsKey k]` | tag |
-| `-Not -ContainKey k` | `containsKey` | false | `anyOf[exists:false, containsKey k]` | `containsKey k` | tag |
-| `-BeGreaterThan n` | `lessOrEquals` | true | `lessOrEquals n` | `allOf[exists:true, lessOrEquals n]` | tag |
-| `-Not -BeGreaterThan n` | `greater` | false | `anyOf[exists:false, greater n]` | `greater n` | tag |
-| `-BeGreaterOrEqual n` | `less` | false | `anyOf[exists:false, less n]` | `less n` | tag |
-| `-Not -BeGreaterOrEqual n` | `greaterOrEquals` | true | `greaterOrEquals n` | `allOf[exists:true, greaterOrEquals n]` | tag |
-| `-BeLessThan n` | `greaterOrEquals` | true | `greaterOrEquals n` | `allOf[exists:true, greaterOrEquals n]` | tag |
-| `-Not -BeLessThan n` | `less` | false | `anyOf[exists:false, less n]` | `less n` | tag |
-| `-BeLessOrEqual n` | `greater` | false | `anyOf[exists:false, greater n]` | `greater n` | tag |
-| `-Not -BeLessOrEqual n` | `lessOrEquals` | true | `lessOrEquals n` | `allOf[exists:true, lessOrEquals n]` | tag |
-| `-Exist` | `exists: false` | true | `exists: false` | `-IfPresent` is an error | tag |
-| `-Not -Exist` | `exists: true` | false | `exists: true` | `-IfPresent` is an error | tag |
+| `-Be v` | `notEquals` | true | `notEquals v` | `allOf[exists:true, notEquals v]` | tag, alias |
+| `-Not -Be v` | `equals` | false | `anyOf[exists:false, equals v]` | `equals v` | tag, alias |
+| `-BeIn a` | `notIn` | true | `notIn a` | `allOf[exists:true, notIn a]` | tag, alias |
+| `-Not -BeIn a` | `in` | false | `anyOf[exists:false, in a]` | `in a` | tag, alias |
+| `-BeLike p` | `notLike` | true | `notLike p` | `allOf[exists:true, notLike p]` | tag, alias |
+| `-Not -BeLike p` | `like` | false | `anyOf[exists:false, like p]` | `like p` | tag, alias |
+| `-Match p` | `notMatchInsensitively` | true | `notMatchInsensitively p` | `allOf[exists:true, notMatchInsensitively p]` | tag, alias |
+| `-Not -Match p` | `matchInsensitively` | false | `anyOf[exists:false, matchInsensitively p]` | `matchInsensitively p` | tag, alias |
+| `-MatchCase p` | `notMatch` | true | `notMatch p` | `allOf[exists:true, notMatch p]` | tag, alias |
+| `-Not -MatchCase p` | `match` | false | `anyOf[exists:false, match p]` | `match p` | tag, alias |
+| `-ContainText s` | `notContains` | true | `notContains s` | `allOf[exists:true, notContains s]` | tag, alias |
+| `-Not -ContainText s` | `contains` | false | `anyOf[exists:false, contains s]` | `contains s` | tag, alias |
+| `-ContainKey k` | `notContainsKey` | true | `notContainsKey k` | `allOf[exists:true, notContainsKey k]` | tag, alias |
+| `-Not -ContainKey k` | `containsKey` | false | `anyOf[exists:false, containsKey k]` | `containsKey k` | tag, alias |
+| `-BeGreaterThan n` | `lessOrEquals` | true | `lessOrEquals n` | `allOf[exists:true, lessOrEquals n]` | tag, alias |
+| `-Not -BeGreaterThan n` | `greater` | false | `anyOf[exists:false, greater n]` | `greater n` | tag, alias |
+| `-BeGreaterOrEqual n` | `less` | false | `anyOf[exists:false, less n]` | `less n` | tag, alias |
+| `-Not -BeGreaterOrEqual n` | `greaterOrEquals` | true | `greaterOrEquals n` | `allOf[exists:true, greaterOrEquals n]` | tag, alias |
+| `-BeLessThan n` | `greaterOrEquals` | true | `greaterOrEquals n` | `allOf[exists:true, greaterOrEquals n]` | tag, alias |
+| `-Not -BeLessThan n` | `less` | false | `anyOf[exists:false, less n]` | `less n` | tag, alias |
+| `-BeLessOrEqual n` | `greater` | false | `anyOf[exists:false, greater n]` | `greater n` | tag, alias |
+| `-Not -BeLessOrEqual n` | `lessOrEquals` | true | `lessOrEquals n` | `allOf[exists:true, lessOrEquals n]` | tag, alias |
+| `-Exist` | `exists: false` | true | `exists: false` | `-IfPresent` is an error | tag, alias |
+| `-Not -Exist` | `exists: true` | false | `exists: true` | `-IfPresent` is an error | tag, alias |
 
-"tag" in the Verified column means the row was measured on a missing **tag** (`tags['x']`). It has not yet been measured on a missing **alias property** (see Confirmation).
+"tag, alias" in the Verified column means the row was measured on a missing **tag** (`tags['x']`) and on a missing **alias property** of the resource's own type, with the same result.
 
 ### Consequences
 
 * Good, because policies fail closed unless the author opts out explicitly.
 * Good, because the common cases compile to the same minimal JSON a careful human would write.
-* Bad, because the guard-omission rule relies on observed Azure behaviour, not documented behaviour. If Azure changes, or if missing alias properties behave differently from missing tags, the table and the golden files change. The verification script can be re-run at any time.
+* Bad, because the guard-omission rule relies on observed Azure behaviour, not documented behaviour. If Azure changes, the table and the golden files change. The verification script can be re-run at any time.
 * Bad, because the element-level default inside `Each` differs from the top-level default. This must be documented clearly in the README.
 
 ### Confirmation
 
 * Unit tests cover every row of the table, in strict and lenient form.
 * **Empirical verification.** [build/verify-missing-field](../../build/verify-missing-field/README.md) deploys one Audit-effect policy per operator and field case to a sandbox subscription. The first run (2026-11-25) gave valid results: every control answer on the present tag matched expectations. That run verified every row of the table for a missing tag.
-* **Still open: missing alias properties.** In the first run, the cross-type alias case (`Microsoft.Storage/storageAccounts/publicNetworkAccess` evaluated against a route table) produced no compliance state at all. A likely cause is that Azure treats a resource as not applicable when the rule references an alias of a different type, but this hasn't been confirmed. A second run should use a missing alias of the resource's **own** type, passed with `-ExtraField`. If that run differs from the tag results, this ADR and the golden files must be updated. Until then, the compiler implements the table as written.
+* **Missing alias properties.** The second run (2026-11-26) added `Microsoft.Network/routeTables/subnets`, which is missing on the route table. Every row gave the same result as the missing tag. The cross-type alias case (`Microsoft.Storage/storageAccounts/publicNetworkAccess` against a route table) again had no compliance state, more than 12 hours after deployment. Azure doesn't evaluate a condition on another type's alias, so that case says nothing about missing values.
 * Properties that are present but `null` remain unmeasured.
 
 ## Pros and Cons of the Options

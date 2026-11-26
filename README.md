@@ -320,7 +320,7 @@ Some operators already give the right answer on a missing field, and others don'
 
 Bylaw adds these checks only where they change the result. An empty string counts as present. To require a non-empty value, add `Must -Not -Be ''`.
 
-The behaviour of each operator on a missing field isn't documented by Microsoft. Bylaw's rules come from measurements in a real subscription, made on missing tags. Missing alias properties are still to be measured. [ADR-0004](docs/adr/0004-strict-missing-field-behaviour.md) has the full table and the measurement script.
+The behaviour of each operator on a missing field isn't documented by Microsoft. Bylaw's rules come from measurements in a real subscription, where missing tags and missing properties behaved the same. [ADR-0004](docs/adr/0004-strict-missing-field-behaviour.md) has the full table and the measurement script.
 
 ## Building
 
