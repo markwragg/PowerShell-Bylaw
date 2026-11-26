@@ -136,9 +136,11 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 | `Field name` | Field reference, resolved to a full alias. |
 | `Element` | The current element of an array of plain values, inside `Each`. |
 | `Tag name` | Tag field reference (`tags['name']`), parameter-aware. |
+| `ResourceGroupTag name` | The resource group's tag value (`[resourceGroup().tags['name']]`), parameter-aware. |
+| `AnyOf { }` / `AllOf { }` | Alternatives in a requirement: `AnyOf` holds if any statement inside holds. `AllOf` is only valid inside `AnyOf` (ADR-0026). |
 | `Must` | Assertion, takes a field reference from the pipeline. |
 | `Effect value` | The `then` block for simple effects. |
-| `Modify -Role ... { AddOrReplace / Add / Remove }` | Modify effect with operations. |
+| `Modify -Role ... { }` | Modify effect, in place of `Effect`. Operations take their field from the pipeline: `Tag x \| AddOrReplace 'v'`, `Tag x \| Add 'v'`, `Tag x \| Remove` (ADR-0024). |
 | `Param Name` | Reference a parameter (emits `[parameters('name')]`). |
 | `Arm '[...]'` | Raw ARM template expression escape hatch. |
 
@@ -214,6 +216,8 @@ Use `Must` rather than `Should` to avoid clashing with Pester, which users will 
 - `Tag`, `ResourceGroupTag`
 - Plain JSON emitter
 - Tag inheritance golden test
+- Value conditions: `ResourceGroupTag`, `Param` and `Arm` piped into `Must` (ADR-0025)
+- From Milestone 1's gaps: `AnyOf` and `AllOf` groups (ADR-0026), and repeated `exists` guards emitted once (ADR-0004)
 
 ### Milestone 3: decompiler and ALZ round-trip
 

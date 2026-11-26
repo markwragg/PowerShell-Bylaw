@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-25
+date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
 
@@ -52,6 +52,8 @@ For a compliant condition `P` on field `f`:
 * **Lenient:** violation = `allOf[ {f exists: true}, inv(P) ]`
 
 The guard is **omitted** when the inverted operator already gives the required result on a missing field. Omitting a guard is only an optimisation, because a redundant guard never changes the result.
+
+When several conditions in the same `anyOf` need the same guard, for example several negated checks on one field in one `Require`, the guard is emitted once. A repeated guard in an `anyOf` never changes the result.
 
 ### Observed behaviour on a missing field
 

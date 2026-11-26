@@ -20,10 +20,14 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0014](0014-runspace-isolation.md) | Each source file is compiled in a fresh runspace | Accepted |
 | [0015](0015-must-operator-vocabulary.md) | Must operator names follow PowerShell expectations, not raw Azure operator names | Accepted |
 | [0016](0016-properties-mapping-and-defaults.md) | How Properties keys map into the definition, and their defaults | Accepted |
-| [0017](0017-effects-in-language-version-1-0.md) | Effects supported in Milestone 1, and how they are validated | Accepted |
+| [0017](0017-effects-in-language-version-1-0.md) | Effects supported in language version 1.0, and how they are validated | Accepted |
 | [0018](0018-parameter-name-casing.md) | Parameter name casing in emitted JSON | Accepted |
 | [0019](0019-provenance-metadata.md) | Provenance metadata in emitted definitions | Proposed |
-| [0020](0020-arm-expression-helpers.md) | Which typed ARM expression helpers ship in v1 | Proposed |
+| [0020](0020-arm-expression-helpers.md) | Which typed ARM expression helpers ship in v1 | Accepted |
 | [0021](0021-parameter-usage-validation.md) | Compile-time validation of parameter declarations and usage | Accepted |
-| [0022](0022-modify-role-resolution.md) | Resolving built-in role names for Modify -Role | Proposed |
+| [0022](0022-modify-role-resolution.md) | Resolving built-in role names for Modify -Role | Accepted |
 | [0023](0023-epac-schema-conformance.md) | Conforming to the EPAC policy definition schema | Accepted |
+| [0024](0024-modify-effect.md) | Modify is a block that replaces Effect, with operations that take their field from the pipeline | Accepted |
+| [0025](0025-value-conditions.md) | Must can test an expression as well as a field, emitting a value condition | Accepted |
+| [0026](0026-anyof-and-allof-groups.md) | AnyOf and AllOf groups let a requirement have alternatives | Accepted |
+| [0027](0027-plain-json-output.md) | Plain JSON output is a policy definition with name and properties, emitted as written | Accepted |

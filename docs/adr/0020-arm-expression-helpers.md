@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-25
+status: accepted
+date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
 
@@ -24,11 +24,17 @@ Policy values often use ARM template expressions: `[parameters('x')]`, `[resourc
 
 ## Decision Outcome
 
-Proposed: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide from ALZ coverage data".
+Chosen option: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide from ALZ coverage data".
 
 * `Param Name` emits `[parameters('<jsonName>')]`. The parameter must exist (ADR-0021).
-* `Tag name` emits the field `tags['name']`. If `name` is `Param`, it emits `[concat('tags[', parameters('x'), ']')]`. Milestone 2.
-* `ResourceGroupTag name` emits `[resourceGroup().tags['name']]`. Milestone 2.
+* `Tag name` is a field reference to the tag, `tags['name']`. It can be piped into `Must` and into `Modify` operations (ADR-0024).
+  * `Tag (Param TagName)` emits the field `[concat('tags[', parameters('tagName'), ']')]`, as Azure's built-in tag policies do.
+  * A tag name containing `'`, `[` or `]` is a compile error, because it can't be written safely inside `tags['...']`.
+  * `Tag` is shorthand for `Field "tags['name']"`, so the two compile to the same output.
+* `ResourceGroupTag name` is a value: `[resourceGroup().tags['name']]`.
+  * `ResourceGroupTag (Param TagName)` emits `[resourceGroup().tags[parameters('tagName')]]`.
+  * It can be used wherever a value is expected (`Must -Be (ResourceGroupTag CostCenter)`, a `Modify` operation's value), and piped into `Must` as a value condition (ADR-0025).
+  * The same name rule as `Tag` applies.
 * `Arm '[...]'` is passed through exactly as written. The compiler checks only that the value starts with `[` and ends with `]`, and that it isn't `[[` (an escaped literal). Any `parameters('x')` names referenced inside are checked against the declared parameters on a best-effort basis, as a warning.
 * The Milestone 3 coverage report counts which `Arm` patterns appear most often in ALZ policies. Helpers for the top patterns are proposed in a follow-up ADR.
 
@@ -36,6 +42,10 @@ Proposed: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide from A
 
 * Good, because the surface stays minimal and choices are driven by evidence.
 * Bad, because common expressions such as `[field('location')]` need `Arm` in v1.
+
+### Confirmation
+
+Unit tests cover each helper with a literal name and with `Param`, the name rule, and the equivalence of `Tag x` and `Field "tags['x']"`. The tag inheritance golden test uses both `Tag` and `ResourceGroupTag` with a parameter.
 
 ## Pros and Cons of the Options
 
