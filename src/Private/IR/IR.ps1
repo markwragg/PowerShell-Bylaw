@@ -319,16 +319,52 @@ class BylawNot : BylawCondition {
 }
 
 class BylawEffect : BylawNode {
-    # Literal effect name or a BylawParamRef.
+    # Literal effect name, a BylawParamRef or a BylawExpr.
     [BylawValue] $Value
-    # The 'details' block for effects that need one (Modify in Milestone 2); $null otherwise.
-    [System.Collections.Specialized.OrderedDictionary] $Details
 
     BylawEffect() {}
 
     BylawEffect([BylawValue] $value) {
         $this.Value = $value
     }
+}
+
+class BylawModifyOperation : BylawNode {
+    # One operation in a Modify block (ADR-0024): Field | AddOrReplace v, | Add v or | Remove.
+    # Operation is the emitted name: 'addOrReplace', 'add' or 'remove'.
+    [string] $Operation
+    [BylawFieldRef] $Field
+    # $null for remove.
+    [BylawValue] $Value
+    # The operation's optional condition, an Arm expression.
+    [BylawExpr] $Condition
+
+    BylawModifyOperation() {}
+
+    BylawModifyOperation([string] $operation, [BylawFieldRef] $field) {
+        $this.Operation = $operation
+        $this.Field = $field
+    }
+
+    [string] ToString() {
+        return '{0} {1}' -f $this.Field, $this.Operation
+    }
+}
+
+class BylawModify : BylawEffect {
+    # Modify -Role ... { operations } (ADR-0024). Value is the literal 'Modify', or the -Effect
+    # parameter or expression.
+    # -Role values as written (ADR-0022).
+    [string[]] $Roles = @()
+    # Full role definition IDs, in the order written, set by the validation pass.
+    [string[]] $RoleDefinitionIds = @()
+    # 'audit', 'deny' or 'disabled' as emitted, or $null when not set.
+    [string] $ConflictEffect
+    [System.Collections.Generic.List[object]] $Operations = [System.Collections.Generic.List[object]]::new()
+
+    BylawModify() {}
+
+    BylawModify([BylawValue] $value) : base($value) {}
 }
 
 class BylawPolicyRule : BylawNode {
@@ -520,8 +556,22 @@ class BylawAliasSnapshot {
     hidden [System.Collections.Generic.Dictionary[string, string]] $TypeNames
     hidden [System.Collections.Generic.Dictionary[string, System.Collections.Generic.Dictionary[string, string]]] $TypeIndex
     hidden [System.Collections.Generic.Dictionary[string, string]] $GlobalIndex
+    # Alias names marked Modifiable, ignoring case (ADR-0024). Empty when the data has none.
+    hidden [System.Collections.Generic.HashSet[string]] $Modifiable
 
     BylawAliasSnapshot([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types) {
+        $this.Init($path, $generatedAt, $types, $null)
+    }
+
+    BylawAliasSnapshot([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types, [string[]] $modifiable) {
+        $this.Init($path, $generatedAt, $types, $modifiable)
+    }
+
+    hidden [void] Init([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types, [string[]] $modifiable) {
+        $this.Modifiable = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($null -ne $modifiable) {
+            $this.Modifiable.UnionWith($modifiable)
+        }
         $this.Path = $path
         $this.GeneratedAt = $generatedAt
         $this.Types = $types
@@ -574,6 +624,11 @@ class BylawAliasSnapshot {
         }
         return ''
     }
+
+    # Whether the snapshot marks the alias Modifiable, so Modify can change it.
+    [bool] IsModifiable([string] $alias) {
+        return $this.Modifiable.Contains($alias)
+    }
 }
 
 #endregion
@@ -581,7 +636,8 @@ class BylawAliasSnapshot {
 #region Front-end state
 
 class BylawFrame {
-    # One open keyword block (Policy, Resource, When, Require, Each, AnyOf, AllOf) while the DSL runs.
+    # One open keyword block (Policy, Resource, When, Require, Each, AnyOf, AllOf, Modify) while
+    # the DSL runs.
     [string] $Keyword
     [BylawNode] $Node
     # Field references produced in this block that no Must has consumed yet.

@@ -19,7 +19,7 @@ function Invoke-BylawCompilerPass {
     foreach ($diagnostic in Invoke-BylawAliasResolution -Policy $Policy -Snapshot $Snapshot -AllowUnknownAlias:$AllowUnknownAlias) {
         $diagnostics.Add($diagnostic)
     }
-    foreach ($diagnostic in Invoke-BylawValidation -Policy $Policy) {
+    foreach ($diagnostic in Invoke-BylawValidation -Policy $Policy -Snapshot $Snapshot) {
         $diagnostics.Add($diagnostic)
     }
 

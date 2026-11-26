@@ -10,6 +10,7 @@
 #   5. Under Resource *, only reserved fields and full aliases are allowed.
 #   6. [*] in a field outside Each is an error: negating it by swapping operators would be wrong.
 #   7. Tag name is tags['name']; Tag (Param X) is [concat('tags[', parameters('x'), ']')] (ADR-0020).
+#   8. Fields in Modify operations resolve as top-level fields (ADR-0024).
 #   Value conditions (ADR-0025) test an expression and have no field to resolve.
 
 $script:BylawReservedFields = @(
@@ -70,6 +71,16 @@ function Invoke-BylawAliasResolution {
     foreach ($requirement in $scope.Requirements) {
         foreach ($child in $requirement.Children) {
             Resolve-BylawNodeAlias -Node $child -Context $context -ArrayAlias $null
+        }
+    }
+    # Modify operation fields resolve like top-level fields. A [*] field is left to validation,
+    # which explains that Modify can't change array elements (ADR-0024).
+    if ($Policy.Effect -is [BylawModify]) {
+        foreach ($operation in $Policy.Effect.Operations) {
+            if ($operation.Field.Kind -eq [BylawFieldKind]::Field -and $operation.Field.Name.Contains('[*]')) {
+                continue
+            }
+            Resolve-BylawFieldAlias -Field $operation.Field -Context $context -ArrayAlias $null
         }
     }
 

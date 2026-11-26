@@ -58,27 +58,37 @@ Modify -Role 'Tag Contributor' {
 ### Effect
 
 * With a literal effect, EPAC output gets a generated effect parameter (ADR-0023), with allowed values `Modify` and `Disabled` and a default of `Modify`. These are the values built-in Modify policies use.
-* A declared effect parameter may allow only `Modify` and `Disabled`. Whether `Audit` is valid on a definition with a `modify` details block isn't documented. It will be measured in the sandbox, and allowed only if it works.
-* `Deny` in a Modify policy's effect parameter is a compile error.
+* A declared effect parameter may allow only `Modify` and `Disabled` (`BYL3062`). Whether `Audit` is valid on a definition with a `modify` details block isn't documented. It will be measured in the sandbox, and allowed only if it works.
+* `Deny` in a Modify policy's effect parameter is a compile error (`BYL3062`).
+* Measured in the sandbox on 2026-11-26: Azure accepts a definition whose effect parameter allows `Modify`, `Audit` and `Disabled`. But it refuses to assign it without a managed identity (`ResourceIdentityRequired`), even with the effect set to `Audit`. So choosing Audit doesn't avoid the identity. Whether Audit then evaluates is still being measured.
 
 ### Validation
 
-Errors:
+Errors found while the policy runs:
 
-* `Add` or `AddOrReplace` without a value, or `Remove` with one.
-* `Remove` on a field that isn't a tag. Learn: "Only tags can be removed."
-* A field that isn't a tag and isn't marked Modifiable in the alias snapshot.
-* `identity.type` on a resource type other than `Microsoft.Compute/virtualMachines` or `Microsoft.Compute/virtualMachineScaleSets`. Learn says evaluation is skipped for other types, so the policy would silently do nothing.
-* A field with `[*]`. Learn doesn't document modifying array elements.
-* The same field in more than one operation.
-* A `-Condition` that uses `field()`, `resourceGroup()` or `subscription()`, which Learn says aren't supported there.
-* A `-Condition` that isn't an `Arm` expression.
+* `Effect` and `Modify` in the same policy (`BYL1026`). A second `Modify` is `BYL1004`, an empty or missing block `BYL1013`.
+* `Add` or `AddOrReplace` without a value, or `Remove` with one (`BYL1027`).
+* A `-Condition` that isn't an `Arm` expression (`BYL1028`).
+* A `-ConflictEffect` other than `Audit`, `Deny` or `Disabled` (`BYL1029`).
+* An `-Effect` that isn't a parameter or an `Arm` expression (`BYL1030`).
+* An operation with no field piped to it, or with `Element` or a value piped to it (`BYL1031`).
+* No `-Role` (`BYL1032`).
+
+Errors found when compiling:
+
+* A role that isn't in the role map (`BYL3060`), or the same role given twice in any form (`BYL3061`).
+* `Remove` on a field that isn't a tag (`BYL3063`). Learn: "Only tags can be removed."
+* A field that isn't a tag, isn't `identity.type` and isn't marked Modifiable in the alias snapshot (`BYL3064`). Reserved fields such as `location` can't be modified.
+* `identity.type` on a resource type other than `Microsoft.Compute/virtualMachines` or `Microsoft.Compute/virtualMachineScaleSets` (`BYL3065`). Learn says evaluation is skipped for other types, so the policy would silently do nothing. Under `Resource *` the type isn't known, so it isn't checked.
+* A field with `[*]` (`BYL3066`). Learn doesn't document modifying array elements.
+* The same field in more than one operation (`BYL3067`).
+* A `-Condition` that uses `field()`, `resourceGroup()` or `subscription()` (`BYL3068`), which Learn says aren't supported there.
 
 Warnings:
 
-* An operation on a tag in a policy whose `Mode` isn't `Indexed`, unless the resource type is `Microsoft.Resources/subscriptions/resourceGroups`. Learn: "For tags, a Modify policy should have mode set to `indexed` unless the target resource is a resource group."
-* An operation on a field that no `Require` checks. The rule then doesn't depend on what the operation changes, so remediation can never make the resource compliant.
-* `-ConflictEffect Deny`, or no conflict effect, on a policy that modifies an alias rather than a tag. Learn recommends `audit` for definitions that use aliases.
+* An operation on a tag in a policy whose `Mode` isn't `Indexed`, unless the resource type is `Microsoft.Resources/subscriptions/resourceGroups` (`BYL3069`). Learn: "For tags, a Modify policy should have mode set to `indexed` unless the target resource is a resource group."
+* An operation on a field that no `Require` checks (`BYL3070`). The rule then doesn't depend on what the operation changes, so remediation can never make the resource compliant. `When` conditions don't count, because they decide where the policy applies, not whether a resource is compliant.
+* `-ConflictEffect Deny`, or no conflict effect, on a policy that modifies an alias rather than a tag (`BYL3071`). Learn recommends `audit` for definitions that use aliases.
 
 ### Consequences
 

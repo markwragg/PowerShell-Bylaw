@@ -1,7 +1,8 @@
 function Field {
     <#
     .SYNOPSIS
-        A field reference, resolved to a full alias at compile time. Pipe it to Must.
+        A field reference, resolved to a full alias at compile time. Pipe it to Must, or inside
+        Modify to an operation.
     #>
     [CmdletBinding()]
     param(
@@ -13,7 +14,7 @@ function Field {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Field')
-    $frame = Test-BylawParent -Keyword 'Field' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf' -Location $location
+    $frame = Test-BylawParent -Keyword 'Field' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify' -Location $location
     if ($null -eq $frame) {
         return
     }

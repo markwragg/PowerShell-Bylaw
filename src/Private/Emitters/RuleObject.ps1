@@ -1,6 +1,8 @@
 # Policy layer -> ordered objects, shared by every emitter (ADR-0006, ADR-0009 key order).
 
 $script:BylawSupportedEffects = @('Audit', 'Deny', 'Disabled')
+# Effects a Modify block's effect may take (ADR-0024).
+$script:BylawModifyEffects = @('Modify', 'Disabled')
 
 function Get-BylawParameterJsonName {
     # Emitted parameter name (ADR-0018): JsonName if set, else the DSL name with its
@@ -15,9 +17,9 @@ function Get-BylawParameterJsonName {
 
 function Get-BylawCanonicalEffect {
     # Canonical casing for a supported literal effect, or '' when it isn't supported in 1.0.
-    param([Parameter(Mandatory)] [string] $Effect)
+    param([Parameter(Mandatory)] [string] $Effect, [string[]] $Supported = $script:BylawSupportedEffects)
 
-    foreach ($candidate in $script:BylawSupportedEffects) {
+    foreach ($candidate in $Supported) {
         if ([string]::Equals($candidate, $Effect, [System.StringComparison]::OrdinalIgnoreCase)) {
             return $candidate
         }
@@ -109,21 +111,53 @@ function ConvertTo-BylawConditionObject {
 }
 
 function ConvertTo-BylawPolicyRuleObject {
-    # { "if": ..., "then": { "effect": ... } }
+    # { "if": ..., "then": { "effect": ..., "details": ... } }
     param([Parameter(Mandatory)] [BylawPolicy] $Policy)
 
-    $effectValue = $Policy.Rule.Then.Value
+    $then = $Policy.Rule.Then
+    $supported = if ($then -is [BylawModify]) { $script:BylawModifyEffects } else { $script:BylawSupportedEffects }
+    $effectValue = $then.Value
     $effect = if ($effectValue -is [BylawLiteral]) {
-        $canonical = Get-BylawCanonicalEffect -Effect ([string] $effectValue.Value)
+        $canonical = Get-BylawCanonicalEffect -Effect ([string] $effectValue.Value) -Supported $supported
         if ($canonical) { $canonical } else { [string] $effectValue.Value }
     }
     else {
         ConvertTo-BylawValueObject -Value $effectValue -Policy $Policy
     }
+    $thenObject = [ordered]@{ effect = $effect }
+    if ($then -is [BylawModify]) {
+        $thenObject['details'] = ConvertTo-BylawModifyDetailsObject -Modify $then -Policy $Policy
+    }
     [ordered]@{
         if   = ConvertTo-BylawConditionObject -Condition $Policy.Rule.If -Policy $Policy
-        then = [ordered]@{ effect = $effect }
+        then = $thenObject
     }
+}
+
+function ConvertTo-BylawModifyDetailsObject {
+    # { roleDefinitionIds, conflictEffect?, operations: [ { operation, field, value?, condition? } ] },
+    # in the order Learn's examples use (ADR-0024).
+    param([Parameter(Mandatory)] [BylawModify] $Modify, [Parameter(Mandatory)] [BylawPolicy] $Policy)
+
+    $details = [ordered]@{ roleDefinitionIds = [object[]] @($Modify.RoleDefinitionIds) }
+    if ($Modify.ConflictEffect) {
+        $details['conflictEffect'] = $Modify.ConflictEffect
+    }
+    $operations = foreach ($operation in $Modify.Operations) {
+        $object = [ordered]@{
+            operation = $operation.Operation
+            field     = Get-BylawFieldName -Field $operation.Field
+        }
+        if ($null -ne $operation.Value) {
+            $object['value'] = ConvertTo-BylawValueObject -Value $operation.Value -Policy $Policy
+        }
+        if ($null -ne $operation.Condition) {
+            $object['condition'] = $operation.Condition.Text
+        }
+        $object
+    }
+    $details['operations'] = [object[]] @($operations)
+    $details
 }
 
 function Get-BylawFieldName {

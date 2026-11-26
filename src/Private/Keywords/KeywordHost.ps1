@@ -10,7 +10,8 @@
 
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
-    'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm'
+    'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
+    'Modify', 'AddOrReplace', 'Add', 'Remove'
 )
 
 # Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
@@ -81,7 +82,8 @@ function Enter-BylawFrame {
 }
 
 function Exit-BylawFrame {
-    # Pops the given frame and reports any Field that was never piped to Must.
+    # Pops the given frame and reports any Field that was never piped to Must (or, in Modify, to an
+    # operation).
     param([Parameter(Mandatory)] [BylawFrame] $Frame)
 
     $index = $script:BylawFrames.LastIndexOf($Frame)
@@ -89,9 +91,13 @@ function Exit-BylawFrame {
         $script:BylawFrames.RemoveRange($index, $script:BylawFrames.Count - $index)
     }
     foreach ($field in $Frame.PendingFields) {
-        Add-BylawDiagnostic -Severity Error -Code 'BYL1007' -Location $field.Location -Message (
+        $message = if ($Frame.Keyword -eq 'Modify') {
+            "Field '{0}' is not piped to an operation. Write: {0} | AddOrReplace ..., | Add ... or | Remove" -f $field
+        }
+        else {
             "Field '{0}' is not piped to Must. Write: Field {0} | Must ..." -f $field
-        )
+        }
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1007' -Location $field.Location -Message $message
     }
 }
 

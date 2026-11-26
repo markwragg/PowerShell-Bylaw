@@ -4,7 +4,7 @@
 # the compiled rule against the limits Azure enforces when a definition is created.
 
 $script:BylawLaterEffects = [ordered]@{
-    Modify            = 'Modify arrives in Milestone 2.'
+    Modify            = "Modify has its own block, which takes the place of Effect: Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' } (ADR-0024)."
     Append            = 'Append is not planned; use Modify (Milestone 2), which Azure recommends over Append.'
     AuditIfNotExists  = 'AuditIfNotExists is planned for a later milestone.'
     DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
@@ -15,7 +15,11 @@ $script:BylawLaterEffects = [ordered]@{
 function Invoke-BylawValidation {
     [CmdletBinding()]
     [OutputType([BylawDiagnostic])]
-    param([Parameter(Mandatory)] [BylawPolicy] $Policy)
+    param(
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        # For the Modifiable check of Modify operations (ADR-0024).
+        [BylawAliasSnapshot] $Snapshot
+    )
 
     $diagnostics = [System.Collections.Generic.List[object]]::new()
     $add = {
@@ -46,6 +50,9 @@ function Invoke-BylawValidation {
         foreach ($assertion in $assertions) {
             Test-BylawAssertionValue -Assertion $assertion -Policy $Policy -Add $add
             Test-BylawTagParameter -Assertion $assertion -Policy $Policy -Add $add
+        }
+        if ($Policy.Effect -is [BylawModify]) {
+            Test-BylawModify -Modify $Policy.Effect -Policy $Policy -Snapshot $Snapshot -Add $add
         }
 
         if ($scope.Requirements.Count -eq 0) {
@@ -167,29 +174,58 @@ function Test-BylawEffect {
         return
     }
     $value = $effect.Value
+    $isModify = $effect -is [BylawModify]
     if ($value -is [BylawLiteral]) {
-        Test-BylawEffectName -Name ([string] $value.Value) -Location $effect.Location -Add $Add
+        # A Modify block's literal effect is always Modify.
+        if (-not $isModify) {
+            Test-BylawEffectName -Name ([string] $value.Value) -Location $effect.Location -Add $Add
+        }
         return
     }
     if ($value -isnot [BylawParamRef]) {
         # An Arm expression: can't be checked at compile time.
         return
     }
+    $example = if ($isModify) { 'Modify, Disabled -Default Modify' } else { 'Audit, Deny, Disabled -Default Deny' }
     $parameter = $Policy.FindParameter($value.Name)
     if ($null -eq $parameter) {
-        & $Add 'BYL3020' "Effect uses parameter '$($value.Name)', which is not declared. Add: Parameter $($value.Name) -AllowedValues Audit, Deny, Disabled -Default Deny." $value.Location
+        & $Add 'BYL3020' "Effect uses parameter '$($value.Name)', which is not declared. Add: Parameter $($value.Name) -AllowedValues $example." $value.Location
         return
     }
     if ($parameter.Type -ne 'String') {
         & $Add 'BYL3031' "Effect parameter '$($parameter.Name)' must be of type String (it is $($parameter.Type))." $parameter.Location
     }
     if (-not $parameter.AllowedValues) {
-        & $Add 'BYL3032' "Effect parameter '$($parameter.Name)' needs -AllowedValues, e.g. -AllowedValues Audit, Deny, Disabled (ADR-0017)." $parameter.Location
+        & $Add 'BYL3032' "Effect parameter '$($parameter.Name)' needs -AllowedValues, e.g. -AllowedValues $($example -replace ' -Default .*$') (ADR-0017)." $parameter.Location
         return
     }
     foreach ($allowed in $parameter.AllowedValues) {
-        Test-BylawEffectName -Name ([string] $allowed) -Location $parameter.Location -Add $Add -Code 'BYL3033' -Context "Allowed value of effect parameter '$($parameter.Name)'"
+        if ($isModify) {
+            Test-BylawModifyEffectName -Name ([string] $allowed) -Parameter $parameter -Add $Add
+        }
+        else {
+            Test-BylawEffectName -Name ([string] $allowed) -Location $parameter.Location -Add $Add -Code 'BYL3033' -Context "Allowed value of effect parameter '$($parameter.Name)'"
+        }
     }
+}
+
+function Test-BylawModifyEffectName {
+    # An allowed value of a Modify block's effect parameter: Modify or Disabled (ADR-0024).
+    param(
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name,
+        [Parameter(Mandatory)] [BylawParameter] $Parameter,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    if (Get-BylawCanonicalEffect -Effect $Name -Supported $script:BylawModifyEffects) {
+        return
+    }
+    $reason = switch ($Name) {
+        'Deny' { 'A Modify policy changes the request, so it never denies it.' }
+        'Audit' { "Whether Azure accepts Audit as the effect of a definition with a modify block hasn't been verified yet (ADR-0024)." }
+        default { '' }
+    }
+    & $Add 'BYL3062' ("Effect parameter '$($Parameter.Name)' of a Modify block allows '$Name'. Allowed values: $($script:BylawModifyEffects -join ', '). $reason").TrimEnd() $Parameter.Location
 }
 
 function Test-BylawEffectName {
@@ -386,6 +422,15 @@ function Get-BylawUsedParameterName {
     }
     if ($null -ne $Policy.Effect -and $null -ne $Policy.Effect.Value) {
         $values.Add($Policy.Effect.Value)
+    }
+    if ($Policy.Effect -is [BylawModify]) {
+        foreach ($operation in $Policy.Effect.Operations) {
+            foreach ($value in $operation.Value, $operation.Condition, $operation.Field.TagName) {
+                if ($null -ne $value) {
+                    $values.Add($value)
+                }
+            }
+        }
     }
     # ResourceGroupTag (Param X) uses X.
     foreach ($value in @($values)) {

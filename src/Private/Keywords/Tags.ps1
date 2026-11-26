@@ -1,7 +1,8 @@
 function Tag {
     <#
     .SYNOPSIS
-        A tag field reference: tags['name'] (ADR-0020). Pipe it to Must.
+        A tag field reference: tags['name'] (ADR-0020). Pipe it to Must, or inside Modify to an
+        operation.
 
     .EXAMPLE
         Tag CostCenter | Must -Exist
@@ -17,7 +18,7 @@ function Tag {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Tag')
-    $frame = Test-BylawParent -Keyword 'Tag' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf' -Location $location
+    $frame = Test-BylawParent -Keyword 'Tag' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify' -Location $location
     if ($null -eq $frame) {
         return
     }

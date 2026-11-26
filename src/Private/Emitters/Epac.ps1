@@ -25,12 +25,14 @@ function Get-BylawEpacEffectParameter {
     if ($value -isnot [BylawLiteral]) {
         return $null
     }
+    # A Modify block allows Modify and Disabled, as built-in Modify policies do (ADR-0024).
+    $supported = if ($Policy.Effect -is [BylawModify]) { $script:BylawModifyEffects } else { $script:BylawSupportedEffects }
     $generated = [BylawParameter]::new('effect')
     $generated.JsonName = 'effect'
     $generated.Type = 'String'
-    $generated.AllowedValues = $script:BylawSupportedEffects
+    $generated.AllowedValues = $supported
     $generated.HasDefault = $true
-    $generated.DefaultValue = Get-BylawCanonicalEffect -Effect ([string] $value.Value)
+    $generated.DefaultValue = Get-BylawCanonicalEffect -Effect ([string] $value.Value) -Supported $supported
     $generated.Location = $Policy.Effect.Location
     @{ Parameter = $generated; Generated = $true }
 }

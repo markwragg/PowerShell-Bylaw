@@ -6,7 +6,8 @@ function Policy {
     .DESCRIPTION
         The only top-level Bylaw DSL command. The scriptblock describes the compliant state of a
         resource using the inner keywords (Properties, Parameter, Resource, When, Require, Each,
-        Field, Element, Must, Effect, Param, Arm), which exist only while the block runs.
+        AnyOf, AllOf, Field, Element, Tag, ResourceGroupTag, Must, Effect, Modify, AddOrReplace,
+        Add, Remove, Param, Arm), which exist only while the block runs.
 
         Errors inside the block are recorded as diagnostics with file, line and keyword, and are
         reported together by Build-Bylaw.
@@ -68,9 +69,9 @@ function Policy {
             "Policy '$Name' has no Resource block. Use Resource '<type>' { ... } or Resource * { ... }."
         )
     }
-    if (-not $frame.Singletons.ContainsKey('Effect')) {
+    if (-not $frame.Singletons.ContainsKey('Effect') -and -not $frame.Singletons.ContainsKey('Modify')) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1006' -Location $location -Message (
-            "Policy '$Name' has no Effect. Add for example: Effect Deny, or Effect (Param Effect)."
+            "Policy '$Name' has no Effect. Add for example: Effect Deny, Effect (Param Effect), or a Modify block."
         )
     }
 
