@@ -227,7 +227,7 @@ What the compiler did:
 - Short field names became full aliases. `kind` and `type` are standard fields, so they stay as written.
 - `When` narrows the resources the policy applies to. It is not inverted.
 
-[examples/](examples/README.md) has six more policies, each with the JSON it compiles to.
+[examples/](examples/README.md) has seven more policies, each with the JSON it compiles to, including one that uses a PowerShell loop to generate its requirements.
 
 ## Writing policies
 

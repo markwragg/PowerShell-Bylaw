@@ -12,6 +12,7 @@ The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tes
 |---|---|
 | [storage/public-network-access](storage/public-network-access.bylaw.ps1) | The example from the specification: `When`, two `Require` blocks, `Each` over objects, an effect parameter |
 | [storage/secure-transfer](storage/secure-transfer.bylaw.ps1) | Several `Must` statements in one `Require`, an array parameter with allowed values, `-Not` with `-IfPresent` |
+| [storage/baseline](storage/baseline.bylaw.ps1) | A PowerShell loop that generates one `Require` block per setting |
 | [key-vault/recovery](key-vault/recovery.bylaw.ps1) | A comparison with a parameter value, `-IfPresent`, and a literal effect (Bylaw generates the effect parameter) |
 | [key-vault/no-purge-permission](key-vault/no-purge-permission.bylaw.ps1) | Nested `Each`, and `Element` for arrays of plain values |
 | [compute/linux-vm-standards](compute/linux-vm-standards.bylaw.ps1) | `When` to narrow the resources, `-BeIn` with a parameter, `-BeLike` |
