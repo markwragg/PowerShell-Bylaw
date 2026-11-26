@@ -356,7 +356,7 @@ function Get-BylawUsedParameterName {
 }
 
 function Get-BylawAssertion {
-    # Every assertion in a resource scope, in source order, including inside Each.
+    # Every assertion in a resource scope, in source order, including inside Each and groups.
     param([Parameter(Mandatory)] [BylawResourceScope] $Scope)
 
     $queue = [System.Collections.Generic.List[object]]::new()
@@ -370,7 +370,7 @@ function Get-BylawAssertion {
     while ($index -lt $queue.Count) {
         $node = $queue[$index]
         $index++
-        if ($node -is [BylawEach]) {
+        if ($node -is [BylawEach] -or $node -is [BylawConditionGroup]) {
             $queue.InsertRange($index, $node.Children)
         }
         elseif ($node -is [BylawAssertion]) {

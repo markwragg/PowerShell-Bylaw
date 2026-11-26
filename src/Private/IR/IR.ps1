@@ -4,7 +4,8 @@
 # parsed together. Two layers:
 #
 #   DSL layer     - what the keywords produce, exactly as written: BylawAssertion (Must), BylawEach,
-#                   BylawRequirement, BylawResourceScope. Lossless, so the decompiler can target it.
+#                   BylawConditionGroup (AnyOf, AllOf), BylawRequirement, BylawResourceScope.
+#                   Lossless, so the decompiler can target it.
 #   Policy layer  - Azure Policy conditions: BylawFieldCondition, BylawValueCondition,
 #                   BylawCountCondition, BylawGroup, BylawNot. Produced by the compiler passes from
 #                   the DSL layer, or directly by the decompiler from JSON.
@@ -352,10 +353,24 @@ class BylawAssertion : BylawNode {
     }
 }
 
+class BylawConditionGroup : BylawNode {
+    # AnyOf { } or AllOf { } (ADR-0026), describing the compliant state like everything else in the
+    # DSL layer: AnyOf holds when any child holds. Children are BylawAssertion, BylawEach and nested
+    # BylawConditionGroup nodes, in source order.
+    [BylawGroupKind] $Kind
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
+
+    BylawConditionGroup() {}
+
+    BylawConditionGroup([BylawGroupKind] $kind) {
+        $this.Kind = $kind
+    }
+}
+
 class BylawEach : BylawNode {
     # The [*] array path as written, e.g. 'networkAcls.ipRules[*]'.
     [BylawFieldRef] $Field
-    # BylawAssertion and nested BylawEach nodes, in source order.
+    # BylawAssertion, nested BylawEach and BylawConditionGroup nodes, in source order.
     [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawEach() {}
@@ -367,7 +382,7 @@ class BylawEach : BylawNode {
 
 class BylawRequirement : BylawNode {
     [string] $Description
-    # BylawAssertion and BylawEach nodes, in source order.
+    # BylawAssertion, BylawEach and BylawConditionGroup nodes, in source order.
     [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawRequirement() {}
@@ -378,7 +393,7 @@ class BylawRequirement : BylawNode {
 }
 
 class BylawApplicability : BylawNode {
-    # One When block. Its assertions are emitted as written, not inverted (ADR-0002).
+    # One When block. Its assertions and groups are emitted as written, not inverted (ADR-0002).
     [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 }
 
@@ -537,7 +552,7 @@ class BylawAliasSnapshot {
 #region Front-end state
 
 class BylawFrame {
-    # One open keyword block (Policy, Resource, When, Require, Each) while the DSL runs.
+    # One open keyword block (Policy, Resource, When, Require, Each, AnyOf, AllOf) while the DSL runs.
     [string] $Keyword
     [BylawNode] $Node
     # Field references produced in this block that no Must has consumed yet.

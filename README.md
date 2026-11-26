@@ -227,7 +227,7 @@ What the compiler did:
 - Short field names became full aliases. `kind` and `type` are standard fields, so they stay as written.
 - `When` narrows the resources the policy applies to. It is not inverted.
 
-[examples/](examples/README.md) has seven more policies, each with the JSON it compiles to, including one that uses a PowerShell loop to generate its requirements.
+[examples/](examples/README.md) has eight more policies, each with the JSON it compiles to, including one that uses a PowerShell loop to generate its requirements.
 
 ## Writing policies
 
@@ -242,6 +242,8 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `When { }` | Conditions that decide whether the policy applies. Written and emitted as is. |
 | `Require 'description' { }` | A requirement a compliant resource meets. All `Require` blocks must hold, and so must all `Must` statements inside one. |
 | `Each path[*] { }` | A condition on every element of an array. Can be nested. |
+| `AnyOf { }` | Alternatives: holds when any statement inside it holds. Works in `When`, `Require` and `Each`. |
+| `AllOf { }` | Inside `AnyOf`, one alternative made of several statements that must all hold. |
 | `Field name` | A field: a short name, a standard field (`name`, `type`, `location`, `tags`, ...), or a full alias. `-AllowUnknownAlias` accepts an alias missing from the snapshot. |
 | `Element` | The element itself, inside `Each` over an array of plain values. |
 | `Must` | An assertion about the `Field` or `Element` piped into it. See the operators below. |
@@ -256,6 +258,20 @@ Require 'No access policy grants purge' {
     Each accessPolicies[*] {
         Each permissions.keys[*] {
             Element | Must -Not -Be 'purge'
+        }
+    }
+}
+```
+
+Statements combine with AND. For alternatives, use `AnyOf`. Here a rule is acceptable if it is outbound, or denies traffic, or doesn't come from the internet:
+
+```powershell
+Require 'No rule allows inbound traffic from the internet' {
+    Each securityRules[*] {
+        AnyOf {
+            Field direction | Must -Not -Be 'Inbound'
+            Field access | Must -Not -Be 'Allow'
+            Field sourceAddressPrefix | Must -Not -BeIn '*', 'Internet'
         }
     }
 }

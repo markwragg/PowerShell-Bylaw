@@ -13,8 +13,11 @@ function Each {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Each')
-    $parent = Test-BylawParent -Keyword 'Each' -Allowed 'Require', 'Each' -Location $location
+    $parent = Test-BylawParent -Keyword 'Each' -Allowed 'Require', 'Each', 'AnyOf', 'AllOf' -Location $location
     if ($null -eq $parent) {
+        return
+    }
+    if (-not (Test-BylawConditionContext -Keyword 'Each' -Allowed 'Require', 'Each' -Location $location)) {
         return
     }
     if (-not $Path.EndsWith('[*]')) {

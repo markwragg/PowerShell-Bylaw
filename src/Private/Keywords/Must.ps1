@@ -55,7 +55,7 @@ function Must {
 
     begin {
         $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Must')
-        $frame = Test-BylawParent -Keyword 'Must' -Allowed 'When', 'Require', 'Each' -Location $location
+        $frame = Test-BylawParent -Keyword 'Must' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf' -Location $location
         $received = $false
         $bound = $PSBoundParameters
     }
@@ -115,16 +115,21 @@ function New-BylawAssertion {
 
     $ifPresent = $Bound.ContainsKey('IfPresent') -and $Bound['IfPresent']
     $strict = $Bound.ContainsKey('Strict') -and $Bound['Strict']
+    # Inside AnyOf or AllOf, the rules of the enclosing When, Require or Each apply (ADR-0026).
+    $context = Get-BylawConditionContext
+    if (-not $context) {
+        $context = $Frame.Keyword
+    }
     $modeError = if ($ifPresent -and $strict) {
         '-IfPresent and -Strict cannot be used together.'
     }
-    elseif (($ifPresent -or $strict) -and $Frame.Keyword -eq 'When') {
+    elseif (($ifPresent -or $strict) -and $context -eq 'When') {
         '-IfPresent and -Strict are not valid in When, which is not inverted (ADR-0004).'
     }
-    elseif ($ifPresent -and $Frame.Keyword -eq 'Each') {
+    elseif ($ifPresent -and $context -eq 'Each') {
         '-IfPresent is not needed inside Each: element fields are already lenient. Use -Strict to make a missing element field a violation.'
     }
-    elseif ($strict -and $Frame.Keyword -ne 'Each') {
+    elseif ($strict -and $context -ne 'Each') {
         '-Strict is only valid inside Each: fields in Require are already strict. Use -IfPresent to make a missing field compliant.'
     }
     elseif ($ifPresent -and $dslOperator -eq 'Exist') {

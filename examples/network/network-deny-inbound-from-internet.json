@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "network-deny-inbound-from-internet",
+  "properties": {
+    "displayName": "Network security groups should not allow inbound traffic from the internet",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Denies network security groups with a rule that allows inbound traffic from any address or the Internet service tag.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Network"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Network/networkSecurityGroups"
+          },
+          {
+            "count": {
+              "field": "Microsoft.Network/networkSecurityGroups/securityRules[*]",
+              "where": {
+                "allOf": [
+                  {
+                    "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].direction",
+                    "equals": "Inbound"
+                  },
+                  {
+                    "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].access",
+                    "equals": "Allow"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefix",
+                        "in": [
+                          "*",
+                          "Internet"
+                        ]
+                      },
+                      {
+                        "count": {
+                          "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefixes[*]",
+                          "where": {
+                            "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefixes[*]",
+                            "in": [
+                              "*",
+                              "Internet"
+                            ]
+                          }
+                        },
+                        "greater": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "greater": 0
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

@@ -84,6 +84,13 @@ function Resolve-BylawNodeAlias {
         Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
         return
     }
+    if ($Node -is [BylawConditionGroup]) {
+        # A group doesn't change the scope: fields resolve as they would outside it.
+        foreach ($child in $Node.Children) {
+            Resolve-BylawNodeAlias -Node $child -Context $Context -ArrayAlias $ArrayAlias
+        }
+        return
+    }
     if ($Node -is [BylawEach]) {
         $resolved = Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias -IsArrayPath -PassThru
         if (-not $resolved) {

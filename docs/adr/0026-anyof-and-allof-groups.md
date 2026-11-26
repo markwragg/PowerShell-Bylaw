@@ -41,7 +41,7 @@ Require 'No inbound rule allows traffic from the internet' {
 A rule is compliant if any of the three holds. The compiler inverts the group with De Morgan's law: an element violates the requirement when all three are false. That gives `count` of `securityRules[*]` `where` `allOf[direction equals Inbound, access equals Allow, sourceAddressPrefix in ['*', 'Internet']]`, `greater` 0.
 
 * `AnyOf` holds when at least one statement or group inside it holds.
-* `AllOf` holds when all of them do. It is only needed inside `AnyOf`, because statements combine with AND everywhere else. `AllOf` anywhere else is a compile error, so it isn't used out of habit.
+* `AllOf` holds when all of them do. It is only needed inside `AnyOf`, because statements combine with AND everywhere else. `AllOf` anywhere else is a compile error (`BYL1022`), so it isn't used out of habit.
 * Groups can contain `Must` statements, `Each`, and other groups.
 * Groups are allowed in `Require`, inside `Each`, and in `When`. In `When`, they are emitted as written.
 * An empty group is a compile error. A group with one child is allowed, and flattening removes it.

@@ -15,6 +15,10 @@
 # Each path[*] { P } means every element satisfies P; its violation is
 #   count(field: path[*], where: violation(P)) greater 0.
 #
+# AnyOf { P; Q } holds when either holds; its violation is allOf[ violation(P), violation(Q) ].
+# AllOf { P; Q } holds when both hold; its violation is anyOf[ violation(P), violation(Q) ]
+# (ADR-0026). Each statement inside keeps its own missing-field handling.
+#
 # Run the alias resolution pass first: conditions use FieldRef.Resolved.
 
 function ConvertTo-BylawPolicyRule {
@@ -66,10 +70,20 @@ function ConvertTo-BylawPolicyRule {
 }
 
 function ConvertTo-BylawApplicabilityCondition {
-    # A When assertion, emitted as written: the compliant operator, no guards.
+    # A When assertion or group, emitted as written: the compliant operator, no guards.
     param(
-        [Parameter(Mandatory)] [BylawAssertion] $Node
+        [Parameter(Mandatory)] [BylawNode] $Node
     )
+
+    if ($Node -is [BylawConditionGroup]) {
+        $children = foreach ($child in $Node.Children) {
+            ConvertTo-BylawApplicabilityCondition -Node $child
+        }
+        $group = [BylawGroup]::new($Node.Kind, [object[]] @($children))
+        $group.Location = $Node.Location
+        $group.Origin = $Node
+        return $group
+    }
 
     $operator, $value = Get-BylawAssertedOperator -Assertion $Node -Invert $false
     $condition = [BylawFieldCondition]::new($Node.Field, $operator, $value)
@@ -79,11 +93,23 @@ function ConvertTo-BylawApplicabilityCondition {
 }
 
 function ConvertTo-BylawViolation {
-    # The violation (negation) of a Require child: an assertion or an Each block.
+    # The violation (negation) of a Require child: an assertion, an Each block or a group.
     param(
         [Parameter(Mandatory)] [BylawNode] $Node,
         [Parameter(Mandatory)] [bool] $InEach
     )
+
+    if ($Node -is [BylawConditionGroup]) {
+        # De Morgan: the violation of AnyOf is allOf of the violations, and the reverse for AllOf.
+        $children = foreach ($child in $Node.Children) {
+            ConvertTo-BylawViolation -Node $child -InEach $InEach
+        }
+        $kind = if ($Node.Kind -eq [BylawGroupKind]::AnyOf) { [BylawGroupKind]::AllOf } else { [BylawGroupKind]::AnyOf }
+        $group = [BylawGroup]::new($kind, [object[]] @($children))
+        $group.Location = $Node.Location
+        $group.Origin = $Node
+        return $group
+    }
 
     if ($Node -is [BylawEach]) {
         $elementViolations = foreach ($child in $Node.Children) {

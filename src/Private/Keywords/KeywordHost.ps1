@@ -9,9 +9,12 @@
 # same property). tests/Unit/Keywords/KeywordHost.Tests.ps1 fails loudly if it ever disappears.
 
 $script:BylawKeywordNames = @(
-    'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each',
+    'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm'
 )
+
+# Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
+$script:BylawGroupKeywords = @('AnyOf', 'AllOf')
 
 $script:BylawSessionStateProperty = [scriptblock].GetProperty(
     'SessionStateInternal',
@@ -115,6 +118,40 @@ function Test-BylawParent {
         return $null
     }
     $frame
+}
+
+function Get-BylawConditionContext {
+    # The keyword of the innermost When, Require or Each block, looking through AnyOf and AllOf
+    # groups (ADR-0026). Missing-field switches and Element follow the rules of that block.
+    [OutputType([string])]
+    param()
+
+    for ($index = $script:BylawFrames.Count - 1; $index -ge 0; $index--) {
+        $keyword = $script:BylawFrames[$index].Keyword
+        if ($script:BylawGroupKeywords -notcontains $keyword) {
+            return $keyword
+        }
+    }
+    $null
+}
+
+function Test-BylawConditionContext {
+    # For keywords allowed inside groups: returns $true when the block the groups are in is one
+    # of the allowed ones; otherwise records the same diagnostic as Test-BylawParent.
+    param(
+        [Parameter(Mandatory)] [string] $Keyword,
+        [Parameter(Mandatory)] [string[]] $Allowed,
+        [BylawSourceLocation] $Location
+    )
+    $context = Get-BylawConditionContext
+    if ($Allowed -contains $context) {
+        return $true
+    }
+    $where = ($Allowed | ForEach-Object { "'$_'" }) -join ' or '
+    Add-BylawDiagnostic -Severity Error -Code 'BYL1002' -Location $Location -Message (
+        "'$Keyword' cannot be used inside '$context', even inside AnyOf or AllOf. It must be inside $where."
+    )
+    $false
 }
 
 function Test-BylawSingleton {
