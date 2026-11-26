@@ -186,12 +186,14 @@ Describe 'Modify (ADR-0024)' {
             @{ Code = 'BYL1002'; Case = 'Modify inside Resource'; Modify = '' ; Requirements = "Require 'r' { Tag Environment | Must -Exist }; Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'x' }" }
             @{ Code = 'BYL1007'; Case = 'a field not piped to an operation'; Modify = "Modify -Role 'Tag Contributor' { Tag Environment; Tag Other | AddOrReplace 'x' }" }
         ) {
+            # Read the case's own data: a bare $Requirements would find a variable of that name in
+            # the caller, such as the build script's.
             $arguments = @{ Modify = $Modify }
-            if ($Requirements) {
-                $arguments.Requirements = $Requirements
+            if ($_.ContainsKey('Requirements')) {
+                $arguments.Requirements = $_.Requirements
             }
             $result = Invoke-BylawTestScript -Script (Format-ModifyPolicy @arguments)
-            $result.Codes | Should -Contain $Code
+            $result.Codes | Should -Contain $Code -Because ($result.Diagnostics -join ' || ')
         }
 
         It 'reports an operation outside Modify' {
