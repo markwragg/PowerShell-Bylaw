@@ -14,7 +14,7 @@ function Test-BylawModify {
         [Parameter(Mandatory)] [scriptblock] $Add
     )
 
-    Resolve-BylawModifyRole -Modify $Modify -Add $Add
+    Resolve-BylawEffectRole -Effect $Modify -Add $Add
 
     $scope = $Policy.Resource
     $type = if ($scope.ResolvedType) { $scope.ResolvedType } else { $scope.Type }
@@ -91,9 +91,10 @@ function Test-BylawModify {
     }
 }
 
-function Resolve-BylawModifyRole {
-    # Sets RoleDefinitionIds from -Role (ADR-0022), in the order written.
-    param([Parameter(Mandatory)] [BylawModify] $Modify, [Parameter(Mandatory)] [scriptblock] $Add)
+function Resolve-BylawEffectRole {
+    # Sets RoleDefinitionIds from -Role (ADR-0022), in the order written, for Modify and
+    # DeployIfNotExists.
+    param([Parameter(Mandatory)] [BylawEffect] $Effect, [Parameter(Mandatory)] [scriptblock] $Add)
 
     $roleData = $script:BylawRoleData
     if ($null -eq $roleData) {
@@ -102,21 +103,21 @@ function Resolve-BylawModifyRole {
     }
     $ids = [System.Collections.Generic.List[string]]::new()
     $written = @{}
-    foreach ($role in $Modify.Roles) {
+    foreach ($role in $Effect.Roles) {
         $resolved = Resolve-BylawRoleDefinitionId -Role $role -RoleData $roleData
         if (-not $resolved.Id) {
-            & $Add 'BYL3060' $resolved.Message $Modify.Location
+            & $Add 'BYL3060' $resolved.Message $Effect.Location
             continue
         }
         $key = $resolved.Id.ToLowerInvariant()
         if ($written.ContainsKey($key)) {
-            & $Add 'BYL3061' "Role '$role' is the same role as '$($written[$key])'. Give each role once." $Modify.Location
+            & $Add 'BYL3061' "Role '$role' is the same role as '$($written[$key])'. Give each role once." $Effect.Location
             continue
         }
         $written[$key] = $role
         $ids.Add($resolved.Id)
     }
-    $Modify.RoleDefinitionIds = $ids.ToArray()
+    $Effect.RoleDefinitionIds = $ids.ToArray()
 }
 
 function Test-BylawModifyParameter {

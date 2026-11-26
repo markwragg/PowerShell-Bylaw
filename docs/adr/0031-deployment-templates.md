@@ -52,6 +52,19 @@ DeployIfNotExists -Type 'Microsoft.Sql/servers/databases/transparentDataEncrypti
 * Every name in `-Parameters` is a parameter of the template.
 * Every template parameter without a `defaultValue` is given in `-Parameters`.
 * Expressions inside the template aren't checked. Learn: "All functions inside the `deployment` property are evaluated as components of the template, not the policy", except the parameter values.
+* Template parameter names are matched ignoring case, as ARM does.
+
+### Details
+
+* `-Parameters` keeps the order of an `[ordered]` hashtable. A plain hashtable is sorted, as the JSON writer sorts one (ADR-0009), because its own order changes from one process to the next.
+* `-Template` can't contain `Param` or `Arm`: it is an ARM template, evaluated by the deployment. Policy values go in through `-Parameters`.
+* The emitted `details` follow the AuditIfNotExists details (ADR-0030) with `roleDefinitionIds`, `deploymentScope` and `deployment` after them: `deployment` is `{ location?, properties: { mode, template, parameters? } }`.
+* A template file is an input of the build. `Build-Bylaw` never reports it as stale output (BYL5030), even when it is inside `-OutputPath`.
+
+### Diagnostics
+
+* Front end: BYL1032 (no `-Role`), BYL1043 (no block, or no `Deployment` in it), BYL1044 (neither or both of `-TemplateFile` and `-Template`), BYL1045 (a template file that is missing, isn't JSON or is Bicep; a template without a `resources` array; `Param` or `Arm` in `-Template`), BYL1040 (an invalid `-Scope`), BYL1039 (an invalid `-Location`), BYL1046 (`-Scope Subscription` without `-Location`). `Deployment` outside `DeployIfNotExists` is BYL1002, and a second one BYL1004.
+* Validation: BYL3093 (a value passed to a parameter the template doesn't have), BYL3094 (a required template parameter that isn't passed), BYL3060 and BYL3061 for roles (ADR-0022), BYL3020 for an undeclared policy parameter.
 
 ### Consequences
 

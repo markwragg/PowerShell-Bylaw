@@ -15,7 +15,8 @@ BeforeDiscovery {
             Name   = $golden.Path
             Root   = $root
             Format = $golden.Format
-            Golden = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.json' | ForEach-Object {
+            # Deployment templates (ADR-0031) are inputs, kept in templates folders, not golden files.
+            Golden = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.json' | Where-Object { $_.Directory.Name -ne 'templates' } | ForEach-Object {
                     @{ Relative = [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/'); File = $_.FullName; Format = $golden.Format }
                 })
         }

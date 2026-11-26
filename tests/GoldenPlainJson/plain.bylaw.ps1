@@ -124,3 +124,18 @@ Policy 'plain-auditifnotexists' {
         }
     }
 }
+
+Policy 'plain-deployifnotexists' {
+
+    Properties @{ DisplayName = 'Plain: virtual machines get an extension'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Compute/virtualMachines' { }
+
+    DeployIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' -Role 'Virtual Machine Contributor' {
+        Deployment -Template ([ordered]@{
+                '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'
+                contentVersion = '1.0.0.0'
+                resources      = @()
+            })
+    }
+}

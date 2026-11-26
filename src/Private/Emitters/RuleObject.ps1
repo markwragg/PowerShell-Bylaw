@@ -15,6 +15,7 @@ $script:BylawEffectKeywords = [ordered]@{
     Modify     = @{ Allowed = $script:BylawModifyEffects; Generated = $script:BylawModifyGeneratedEffects; Example = "Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' }" }
     Append     = @{ Allowed = @('Append', 'Disabled'); Generated = @('Append', 'Disabled'); Example = 'Append { Field supportsHttpsTrafficOnly | Add $true }' }
     AuditIfNotExists = @{ Allowed = @('AuditIfNotExists', 'Disabled'); Generated = @('AuditIfNotExists', 'Disabled'); Example = "AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' { Require ... }" }
+    DeployIfNotExists = @{ Allowed = @('DeployIfNotExists', 'AuditIfNotExists', 'Disabled'); Generated = @('DeployIfNotExists', 'Disabled'); Example = "DeployIfNotExists -Type '...' -Role 'Contributor' { Require ...; Deployment ... }" }
     DenyAction = @{ Allowed = @('DenyAction', 'Disabled'); Generated = @('DenyAction', 'Disabled'); Example = 'DenyAction Delete' }
     Manual     = @{ Allowed = @('Manual', 'Disabled'); Generated = @('Manual', 'Disabled'); Example = 'Manual -DefaultState Unknown' }
 }
@@ -27,6 +28,7 @@ function Get-BylawEffectKeyword {
     if ($Effect -is [BylawModify]) { return 'Modify' }
     if ($Effect -is [BylawAppend]) { return 'Append' }
     if ($Effect -is [BylawAuditIfNotExists]) { return 'AuditIfNotExists' }
+    if ($Effect -is [BylawDeployIfNotExists]) { return 'DeployIfNotExists' }
     if ($Effect -is [BylawDenyAction]) { return 'DenyAction' }
     if ($Effect -is [BylawManual]) { return 'Manual' }
     'Effect'
@@ -221,6 +223,32 @@ function ConvertTo-BylawIfNotExistsDetailsObject {
     }
     if ($null -ne $Effect.ExistenceCondition) {
         $details['existenceCondition'] = ConvertTo-BylawConditionObject -Condition $Effect.ExistenceCondition -Policy $Policy
+    }
+    if ($Effect -is [BylawDeployIfNotExists]) {
+        # roleDefinitionIds, deploymentScope?, deployment { location?, properties { mode, template,
+        # parameters } } (ADR-0031).
+        $details['roleDefinitionIds'] = [object[]] @($Effect.RoleDefinitionIds)
+        $deployment = $Effect.Deployment
+        if ($deployment.Scope) {
+            $details['deploymentScope'] = $deployment.Scope
+        }
+        $deploymentObject = [ordered]@{}
+        if ($null -ne $deployment.DeploymentLocation) {
+            $deploymentObject['location'] = ConvertTo-BylawValueObject -Value $deployment.DeploymentLocation -Policy $Policy
+        }
+        $properties = [ordered]@{
+            mode     = 'incremental'
+            template = $deployment.Template
+        }
+        if ($deployment.Parameters.Count -gt 0) {
+            $parameters = [ordered]@{}
+            foreach ($entry in $deployment.Parameters.GetEnumerator()) {
+                $parameters[$entry.Key] = [ordered]@{ value = ConvertTo-BylawValueObject -Value $entry.Value -Policy $Policy }
+            }
+            $properties['parameters'] = $parameters
+        }
+        $deploymentObject['properties'] = $properties
+        $details['deployment'] = $deploymentObject
     }
     $details
 }

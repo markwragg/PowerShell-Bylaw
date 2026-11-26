@@ -410,6 +410,37 @@ class BylawAuditIfNotExists : BylawIfNotExists {
     BylawAuditIfNotExists([BylawValue] $value) : base($value) {}
 }
 
+class BylawDeployment : BylawNode {
+    # Deployment -TemplateFile ... | -Template @{ } [-Parameters @{ }] [-Scope] [-Location]
+    # (ADR-0031). The mode is always incremental.
+    # The template as ordered dictionaries, arrays and primitives, in its own key order.
+    [object] $Template
+    # The template file's full path, or $null for -Template.
+    [string] $TemplateFile
+    # Template parameter name -> BylawValue, in the order written.
+    [System.Collections.Specialized.OrderedDictionary] $Parameters = [System.Collections.Specialized.OrderedDictionary]::new()
+    # 'ResourceGroup' or 'Subscription' as emitted, or $null when not set.
+    [string] $Scope
+    # A literal, Param or Arm, or $null when not set.
+    [BylawValue] $DeploymentLocation
+
+    BylawDeployment() {}
+}
+
+class BylawDeployIfNotExists : BylawIfNotExists {
+    # DeployIfNotExists -Type ... -Role ... { Require ...; Deployment ... } (ADR-0030, ADR-0031).
+    # Value is the literal 'DeployIfNotExists', or the -Effect parameter or expression.
+    # -Role values as written (ADR-0022).
+    [string[]] $Roles = @()
+    # Full role definition IDs, in the order written, set by the validation pass.
+    [string[]] $RoleDefinitionIds = @()
+    [BylawDeployment] $Deployment
+
+    BylawDeployIfNotExists() {}
+
+    BylawDeployIfNotExists([BylawValue] $value) : base($value) {}
+}
+
 class BylawDenyAction : BylawEffect {
     # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0028). Value is the literal 'DenyAction',
     # or the -Effect parameter or expression.

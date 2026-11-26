@@ -11,11 +11,12 @@
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
-    'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append', 'AuditIfNotExists'
+    'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append', 'AuditIfNotExists',
+    'DeployIfNotExists', 'Deployment'
 )
 
 # Keywords that set the effect. A policy has exactly one (ADR-0017).
-$script:BylawEffectKeywordNames = @('Effect', 'Modify', 'Append', 'DenyAction', 'Manual', 'AuditIfNotExists')
+$script:BylawEffectKeywordNames = @('Effect', 'Modify', 'Append', 'DenyAction', 'Manual', 'AuditIfNotExists', 'DeployIfNotExists')
 
 # Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
 $script:BylawGroupKeywords = @('AnyOf', 'AllOf')

@@ -14,7 +14,7 @@ function Require {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Require')
-    $parent = Test-BylawParent -Keyword 'Require' -Allowed 'Resource', 'AuditIfNotExists' -Location $location
+    $parent = Test-BylawParent -Keyword 'Require' -Allowed 'Resource', 'AuditIfNotExists', 'DeployIfNotExists' -Location $location
     if ($null -eq $parent) {
         return
     }

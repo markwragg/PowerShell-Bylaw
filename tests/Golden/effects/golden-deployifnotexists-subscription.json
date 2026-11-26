@@ -1,0 +1,99 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-deployifnotexists-subscription",
+  "properties": {
+    "displayName": "Golden: subscriptions send activity logs to a workspace",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Monitoring"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "workspaceId": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Workspace id"
+        }
+      },
+      "deploymentLocation": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Deployment location"
+        },
+        "defaultValue": "uksouth"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "type",
+        "equals": "Microsoft.Resources/subscriptions"
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "type": "microsoft.insights/diagnosticSettings",
+          "name": "setByPolicy",
+          "existenceScope": "Subscription",
+          "existenceCondition": {
+            "field": "Microsoft.Insights/diagnosticSettings/workspaceId",
+            "equals": "[parameters('workspaceId')]"
+          },
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+          ],
+          "deploymentScope": "Subscription",
+          "deployment": {
+            "location": "[parameters('deploymentLocation')]",
+            "properties": {
+              "mode": "incremental",
+              "template": {
+                "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+                "contentVersion": "1.0.0.0",
+                "parameters": {
+                  "workspaceId": {
+                    "type": "string"
+                  }
+                },
+                "resources": [
+                  {
+                    "type": "Microsoft.Insights/diagnosticSettings",
+                    "apiVersion": "2021-05-01-preview",
+                    "name": "setByPolicy",
+                    "properties": {
+                      "workspaceId": "[parameters('workspaceId')]",
+                      "logs": [
+                        {
+                          "category": "Administrative",
+                          "enabled": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "parameters": {
+                "workspaceId": {
+                  "value": "[parameters('workspaceId')]"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

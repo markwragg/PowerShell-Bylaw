@@ -108,7 +108,8 @@ Policy 'golden-auditifnotexists' {
     }
 }
 
-# A related resource outside the evaluated one: diagnostic settings, by name from a parameter.
+# A related resource outside the evaluated one: diagnostic settings. Each element field is made
+# strict with -Strict.
 Policy 'golden-auditifnotexists-diagnostics' {
 
     Properties @{
@@ -130,5 +131,83 @@ Policy 'golden-auditifnotexists-diagnostics' {
                 Field enabled | Must -Be $true -Strict
             }
         }
+    }
+}
+
+# DeployIfNotExists (ADR-0030, ADR-0031): the same existence condition, with a role and a template
+# file. The template is emitted in its own key order; its optional parameter isn't passed.
+Policy 'golden-deployifnotexists' {
+
+    Properties @{
+        DisplayName = 'Golden: deploy the antimalware extension to Windows virtual machines'
+        Category    = 'Compute'
+        Version     = '1.0.0'
+        Mode        = 'Indexed'
+    }
+
+    Resource 'Microsoft.Compute/virtualMachines' {
+        When {
+            Field storageProfile.osDisk.osType | Must -Be 'Windows'
+        }
+    }
+
+    DeployIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' -Role 'Virtual Machine Contributor' {
+        Require 'The antimalware extension is installed' {
+            Field publisher | Must -Be 'Microsoft.Azure.Security'
+            Field 'Microsoft.Compute/virtualMachines/extensions/type' | Must -Be 'IaaSAntimalware'
+        }
+
+        Deployment -TemplateFile ./templates/antimalware.json -Parameters ([ordered]@{
+                vmName   = Arm "[field('name')]"
+                location = Arm "[field('location')]"
+            })
+    }
+}
+
+# An effect parameter that also allows AuditIfNotExists, and an inline template deployed at
+# subscription scope, which needs a location.
+Policy 'golden-deployifnotexists-subscription' {
+
+    Properties @{
+        DisplayName = 'Golden: subscriptions send activity logs to a workspace'
+        Category    = 'Monitoring'
+        Version     = '1.0.0'
+    }
+
+    Parameter Effect -AllowedValues DeployIfNotExists, AuditIfNotExists, Disabled -Default DeployIfNotExists
+    Parameter WorkspaceId -Type String
+    Parameter DeploymentLocation -Default 'uksouth'
+
+    Resource * {
+        When {
+            Field type | Must -Be 'Microsoft.Resources/subscriptions'
+        }
+    }
+
+    DeployIfNotExists -Type 'Microsoft.Insights/diagnosticSettings' -Name 'setByPolicy' -ExistenceScope Subscription -Role 'Contributor' -Effect (Param Effect) {
+        Require 'Activity logs go to the workspace' {
+            Field workspaceId | Must -Be (Param WorkspaceId)
+        }
+
+        Deployment -Scope Subscription -Location (Param DeploymentLocation) -Parameters @{ workspaceId = (Param WorkspaceId) } -Template ([ordered]@{
+                '$schema'      = 'https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#'
+                contentVersion = '1.0.0.0'
+                parameters     = [ordered]@{
+                    workspaceId = [ordered]@{ type = 'string' }
+                }
+                resources      = @(
+                    [ordered]@{
+                        type       = 'Microsoft.Insights/diagnosticSettings'
+                        apiVersion = '2021-05-01-preview'
+                        name       = 'setByPolicy'
+                        properties = [ordered]@{
+                            workspaceId = "[parameters('workspaceId')]"
+                            logs        = @(
+                                [ordered]@{ category = 'Administrative'; enabled = $true }
+                            )
+                        }
+                    }
+                )
+            })
     }
 }

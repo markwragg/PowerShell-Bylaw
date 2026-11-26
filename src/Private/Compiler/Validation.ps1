@@ -7,7 +7,7 @@ $script:BylawLaterEffects = [ordered]@{
     Modify            = "Modify has its own block, which takes the place of Effect: Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' } (ADR-0024)."
     Append            = 'Append has its own block, which takes the place of Effect: Append { Field supportsHttpsTrafficOnly | Add $true } (ADR-0029).'
     AuditIfNotExists  = "AuditIfNotExists has its own block, which takes the place of Effect: AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' { Require ... } (ADR-0030)."
-    DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
+    DeployIfNotExists = "DeployIfNotExists has its own block, which takes the place of Effect: DeployIfNotExists -Type '...' -Role 'Contributor' { Require ...; Deployment -TemplateFile ./template.json } (ADR-0030, ADR-0031)."
     DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0028).'
     Manual            = 'Manual has its own keyword, which takes the place of Effect: Manual -DefaultState Unknown (ADR-0028).'
 }
@@ -506,6 +506,15 @@ function Get-BylawUsedParameterName {
     }
     if ($Policy.Effect -is [BylawIfNotExists]) {
         foreach ($value in $Policy.Effect.Name, $Policy.Effect.ResourceGroupName) {
+            if ($null -ne $value) {
+                $values.Add($value)
+            }
+        }
+    }
+    if ($Policy.Effect -is [BylawDeployIfNotExists] -and $null -ne $Policy.Effect.Deployment) {
+        # Values passed to the template, and its location (ADR-0031).
+        $deployment = $Policy.Effect.Deployment
+        foreach ($value in @($deployment.Parameters.Values) + @($deployment.DeploymentLocation)) {
             if ($null -ne $value) {
                 $values.Add($value)
             }

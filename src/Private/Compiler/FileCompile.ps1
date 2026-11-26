@@ -152,6 +152,7 @@ function Complete-BylawFileJob {
                         Name        = $policy.Name
                         Line        = $policy.Line
                         Text        = $policy.Text
+                        Inputs      = @($policy.Inputs)
                         Diagnostics = @($policy.Diagnostics | ForEach-Object { ConvertFrom-BylawPlainDiagnostic -Plain $_ })
                     }
                 })
@@ -231,6 +232,8 @@ function Invoke-BylawFileCompile {
                 Name        = $policy.Name
                 Line        = if ($policy.Location) { $policy.Location.Line } else { 0 }
                 Text        = $text
+                # Files the policy reads, such as a deployment template (ADR-0031). They are inputs, never stale output.
+                Inputs      = @(Get-BylawPolicyInputFile -Policy $policy)
                 Diagnostics = @($diagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
             })
     }
@@ -303,4 +306,14 @@ function ConvertFrom-BylawPlainDiagnostic {
 
     $location = [BylawSourceLocation]::new($Plain.File, $Plain.Line, $Plain.Column, $Plain.Keyword)
     [BylawDiagnostic]::new([BylawSeverity] $Plain.Severity, $Plain.Code, $Plain.Message, $location)
+}
+
+function Get-BylawPolicyInputFile {
+    # Full paths of the files a policy reads besides its source: a DeployIfNotExists template file.
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [BylawPolicy] $Policy)
+
+    if ($Policy.Effect -is [BylawDeployIfNotExists] -and $null -ne $Policy.Effect.Deployment -and $Policy.Effect.Deployment.TemplateFile) {
+        $Policy.Effect.Deployment.TemplateFile
+    }
 }

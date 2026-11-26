@@ -76,6 +76,28 @@ Describe 'Build-Bylaw output' {
         Test-Path -LiteralPath $result.OutputFile | Should -BeTrue
     }
 
+    It 'does not report a deployment template inside -OutputPath as stale output (ADR-0031)' {
+        $policy = @'
+Policy 'deploy-policy' {
+    Properties @{ DisplayName = 'x'; Category = 'Compute'; Version = '1.0.0'; Mode = 'Indexed' }
+    Resource 'Microsoft.Compute/virtualMachines' { }
+    DeployIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' -Role 'Contributor' {
+        Deployment -TemplateFile ./templates/t.json
+    }
+}
+'@
+        $project = New-TestProject @{
+            'a.bylaw.ps1'      = $policy
+            'templates/t.json' = '{ "resources": [] }'
+            'stale.json'       = '{}'
+        }
+        $null = Build-Bylaw -Path $project -OutputPath $project -WarningVariable warnings -WarningAction SilentlyContinue
+        $text = $warnings -join "`n"
+        $text | Should -BeLike '*stale.json BYL5030*'
+        $text | Should -Not -BeLike '*t.json BYL5030*'
+        Test-Path -LiteralPath (Join-Path $project 'deploy-policy.json') | Should -BeTrue
+    }
+
     It 'ignores .ps1 files that are not *.bylaw.ps1' {
         $Results.Name | Should -Not -Contain 'helper'
     }

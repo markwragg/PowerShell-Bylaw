@@ -3,6 +3,45 @@
 
 $script:BylawSameResourceNames = @("[field('name')]", "[field('fullName')]")
 
+function Test-BylawDeployment {
+    # The values passed to the template match its parameters (ADR-0031): every name is a template
+    # parameter (BYL3093), and every template parameter without a defaultValue is given (BYL3094).
+    # Policy parameters used as values must be declared (BYL3020).
+    param(
+        [Parameter(Mandatory)] [BylawDeployment] $Deployment,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $source = if ($Deployment.TemplateFile) { "template file '$([System.IO.Path]::GetFileName($Deployment.TemplateFile))'" } else { 'template' }
+    $declared = Get-BylawTemplateKey -Object $Deployment.Template -Key 'parameters'
+    $templateParameters = if ($null -ne $declared -and $declared.Value -is [System.Collections.IDictionary]) { $declared.Value } else { [ordered]@{} }
+    $names = @($templateParameters.Keys | ForEach-Object { [string] $_ })
+
+    foreach ($entry in $Deployment.Parameters.GetEnumerator()) {
+        $match = $names | Where-Object { [string]::Equals($_, $entry.Key, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+        if (-not $match) {
+            $known = if ($names.Count -gt 0) { " Its parameters: $($names -join ', ')." } else { ' It has no parameters.' }
+            & $Add 'BYL3093' "Deployment passes '$($entry.Key)', which is not a parameter of the $source.$known" $Deployment.Location
+        }
+        $value = $entry.Value
+        if ($value -is [BylawParamRef] -and $null -eq $Policy.FindParameter($value.Name)) {
+            & $Add 'BYL3020' "Parameter '$($value.Name)' is passed to the template but not declared. Add a Parameter $($value.Name) declaration." $value.Location
+        }
+    }
+    foreach ($name in $names) {
+        $definition = $templateParameters[$name]
+        $hasDefault = $definition -is [System.Collections.IDictionary] -and $null -ne (Get-BylawTemplateKey -Object $definition -Key 'defaultValue')
+        $given = @($Deployment.Parameters.Keys | Where-Object { [string]::Equals([string] $_, $name, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+        if (-not $hasDefault -and -not $given) {
+            & $Add 'BYL3094' "The $source requires parameter '$name', which has no defaultValue. Pass it: Deployment ... -Parameters @{ $name = ... }." $Deployment.Location
+        }
+    }
+    if ($Deployment.DeploymentLocation -is [BylawParamRef] -and $null -eq $Policy.FindParameter($Deployment.DeploymentLocation.Name)) {
+        & $Add 'BYL3020' "Parameter '$($Deployment.DeploymentLocation.Name)' is used in -Location but not declared. Add: Parameter $($Deployment.DeploymentLocation.Name) -Type String." $Deployment.DeploymentLocation.Location
+    }
+}
+
 function Test-BylawIfNotExistsEffect {
     param(
         [Parameter(Mandatory)] [BylawIfNotExists] $Effect,
@@ -16,6 +55,11 @@ function Test-BylawIfNotExistsEffect {
         if ($value -is [BylawParamRef] -and $null -eq $Policy.FindParameter($value.Name)) {
             & $Add 'BYL3020' "Parameter '$($value.Name)' is used in -$($entry[0]) but not declared. Add: Parameter $($value.Name) -Type String." $value.Location
         }
+    }
+
+    if ($Effect -is [BylawDeployIfNotExists]) {
+        Resolve-BylawEffectRole -Effect $Effect -Add $Add
+        Test-BylawDeployment -Deployment $Effect.Deployment -Policy $Policy -Add $Add
     }
 
     $scope = $Policy.Resource
