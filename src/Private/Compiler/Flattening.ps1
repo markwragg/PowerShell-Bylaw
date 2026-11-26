@@ -130,6 +130,10 @@ function Get-BylawValueKey {
     if ($Value -is [BylawResourceGroupTag]) {
         return 'rgtag:' + (Get-BylawValueKey -Value $Value.TagName)
     }
+    if ($Value -is [BylawCurrent]) {
+        # The emitted expression: Currents of different counts can name the same member (ADR-0032).
+        return 'current:' + (Get-BylawCurrentExpression -Current $Value)
+    }
     # Literals: JSON text tells true from 'true' and 5 from '5'.
     'literal:' + (ConvertTo-Json -InputObject $Value.Value -Compress -Depth 20)
 }

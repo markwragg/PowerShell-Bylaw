@@ -326,6 +326,56 @@ function Test-BylawEffectName {
     & $Add $Code "$Context '$Name' is not supported in language version 1.0. Supported effects: $($script:BylawSupportedEffects -join ', ').$reason" $Location
 }
 
+function Test-BylawCountAssertion {
+    # A count is compared with whole numbers (BYL3100), and a value count's list parameter must be
+    # declared and an Array (BYL3020, BYL3101) (ADR-0032).
+    param(
+        [Parameter(Mandatory)] [BylawAssertion] $Assertion,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $count = [BylawCount] $Assertion.Subject
+    $source = $count.ValueSource
+    if ($source -is [BylawParamRef]) {
+        $parameter = $Policy.FindParameter($source.Name)
+        if ($null -eq $parameter) {
+            & $Add 'BYL3020' "Parameter '$($source.Name)' is counted but not declared. Add: Parameter $($source.Name) -Type Array." $source.Location
+        }
+        elseif ($parameter.Type -ne 'Array') {
+            & $Add 'BYL3101' "Count -Value (Param $($parameter.Name)) needs an Array parameter to count the members of (it is $($parameter.Type))." $source.Location
+        }
+    }
+
+    $value = $Assertion.Value
+    $operatorName = '-' + $Assertion.DslOperator
+    if ($value -is [BylawParamRef]) {
+        $parameter = $Policy.FindParameter($value.Name)
+        if ($null -eq $parameter) {
+            & $Add 'BYL3020' "Parameter '$($value.Name)' is used but not declared. Add a Parameter $($value.Name) declaration." $value.Location
+            return
+        }
+        $expected = if ($Assertion.DslOperator -eq 'BeIn') { 'Array' } else { 'Integer' }
+        if ($parameter.Type -ne $expected) {
+            & $Add 'BYL3100' "$count is a whole number, so $operatorName needs an $expected parameter (Parameter '$($parameter.Name)' is $($parameter.Type))." $value.Location
+        }
+        return
+    }
+    if ($value -isnot [BylawLiteral]) {
+        # Arm, ResourceGroupTag or Current: only known when the policy is evaluated.
+        return
+    }
+    $items = if ($Assertion.DslOperator -eq 'BeIn') { @($value.Value) } else { , $value.Value }
+    foreach ($item in $items) {
+        $isWholeNumber = ($item -is [int] -or $item -is [long]) -and $item -ge 0
+        if (-not $isWholeNumber) {
+            $what = if ($Assertion.DslOperator -eq 'BeIn') { 'a list of whole numbers' } else { 'a whole number' }
+            & $Add 'BYL3100' "$count is a whole number, so $operatorName needs $what, e.g. $count | Must -BeGreaterThan 0." $Assertion.Location
+            return
+        }
+    }
+}
+
 function Test-BylawAssertionValue {
     # Per-operator value rules (ADR-0015) and parameter references.
     param(
@@ -338,6 +388,10 @@ function Test-BylawAssertionValue {
     $location = $Assertion.Location
     $operatorName = '-' + $Assertion.DslOperator
 
+    if ($Assertion.Subject -is [BylawCount]) {
+        Test-BylawCountAssertion -Assertion $Assertion -Policy $Policy -Add $Add
+        return
+    }
     if ($value -is [BylawParamRef]) {
         $parameter = $Policy.FindParameter($value.Name)
         if ($null -eq $parameter) {
@@ -497,6 +551,9 @@ function Get-BylawUsedParameterName {
                 $values.Add($value)
             }
         }
+        if ($assertion.Subject -is [BylawCount] -and $null -ne $assertion.Subject.ValueSource) {
+            $values.Add($assertion.Subject.ValueSource)
+        }
         if ($null -ne $assertion.Field -and $null -ne $assertion.Field.TagName) {
             $values.Add($assertion.Field.TagName)
         }
@@ -580,6 +637,10 @@ function Get-BylawAssertion {
         }
         elseif ($node -is [BylawAssertion]) {
             $node
+            # The statements in a Count -Where (ADR-0032).
+            if ($node.Subject -is [BylawCount]) {
+                $queue.InsertRange($index, $node.Subject.Children)
+            }
         }
     }
 }
@@ -609,11 +670,25 @@ function Test-BylawRuleLimit {
     if ($null -eq $Policy.Rule -or $null -eq $Policy.Rule.If) {
         return
     }
-    $stats = @{ Conditions = 0; Counts = @{} }
+    $stats = @{ Conditions = 0; Counts = @{}; ValueCounts = 0; Iterations = $null }
     Measure-BylawCondition -Condition $Policy.Rule.If -Stats $stats
+    # Counts in the existence condition of AuditIfNotExists and DeployIfNotExists are part of the
+    # rule too. Its conditions aren't in 'if', so they don't count towards BYL3051.
+    if ($Policy.Effect -is [BylawIfNotExists] -and $null -ne $Policy.Effect.ExistenceCondition) {
+        $ifConditions = $stats.Conditions
+        Measure-BylawCondition -Condition $Policy.Effect.ExistenceCondition -Stats $stats
+        $stats.Conditions = $ifConditions
+    }
 
     if ($stats.Conditions -gt 4096) {
         [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3051', "The compiled rule has $($stats.Conditions) condition expressions in 'if'; Azure allows at most 4096.", $Policy.Location)
+    }
+    # Learn: at most 10 value counts per rule, and 100 iterations, nested counts included (ADR-0032).
+    if ($stats.ValueCounts -gt 10) {
+        [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3052', "The compiled rule has $($stats.ValueCounts) value counts (Count -Value); Azure allows at most 10 per rule.", $Policy.Location)
+    }
+    if ($null -ne $stats.Iterations) {
+        [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3053', "This value count iterates $($stats.Iterations.Count) times, nested counts included; Azure allows at most 100. Count a shorter list, or a parameter.", $stats.Iterations.Location)
     }
     foreach ($entry in $stats.Counts.GetEnumerator()) {
         if ($entry.Value.Count -gt 5) {
@@ -623,16 +698,18 @@ function Test-BylawRuleLimit {
 }
 
 function Measure-BylawCondition {
-    param([Parameter(Mandatory)] [BylawCondition] $Condition, [Parameter(Mandatory)] [hashtable] $Stats)
+    # Counts conditions, field counts per array and value counts. Iterations is how many times the
+    # enclosing value counts over literal lists run, multiplied; the first count over 100 is kept.
+    param([Parameter(Mandatory)] [BylawCondition] $Condition, [Parameter(Mandatory)] [hashtable] $Stats, [int] $Iterations = 1)
 
     $Stats.Conditions++
     if ($Condition -is [BylawGroup]) {
         foreach ($child in $Condition.Children) {
-            Measure-BylawCondition -Condition $child -Stats $Stats
+            Measure-BylawCondition -Condition $child -Stats $Stats -Iterations $Iterations
         }
     }
     elseif ($Condition -is [BylawNot]) {
-        Measure-BylawCondition -Condition $Condition.Child -Stats $Stats
+        Measure-BylawCondition -Condition $Condition.Child -Stats $Stats -Iterations $Iterations
     }
     elseif ($Condition -is [BylawCountCondition]) {
         if ($null -ne $Condition.Field) {
@@ -642,8 +719,17 @@ function Measure-BylawCondition {
             }
             $Stats.Counts[$key].Count++
         }
+        elseif ($null -ne $Condition.ValueSource) {
+            $Stats.ValueCounts++
+            if ($Condition.ValueSource -is [BylawLiteral]) {
+                $Iterations *= @($Condition.ValueSource.Value).Count
+                if ($Iterations -gt 100 -and $null -eq $Stats.Iterations) {
+                    $Stats.Iterations = @{ Count = $Iterations; Location = $Condition.Location }
+                }
+            }
+        }
         if ($null -ne $Condition.Where) {
-            Measure-BylawCondition -Condition $Condition.Where -Stats $Stats
+            Measure-BylawCondition -Condition $Condition.Where -Stats $Stats -Iterations $Iterations
         }
     }
 }

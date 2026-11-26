@@ -138,7 +138,7 @@ class BylawResourceGroupTag : BylawValue {
     }
 
     [string] ToString() {
-        if ($this.TagName -is [BylawParamRef]) {
+        if ($this.TagName -isnot [BylawLiteral]) {
             return 'ResourceGroupTag ({0})' -f $this.TagName
         }
         return 'ResourceGroupTag {0}' -f $this.TagName
@@ -156,7 +156,7 @@ class BylawFieldRef : BylawNode {
     # Full alias or reserved field name, set by the alias resolution pass.
     [string] $Resolved
     [bool] $AllowUnknownAlias
-    # For Kind Tag: the tag name as a BylawLiteral string, or a BylawParamRef.
+    # For Kind Tag: the tag name as a BylawLiteral string, a BylawParamRef, or a BylawCurrent.
     [BylawValue] $TagName
 
     BylawFieldRef() {}
@@ -169,13 +169,52 @@ class BylawFieldRef : BylawNode {
         if ($this.Kind -eq [BylawFieldKind]::Element) {
             return 'Element'
         }
-        if ($this.Kind -eq [BylawFieldKind]::Tag -and $this.TagName -is [BylawParamRef]) {
+        if ($this.Kind -eq [BylawFieldKind]::Tag -and $null -ne $this.TagName -and $this.TagName -isnot [BylawLiteral]) {
             return 'Tag ({0})' -f $this.TagName
         }
         if ($this.Resolved) {
             return $this.Resolved
         }
         return $this.Name
+    }
+}
+
+class BylawCount : BylawValue {
+    # Count path[*] or Count -Value ... [-Name] [-Where { }] (ADR-0032), piped to Must as the
+    # subject of an assertion. A field count has Field; a value count has ValueSource.
+    [BylawFieldRef] $Field
+    [BylawValue] $ValueSource
+    [string] $Name
+    # The -Where statements, emitted as written: assertions and groups, in source order.
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
+
+    BylawCount() {}
+
+    [bool] IsFieldCount() {
+        return $null -ne $this.Field
+    }
+
+    [string] ToString() {
+        if ($this.IsFieldCount()) {
+            return 'Count {0}' -f $this.Field.Name
+        }
+        return 'Count -Value {0}' -f $this.ValueSource
+    }
+}
+
+class BylawCurrent : BylawValue {
+    # Current [name] (ADR-0032): the member a count is at. Count is the count it refers to; Name is
+    # the value count's -Name as written, or $null for the innermost count.
+    [string] $Name
+    [BylawCount] $Count
+
+    BylawCurrent() {}
+
+    [string] ToString() {
+        if ($this.Name) {
+            return 'Current {0}' -f $this.Name
+        }
+        return 'Current'
     }
 }
 

@@ -135,6 +135,29 @@ function Invoke-BylawAliasResolution {
     $context.Diagnostics
 }
 
+function Resolve-BylawCountAlias {
+    # A field count's path resolves like an Each path: relative to the element inside Each, and its
+    # -Where fields relative to its own element. A value count's -Where fields resolve as they would
+    # around it (ADR-0032).
+    param(
+        [Parameter(Mandatory)] [BylawCount] $Count,
+        [Parameter(Mandatory)] [pscustomobject] $Context,
+        [AllowNull()] [string] $ArrayAlias
+    )
+
+    $whereAlias = $ArrayAlias
+    if ($Count.IsFieldCount()) {
+        $whereAlias = Resolve-BylawFieldAlias -Field $Count.Field -Context $Context -ArrayAlias $ArrayAlias -IsArrayPath -PassThru
+        if (-not $whereAlias) {
+            # The array itself didn't resolve; its -Where would only repeat the error.
+            return
+        }
+    }
+    foreach ($child in $Count.Children) {
+        Resolve-BylawNodeAlias -Node $child -Context $Context -ArrayAlias $whereAlias
+    }
+}
+
 function Resolve-BylawNodeAlias {
     param(
         [Parameter(Mandatory)] [BylawNode] $Node,
@@ -146,6 +169,9 @@ function Resolve-BylawNodeAlias {
         # A value condition tests an expression, so it has no field to resolve (ADR-0025).
         if ($null -ne $Node.Field) {
             Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
+        }
+        elseif ($Node.Subject -is [BylawCount]) {
+            Resolve-BylawCountAlias -Count $Node.Subject -Context $Context -ArrayAlias $ArrayAlias
         }
         return
     }
@@ -208,11 +234,13 @@ function Get-BylawResolvedAlias {
     $name = $Field.Name
     $withoutOwnArray = if ($IsArrayPath) { $name.Substring(0, $name.Length - 3) } else { $name }
     if ($withoutOwnArray.Contains('[*]')) {
+        $arrayPath = $name.Substring(0, $name.IndexOf('[*]') + 3)
+        $elementField = $name.Substring($name.IndexOf('[*]') + 3).TrimStart('.')
         $hint = if ($IsArrayPath) {
-            'Nest one Each per array level instead.'
+            'Nest one Each (or Count -Where) per array level instead.'
         }
         else {
-            "Wrap it in Each, e.g. Each $($name.Substring(0, $name.IndexOf('[*]') + 3)) { Field $($name.Substring($name.IndexOf('[*]') + 3).TrimStart('.')) | Must ... }."
+            "Wrap it in Each, e.g. Each $arrayPath { Field $elementField | Must ... }, or count the elements: Count $arrayPath -Where { Field $elementField | Must ... } | Must -BeGreaterThan 0 (ADR-0032)."
         }
         Add-BylawResolutionDiagnostic -Context $Context -Code 'BYL2005' -Location $location -Message (
             "Field '$name' uses [*] outside Each. Azure evaluates a [*] field condition for every element, so it can't be inverted safely. $hint"
@@ -329,6 +357,11 @@ function Get-BylawTagFieldName {
     # gives '', and validation reports it.
     param([Parameter(Mandatory)] [BylawFieldRef] $Field, [Parameter(Mandatory)] [BylawPolicy] $Policy)
 
+    if ($Field.TagName -is [BylawCurrent]) {
+        # The member a value count is at (ADR-0032), as ALZ's tag policies write it.
+        $current = Get-BylawCurrentExpression -Current $Field.TagName
+        return "[concat('tags[', $current, ']')]"
+    }
     if ($Field.TagName -isnot [BylawParamRef]) {
         return "tags['$($Field.TagName.Value)']"
     }

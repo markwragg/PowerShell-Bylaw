@@ -74,6 +74,18 @@ Require 'Every mandatory tag is set' {
 * `Each path[*] { P }` stays, and is the same as `Count path[*] -Where { violation of P } | Must -Be 0`. The README shows both.
 * A `[*]` field outside `Each` or `Count` stays a compile error (BYL2005). Its message now suggests `Count`.
 
+### Details
+
+* A count is compared with whole numbers: literals, an `Integer` parameter (an `Array` one for `-BeIn`), or `Arm`.
+* `Current name` refers to the value count with that `-Name` around it, so a nested count can use an outer count's member. A `Count -Value` inside another count, including inside `Each`, needs `-Name`.
+* `Tag (Current name)` emits `[concat('tags[', current('name'), ']')]`, and `ResourceGroupTag (Current name)` emits `[resourceGroup().tags[current('name')]]`, as the ALZ tag policies write them. Both need a value count.
+* `Element` in `-Where` is only for a field count; a value count's member is `Current`.
+
+### Diagnostics
+
+* Front end: BYL1047 (neither or both of a path and `-Value`, a path without `[*]`, or a `-Value` that is not a list), BYL1048 (`-Name` on a field count, or not letters and digits), BYL1049 (a nested value count without `-Name`), BYL1050 (`Current` outside `-Where`, with a name no count has, or without a name in a nested value count), BYL1051 (an operator a count doesn't take, or `-IfPresent` or `-Strict` on a count), BYL1052 (`Count` used as a value). `-IfPresent` and `-Strict` in `-Where` are BYL1010, an empty `-Where` is BYL1013, and `Each` in `-Where` is BYL1002.
+* Validation: BYL3100 (a count compared with something other than a whole number), BYL3101 (a `-Value` parameter that is not an `Array`), BYL3052 (more than 10 value counts in a rule), BYL3053 (more than 100 iterations over literal lists, nested counts multiplied).
+
 ### Consequences
 
 * Good, because every count form Learn documents can be written, and tested with the familiar operators.

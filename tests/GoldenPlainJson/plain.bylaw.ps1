@@ -139,3 +139,16 @@ Policy 'plain-deployifnotexists' {
             })
     }
 }
+
+Policy 'plain-count' {
+
+    Properties @{ DisplayName = 'Plain: storage firewalls have at least one IP rule'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        Require 'At least one IP rule' {
+            Count networkAcls.ipRules[*] | Must -BeGreaterThan 0
+        }
+    }
+
+    Effect Audit
+}

@@ -8,7 +8,7 @@ function Policy {
         resource using the inner keywords (Properties, Parameter, Resource, When, Require, Each,
         AnyOf, AllOf, Field, Element, Tag, ResourceGroupTag, Must, Effect, Modify, AddOrReplace,
         Add, Remove, Append, DenyAction, Manual, AuditIfNotExists, DeployIfNotExists, Deployment,
-        Param, Arm), which exist only while the block runs.
+        Count, Current, Param, Arm), which exist only while the block runs.
 
         Errors inside the block are recorded as diagnostics with file, line and keyword, and are
         reported together by Build-Bylaw.

@@ -22,6 +22,9 @@
 # A value condition (ResourceGroupTag, Param or Arm piped into Must) is inverted like a field
 # condition, but never guarded: an expression has no missing state (ADR-0025).
 #
+# Count (ADR-0032) is a value condition on a number: inverted like one and never guarded. Its
+# -Where statements select what to count and are emitted as written.
+#
 # Run the alias resolution pass first: conditions use FieldRef.Resolved.
 
 function ConvertTo-BylawPolicyRule {
@@ -182,7 +185,10 @@ function New-BylawAssertionCondition {
         [AllowNull()] [BylawValue] $Value
     )
 
-    $condition = if ($null -ne $Assertion.Subject) {
+    $condition = if ($Assertion.Subject -is [BylawCount]) {
+        New-BylawCountCondition -Count $Assertion.Subject -Operator $Operator -Value $Value
+    }
+    elseif ($null -ne $Assertion.Subject) {
         [BylawValueCondition]::new($Assertion.Subject, $Operator, $Value)
     }
     else {
@@ -190,6 +196,31 @@ function New-BylawAssertionCondition {
     }
     $condition.Location = $Assertion.Location
     $condition.Origin = $Assertion
+    $condition
+}
+
+function New-BylawCountCondition {
+    # count { field | value, name?, where? } <operator> <value> (ADR-0032). The -Where statements
+    # select what to count, so they are emitted as written, like When.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory IR node only.')]
+    param(
+        [Parameter(Mandatory)] [BylawCount] $Count,
+        [Parameter(Mandatory)] [string] $Operator,
+        [AllowNull()] [BylawValue] $Value
+    )
+
+    $where = $null
+    if ($Count.Children.Count -gt 0) {
+        $selections = foreach ($child in $Count.Children) {
+            ConvertTo-BylawApplicabilityCondition -Node $child
+        }
+        $where = [BylawGroup]::new([BylawGroupKind]::AllOf, [object[]] @($selections))
+        $where.Location = $Count.Location
+    }
+    $condition = [BylawCountCondition]::new($Count.Field, $where, $Operator, $Value)
+    $condition.ValueSource = $Count.ValueSource
+    $condition.Name = $Count.Name
+    $condition.Location = $Count.Location
     $condition
 }
 

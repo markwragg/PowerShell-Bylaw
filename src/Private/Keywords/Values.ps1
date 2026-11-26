@@ -6,6 +6,14 @@ function ConvertTo-BylawValue {
         [AllowNull()] [object] $Value,
         [BylawSourceLocation] $Location
     )
+    if ($Value -is [BylawCount]) {
+        # A count is tested, not compared with (ADR-0032).
+        Remove-BylawPendingField -Field $Value
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1052' -Location $Location -Message (
+            "A count ($Value) can't be used as a value. Pipe it to Must instead, e.g. $Value | Must -BeGreaterThan 0."
+        )
+        return $null
+    }
     if ($Value -is [BylawValue]) {
         return $Value
     }

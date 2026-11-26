@@ -12,7 +12,7 @@ $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
     'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append', 'AuditIfNotExists',
-    'DeployIfNotExists', 'Deployment'
+    'DeployIfNotExists', 'Deployment', 'Count', 'Current'
 )
 
 # Keywords that set the effect. A policy has exactly one (ADR-0017).
@@ -95,7 +95,10 @@ function Exit-BylawFrame {
         $script:BylawFrames.RemoveRange($index, $script:BylawFrames.Count - $index)
     }
     foreach ($field in $Frame.PendingFields) {
-        $message = if ($Frame.Keyword -eq 'Modify') {
+        $message = if ($field -is [BylawCount]) {
+            "'{0}' is not piped to Must. A count is a number to test, e.g. {0} | Must -BeGreaterThan 0" -f $field
+        }
+        elseif ($Frame.Keyword -eq 'Modify') {
             "Field '{0}' is not piped to an operation. Write: {0} | AddOrReplace ..., | Add ... or | Remove" -f $field
         }
         elseif ($Frame.Keyword -eq 'Append') {
@@ -112,7 +115,8 @@ function Remove-BylawPendingField {
     # Forgets a field reference that was used, so Exit-BylawFrame doesn't also report it as
     # "not piped to Must".
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes in-memory front-end state only.')]
-    param([Parameter(Mandatory)] [BylawFieldRef] $Field)
+    # A Field, Tag, Element, or a Count (ADR-0032).
+    param([Parameter(Mandatory)] [object] $Field)
 
     foreach ($frame in $script:BylawFrames) {
         $null = $frame.PendingFields.Remove($Field)

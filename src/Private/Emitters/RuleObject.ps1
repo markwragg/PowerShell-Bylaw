@@ -71,6 +71,25 @@ function Get-BylawCanonicalEffect {
     ''
 }
 
+function Get-BylawCurrentExpression {
+    # The expression for Current, without brackets (ADR-0032): current('name') for a named value
+    # count, current('<array alias>[*]') for a field count, or current() for an unnamed value count.
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [BylawCurrent] $Current)
+
+    if ($Current.Name) {
+        return "current('$($Current.Name)')"
+    }
+    $count = $Current.Count
+    if ($count.IsFieldCount()) {
+        return "current('$(Get-BylawFieldName -Field $count.Field)')"
+    }
+    if ($count.Name) {
+        return "current('$($count.Name)')"
+    }
+    'current()'
+}
+
 function ConvertTo-BylawValueObject {
     # The JSON value for an IR value.
     param(
@@ -94,8 +113,14 @@ function ConvertTo-BylawValueObject {
     if ($Value -is [BylawExpr]) {
         return $Value.Text
     }
+    if ($Value -is [BylawCurrent]) {
+        return "[$(Get-BylawCurrentExpression -Current $Value)]"
+    }
     if ($Value -is [BylawResourceGroupTag]) {
         # [resourceGroup().tags['name']], or with a parameter [resourceGroup().tags[parameters('x')]].
+        if ($Value.TagName -is [BylawCurrent]) {
+            return "[resourceGroup().tags[$(Get-BylawCurrentExpression -Current $Value.TagName)]]"
+        }
         if ($Value.TagName -is [BylawParamRef]) {
             $parameterValue = ConvertTo-BylawValueObject -Value $Value.TagName -Policy $Policy
             return "[resourceGroup().tags[$($parameterValue.Substring(1, $parameterValue.Length - 2))]]"
