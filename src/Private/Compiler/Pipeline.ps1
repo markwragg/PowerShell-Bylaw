@@ -15,7 +15,7 @@ function Invoke-BylawCompilerPass {
         return
     }
 
-    $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+    $diagnostics = [System.Collections.Generic.List[object]]::new()
     foreach ($diagnostic in Invoke-BylawAliasResolution -Policy $Policy -Snapshot $Snapshot -AllowUnknownAlias:$AllowUnknownAlias) {
         $diagnostics.Add($diagnostic)
     }
@@ -30,5 +30,7 @@ function Invoke-BylawCompilerPass {
         }
     }
 
-    $diagnostics
+    foreach ($diagnostic in $diagnostics) {
+        $diagnostic
+    }
 }

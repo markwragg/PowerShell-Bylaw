@@ -234,6 +234,18 @@ if ((Get-Location).ProviderPath -ne $PSScriptRoot) { throw "working folder is $(
         (Build-Bylaw -Path $project -PassThru).Name | Should -Be @('policy-a', 'policy-b')
     }
 
+    It 'keeps working after PowerShell flushes its script cache' {
+        # PowerShell clears its process-wide script cache when it grows past about 1000 entries,
+        # so the next import parses Bylaw's classes again (see tests/Meta/Repository.Tests.ps1).
+        $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText -Name 'policy-a' }
+        $null = Build-Bylaw -Path $project -PassThru
+        foreach ($index in 1..1500) {
+            $null = [scriptblock]::Create("'flush $index'")
+        }
+        (Build-Bylaw -Path $project -PassThru).Name | Should -Be 'policy-a'
+        (Build-Bylaw -Path $project -PassThru).Name | Should -Be 'policy-a'
+    }
+
     It 'leaves the caller session untouched' {
         $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText -Name 'policy-a' -Before "`$global:BylawCallerLeak = 'a'" }
         $before = (Get-Location).ProviderPath

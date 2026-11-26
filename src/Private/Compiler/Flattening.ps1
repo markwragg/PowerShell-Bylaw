@@ -17,7 +17,7 @@ function Optimize-BylawCondition {
     }
 
     if ($Condition -is [BylawGroup]) {
-        $children = [System.Collections.Generic.List[BylawCondition]]::new()
+        $children = [System.Collections.Generic.List[object]]::new()
         foreach ($child in $Condition.Children) {
             $optimized = Optimize-BylawCondition -Condition $child
             if ($null -eq $optimized) {

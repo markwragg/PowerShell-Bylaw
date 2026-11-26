@@ -60,7 +60,7 @@ function Invoke-BylawFileInRunspace {
             $failure = $_.Exception.InnerException ?? $_.Exception
         }
 
-        $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+        $diagnostics = [System.Collections.Generic.List[object]]::new()
         $policies = @()
         if ($null -ne $output) {
             foreach ($plain in $output.Diagnostics) {
@@ -106,7 +106,7 @@ function Invoke-BylawFileCompile {
         [string] $Format = 'Epac'
     )
 
-    $fileDiagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+    $fileDiagnostics = [System.Collections.Generic.List[object]]::new()
     foreach ($diagnostic in Get-BylawFrontEndDiagnostic) {
         $fileDiagnostics.Add($diagnostic)
     }
@@ -118,7 +118,7 @@ function Invoke-BylawFileCompile {
     $frontEndFailed = @($fileDiagnostics | Where-Object Severity -EQ ([BylawSeverity]::Error)).Count -gt 0
     $snapshot = $null
     foreach ($policy in Get-BylawCollectedPolicy) {
-        $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+        $diagnostics = [System.Collections.Generic.List[object]]::new()
         $text = $null
         # After a front-end error the IR may be incomplete, so compiling would only add noise.
         if (-not $frontEndFailed) {

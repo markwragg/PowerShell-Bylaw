@@ -43,6 +43,8 @@ Rules:
 * Good, because passes and emitters are small and unit-testable.
 * Good, because contributors can read and change the IR without knowing C#.
 * Bad, because PowerShell classes have known limitations: no reload without restarting the session, type identity per runspace, limited interfaces. `-PassThru` therefore returns plain objects, not IR instances.
+* Bad, because PowerShell caches type names per process. A type name that contains a Bylaw class, such as `List[BylawDiagnostic]` or `BylawCondition[]`, keeps pointing at the old class after Bylaw's classes are defined again, for example after PowerShell flushes its script cache. Code then fails with errors such as 'Cannot find an overload for "Add"'. Bylaw classes are therefore never used inside generic or array type names: collections are `List[object]` and `[object[]]`. A repository test enforces this, and a `Build-Bylaw` test flushes the script cache and builds again.
+* Bad, because files can't be compiled in parallel runspaces of one process (ADR-0014).
 
 ### Confirmation
 

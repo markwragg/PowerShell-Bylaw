@@ -23,7 +23,7 @@ function ConvertTo-BylawPolicyRule {
     param([Parameter(Mandatory)] [BylawPolicy] $Policy)
 
     $scope = $Policy.Resource
-    $conditions = [System.Collections.Generic.List[BylawCondition]]::new()
+    $conditions = [System.Collections.Generic.List[object]]::new()
 
     if (-not $scope.IsAnyType()) {
         $typeField = [BylawFieldRef]::new('type')
@@ -42,12 +42,12 @@ function ConvertTo-BylawPolicyRule {
         }
     }
 
-    $violations = [System.Collections.Generic.List[BylawCondition]]::new()
+    $violations = [System.Collections.Generic.List[object]]::new()
     foreach ($requirement in $scope.Requirements) {
         $requirementViolations = foreach ($child in $requirement.Children) {
             ConvertTo-BylawViolation -Node $child -InEach $false
         }
-        $group = [BylawGroup]::new([BylawGroupKind]::AnyOf, [BylawCondition[]] @($requirementViolations))
+        $group = [BylawGroup]::new([BylawGroupKind]::AnyOf, [object[]] @($requirementViolations))
         $group.Location = $requirement.Location
         $group.Origin = $requirement
         $violations.Add($group)
@@ -89,7 +89,7 @@ function ConvertTo-BylawViolation {
         $elementViolations = foreach ($child in $Node.Children) {
             ConvertTo-BylawViolation -Node $child -InEach $true
         }
-        $where = [BylawGroup]::new([BylawGroupKind]::AnyOf, [BylawCondition[]] @($elementViolations))
+        $where = [BylawGroup]::new([BylawGroupKind]::AnyOf, [object[]] @($elementViolations))
         $where.Location = $Node.Location
         $count = [BylawCountCondition]::new($Node.Field, $where, 'greater', [BylawLiteral]::new(0))
         $count.Location = $Node.Location
@@ -159,7 +159,7 @@ function New-BylawGuardedCondition {
     $guard = [BylawFieldCondition]::new($Condition.Field, 'exists', $existsValue)
     $guard.Location = $Condition.Location
     $guard.Origin = $Condition.Origin
-    $group = [BylawGroup]::new($Kind, [BylawCondition[]] @($guard, $Condition))
+    $group = [BylawGroup]::new($Kind, [object[]] @($guard, $Condition))
     $group.Location = $Condition.Location
     $group.Origin = $Condition.Origin
     $group

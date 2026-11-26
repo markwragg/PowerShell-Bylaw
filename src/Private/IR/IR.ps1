@@ -260,7 +260,7 @@ class BylawCountCondition : BylawCondition {
 
 class BylawGroup : BylawCondition {
     [BylawGroupKind] $Kind
-    [System.Collections.Generic.List[BylawCondition]] $Children = [System.Collections.Generic.List[BylawCondition]]::new()
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawGroup() {}
 
@@ -268,7 +268,7 @@ class BylawGroup : BylawCondition {
         $this.Kind = $kind
     }
 
-    BylawGroup([BylawGroupKind] $kind, [BylawCondition[]] $children) {
+    BylawGroup([BylawGroupKind] $kind, [object[]] $children) {
         $this.Kind = $kind
         foreach ($child in $children) {
             $this.Children.Add($child)
@@ -356,7 +356,7 @@ class BylawEach : BylawNode {
     # The [*] array path as written, e.g. 'networkAcls.ipRules[*]'.
     [BylawFieldRef] $Field
     # BylawAssertion and nested BylawEach nodes, in source order.
-    [System.Collections.Generic.List[BylawNode]] $Children = [System.Collections.Generic.List[BylawNode]]::new()
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawEach() {}
 
@@ -368,7 +368,7 @@ class BylawEach : BylawNode {
 class BylawRequirement : BylawNode {
     [string] $Description
     # BylawAssertion and BylawEach nodes, in source order.
-    [System.Collections.Generic.List[BylawNode]] $Children = [System.Collections.Generic.List[BylawNode]]::new()
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawRequirement() {}
 
@@ -379,7 +379,7 @@ class BylawRequirement : BylawNode {
 
 class BylawApplicability : BylawNode {
     # One When block. Its assertions are emitted as written, not inverted (ADR-0002).
-    [System.Collections.Generic.List[BylawNode]] $Children = [System.Collections.Generic.List[BylawNode]]::new()
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 }
 
 class BylawResourceScope : BylawNode {
@@ -387,8 +387,8 @@ class BylawResourceScope : BylawNode {
     [string] $Type
     # Type in the alias snapshot's casing, set by the alias resolution pass.
     [string] $ResolvedType
-    [System.Collections.Generic.List[BylawApplicability]] $When = [System.Collections.Generic.List[BylawApplicability]]::new()
-    [System.Collections.Generic.List[BylawRequirement]] $Requirements = [System.Collections.Generic.List[BylawRequirement]]::new()
+    [System.Collections.Generic.List[object]] $When = [System.Collections.Generic.List[object]]::new()
+    [System.Collections.Generic.List[object]] $Requirements = [System.Collections.Generic.List[object]]::new()
 
     BylawResourceScope() {}
 
@@ -439,7 +439,7 @@ class BylawPolicy : BylawNode {
     # Definition name, exactly as given to Policy 'name' (ADR-0010).
     [string] $Name
     [BylawProperties] $Properties
-    [System.Collections.Generic.List[BylawParameter]] $Parameters = [System.Collections.Generic.List[BylawParameter]]::new()
+    [System.Collections.Generic.List[object]] $Parameters = [System.Collections.Generic.List[object]]::new()
     [BylawResourceScope] $Resource
     [BylawEffect] $Effect
     # Policy-layer rule. Set by the compiler from Resource/Effect, or by the decompiler from JSON.
@@ -541,7 +541,7 @@ class BylawFrame {
     [string] $Keyword
     [BylawNode] $Node
     # Field references produced in this block that no Must has consumed yet.
-    [System.Collections.Generic.List[BylawFieldRef]] $PendingFields = [System.Collections.Generic.List[BylawFieldRef]]::new()
+    [System.Collections.Generic.List[object]] $PendingFields = [System.Collections.Generic.List[object]]::new()
     # Keywords that may appear at most once in this block, and where they first appeared.
     [hashtable] $Singletons = @{}
 
@@ -579,13 +579,13 @@ class BylawDiagnostic {
 }
 
 class BylawCompileException : System.Exception {
-    [BylawDiagnostic[]] $Diagnostics
+    [object[]] $Diagnostics
 
-    BylawCompileException([BylawDiagnostic[]] $diagnostics) : base([BylawCompileException]::FormatMessage($diagnostics)) {
+    BylawCompileException([object[]] $diagnostics) : base([BylawCompileException]::FormatMessage($diagnostics)) {
         $this.Diagnostics = $diagnostics
     }
 
-    hidden static [string] FormatMessage([BylawDiagnostic[]] $diagnostics) {
+    hidden static [string] FormatMessage([object[]] $diagnostics) {
         $lines = foreach ($diagnostic in $diagnostics) {
             $diagnostic.ToString()
         }

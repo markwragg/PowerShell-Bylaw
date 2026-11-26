@@ -12,6 +12,19 @@ BeforeDiscovery {
     }
     $script:powerShellFiles = @($textFiles | Where-Object { $_.Path -match '\.ps(m|d)?1$' })
     $script:markdownFiles = @($textFiles | Where-Object { $_.Path -match '\.md$' })
+    $script:sourceFiles = @($powerShellFiles | Where-Object { $_.Path -like 'src/*' })
+}
+
+Describe 'Bylaw classes in type names' {
+    # PowerShell caches type names such as List[BylawDiagnostic] per process. When Bylaw's classes
+    # are defined again (after PowerShell flushes its script cache, or on re-import), those
+    # cached names keep pointing at the old classes, and Build-Bylaw fails with errors such as
+    # 'Cannot find an overload for "Add"'. Use List[object] and [object[]] instead (ADR-0006).
+    It '<Path> does not use a Bylaw class inside a generic or array type' -ForEach $sourceFiles {
+        $text = [System.IO.File]::ReadAllText($FullPath)
+        $found = @([regex]::Matches($text, '\[[\w.]+\[[^\]]*Bylaw\w+[^\]]*\]\]|Bylaw\w+\[\]') | ForEach-Object Value)
+        $found | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'Repository text files' {

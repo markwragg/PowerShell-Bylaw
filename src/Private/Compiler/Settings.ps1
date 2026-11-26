@@ -41,7 +41,7 @@ function Read-BylawSettingsFile {
     param([string] $Path)
 
     $settings = @{ Path = $null; LanguageVersion = '1.0'; AliasCache = $null }
-    $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+    $diagnostics = [System.Collections.Generic.List[object]]::new()
     $result = @{ Settings = $settings; Diagnostics = $diagnostics }
     if (-not $Path) {
         return $result

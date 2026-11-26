@@ -10,7 +10,7 @@ function Find-BylawSourceFile {
     param([Parameter(Mandatory)] [string[]] $Path)
 
     $files = [System.Collections.Generic.List[object]]::new()
-    $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+    $diagnostics = [System.Collections.Generic.List[object]]::new()
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($item in $Path) {
@@ -67,7 +67,7 @@ function New-BylawErrorRecord {
 function New-BylawBuildErrorRecord {
     # One error for a failed build, listing every error diagnostic (file:line [Keyword] CODE: message).
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory error record only.')]
-    param([Parameter(Mandatory)] [BylawDiagnostic[]] $Diagnostics)
+    param([Parameter(Mandatory)] [object[]] $Diagnostics)
 
     $exception = [BylawCompileException]::new($Diagnostics)
     $record = [System.Management.Automation.ErrorRecord]::new($exception, 'BylawBuildFailed', [System.Management.Automation.ErrorCategory]::InvalidData, $null)

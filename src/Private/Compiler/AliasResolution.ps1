@@ -38,7 +38,7 @@ function Invoke-BylawAliasResolution {
         TypeKnown         = $false
         AnyType           = $scope.IsAnyType()
         AllowUnknownAlias = $AllowUnknownAlias.IsPresent
-        Diagnostics       = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+        Diagnostics       = [System.Collections.Generic.List[object]]::new()
     }
 
     if (-not $context.AnyType) {

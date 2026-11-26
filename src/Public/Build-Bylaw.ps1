@@ -113,14 +113,14 @@ function Build-Bylaw {
         Write-Verbose "Alias snapshot: $($snapshotData.Path)"
 
         # Compile every file, one runspace each (ADR-0014).
-        $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+        $diagnostics = [System.Collections.Generic.List[object]]::new()
         $compiled = [System.Collections.Generic.List[object]]::new()
         foreach ($source in $sources) {
             Write-Verbose "Compiling $($source.Relative)"
             $result = Invoke-BylawFileInRunspace -File $source.File -SnapshotData $snapshotData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name
-            $diagnostics.AddRange([BylawDiagnostic[]] @($result.Diagnostics))
+            $diagnostics.AddRange([object[]] @($result.Diagnostics))
             foreach ($policy in $result.Policies) {
-                $diagnostics.AddRange([BylawDiagnostic[]] @($policy.Diagnostics))
+                $diagnostics.AddRange([object[]] @($policy.Diagnostics))
                 $compiled.Add([pscustomobject]@{ Source = $source; Policy = $policy; FileDiagnostics = $result.Diagnostics })
             }
             if ($result.Policies.Count -eq 0 -and $result.Diagnostics.Count -eq 0) {

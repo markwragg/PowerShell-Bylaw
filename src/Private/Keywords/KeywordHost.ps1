@@ -37,9 +37,9 @@ function Reset-BylawFrontEnd {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Resets in-memory module state only.')]
     param()
 
-    $script:BylawCollectedPolicies = [System.Collections.Generic.List[BylawPolicy]]::new()
-    $script:BylawDiagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
-    $script:BylawFrames = [System.Collections.Generic.List[BylawFrame]]::new()
+    $script:BylawCollectedPolicies = [System.Collections.Generic.List[object]]::new()
+    $script:BylawDiagnostics = [System.Collections.Generic.List[object]]::new()
+    $script:BylawFrames = [System.Collections.Generic.List[object]]::new()
 }
 
 function Get-BylawCollectedPolicy {

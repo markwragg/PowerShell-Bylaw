@@ -17,7 +17,7 @@ function Invoke-BylawValidation {
     [OutputType([BylawDiagnostic])]
     param([Parameter(Mandatory)] [BylawPolicy] $Policy)
 
-    $diagnostics = [System.Collections.Generic.List[BylawDiagnostic]]::new()
+    $diagnostics = [System.Collections.Generic.List[object]]::new()
     $add = {
         param([string] $Code, [string] $Message, [BylawSourceLocation] $Location, [BylawSeverity] $Severity = [BylawSeverity]::Error)
         $diagnostics.Add([BylawDiagnostic]::new($Severity, $Code, $Message, $Location))
@@ -326,9 +326,9 @@ function Test-BylawParameterValueType {
 function Get-BylawUsedParameterName {
     # Lower-cased DSL names of the parameters a policy references: Param values in assertions, the
     # effect, and parameters('...') inside Arm expressions (ADR-0021).
-    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [BylawAssertion[]] $Assertions = @())
+    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [object[]] $Assertions = @())
 
-    $values = [System.Collections.Generic.List[BylawValue]]::new()
+    $values = [System.Collections.Generic.List[object]]::new()
     foreach ($assertion in $Assertions) {
         if ($null -ne $assertion.Value) {
             $values.Add($assertion.Value)
@@ -359,7 +359,7 @@ function Get-BylawAssertion {
     # Every assertion in a resource scope, in source order, including inside Each.
     param([Parameter(Mandatory)] [BylawResourceScope] $Scope)
 
-    $queue = [System.Collections.Generic.List[BylawNode]]::new()
+    $queue = [System.Collections.Generic.List[object]]::new()
     foreach ($applicability in $Scope.When) {
         $queue.AddRange($applicability.Children)
     }
