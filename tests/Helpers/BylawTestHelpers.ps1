@@ -84,7 +84,7 @@ function Format-BylawTestCondition {
         $where = Format-BylawTestCondition -Condition $Condition['count']['where']
         return "count(where: $where)"
     }
-    $operator = @($Condition.Keys | Where-Object { $_ -ne 'field' })[0]
+    $operator = @($Condition.Keys | Where-Object { $_ -notin 'field', 'value' })[0]
     if ($operator -eq 'exists') {
         return "exists:$(([string] $Condition[$operator]).ToLowerInvariant())"
     }

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-tags",
+  "properties": {
+    "displayName": "Golden: tags and value conditions",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Tags"
+    },
+    "parameters": {
+      "tagName": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Tag name"
+        }
+      },
+      "enforce": {
+        "type": "Boolean",
+        "metadata": {
+          "displayName": "Enforce"
+        },
+        "defaultValue": true
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "value": "[parameters('enforce')]",
+            "equals": true
+          },
+          {
+            "value": "[resourceGroup().tags[parameters('tagName')]]",
+            "notEquals": ""
+          },
+          {
+            "anyOf": [
+              {
+                "field": "[concat('tags[', parameters('tagName'), ']')]",
+                "notEquals": "[resourceGroup().tags[parameters('tagName')]]"
+              },
+              {
+                "field": "tags['CostCenter']",
+                "exists": false
+              },
+              {
+                "field": "tags['CostCenter']",
+                "in": [
+                  "none",
+                  "tbc"
+                ]
+              },
+              {
+                "field": "tags['CostCenter']",
+                "equals": ""
+              },
+              {
+                "allOf": [
+                  {
+                    "value": "[resourceGroup().tags['Environment']]",
+                    "notEquals": ""
+                  },
+                  {
+                    "field": "tags['Environment']",
+                    "notEquals": "[resourceGroup().tags['Environment']]"
+                  }
+                ]
+              },
+              {
+                "value": "[length(field('tags'))]",
+                "greater": 10
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

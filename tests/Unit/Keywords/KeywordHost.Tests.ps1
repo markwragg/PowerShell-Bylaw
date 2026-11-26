@@ -18,7 +18,7 @@ Describe 'Keyword scoping (ADR-0005)' {
     It 'exports Policy but none of the inner keywords' {
         $exported = @((Get-Module Bylaw).ExportedCommands.Keys)
         $exported | Should -Contain 'Policy'
-        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm') {
+        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm') {
             $exported | Should -Not -Contain $keyword
         }
     }
@@ -26,7 +26,7 @@ Describe 'Keyword scoping (ADR-0005)' {
     It 'does not define inner keywords outside a Policy' {
         # A leak would be a function from Bylaw (or from no module) visible to the caller. Other
         # modules may legitimately export the same names, e.g. psake's Properties.
-        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm') {
+        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm') {
             Get-BylawLeakedKeyword -Name $keyword | Should -BeNullOrEmpty -Because "$keyword must not leak"
         }
     }
@@ -92,7 +92,7 @@ Set-Content -Path (Join-Path $TestDrive 'user-field.txt') -Value (Field)
     # resolves to that command before the handler runs. That's a documented limitation (ADR-0005);
     # inside a Policy the keyword always wins.
     It 'gives a clear error for <Keyword> outside a Policy' -ForEach @(
-        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm') {
+        foreach ($keyword in 'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm') {
             $existing = Get-Command -Name $keyword, "Get-$keyword" -ErrorAction SilentlyContinue | Where-Object { $_.ModuleName -ne 'Bylaw' }
             @{ Keyword = $keyword; Skip = [bool] $existing }
         }

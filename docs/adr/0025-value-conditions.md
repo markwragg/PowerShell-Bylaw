@@ -46,6 +46,7 @@ emits:
 * Every operator is allowed except `-Exist`.
 * **No missing-field guards.** In `Require`, the condition is inverted as usual, but no `exists` guard is added. `-IfPresent` and `-Strict` are compile errors.
 * A literal piped into `Must` is a compile error, because it is constant.
+* The errors for value conditions are `BYL1024`. A field used as a value, such as `Must -Be (Tag Owner)`, is `BYL1025`, and `ResourceGroupTag` with `-BeIn` is `BYL3017`.
 * A missing resource group tag compares as an empty string, which is what the built-in policies rely on with `notEquals: ""`. It hasn't been measured directly, so the sandbox script will check it.
 
 ### Consequences

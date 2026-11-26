@@ -19,6 +19,9 @@
 # AllOf { P; Q } holds when both hold; its violation is anyOf[ violation(P), violation(Q) ]
 # (ADR-0026). Each statement inside keeps its own missing-field handling.
 #
+# A value condition (ResourceGroupTag, Param or Arm piped into Must) is inverted like a field
+# condition, but never guarded: an expression has no missing state (ADR-0025).
+#
 # Run the alias resolution pass first: conditions use FieldRef.Resolved.
 
 function ConvertTo-BylawPolicyRule {
@@ -86,9 +89,27 @@ function ConvertTo-BylawApplicabilityCondition {
     }
 
     $operator, $value = Get-BylawAssertedOperator -Assertion $Node -Invert $false
-    $condition = [BylawFieldCondition]::new($Node.Field, $operator, $value)
-    $condition.Location = $Node.Location
-    $condition.Origin = $Node
+    New-BylawAssertionCondition -Assertion $Node -Operator $operator -Value $value
+}
+
+function New-BylawAssertionCondition {
+    # The condition for an assertion with the given operator: a field condition, or a value
+    # condition when the assertion tests an expression (ADR-0025).
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory IR node only.')]
+    param(
+        [Parameter(Mandatory)] [BylawAssertion] $Assertion,
+        [Parameter(Mandatory)] [string] $Operator,
+        [AllowNull()] [BylawValue] $Value
+    )
+
+    $condition = if ($null -ne $Assertion.Subject) {
+        [BylawValueCondition]::new($Assertion.Subject, $Operator, $Value)
+    }
+    else {
+        [BylawFieldCondition]::new($Assertion.Field, $Operator, $Value)
+    }
+    $condition.Location = $Assertion.Location
+    $condition.Origin = $Assertion
     $condition
 }
 
@@ -125,12 +146,11 @@ function ConvertTo-BylawViolation {
 
     $assertion = [BylawAssertion] $Node
     $operator, $value = Get-BylawAssertedOperator -Assertion $assertion -Invert $true
-    $inverted = [BylawFieldCondition]::new($assertion.Field, $operator, $value)
-    $inverted.Location = $assertion.Location
-    $inverted.Origin = $assertion
+    $inverted = New-BylawAssertionCondition -Assertion $assertion -Operator $operator -Value $value
 
-    # exists conditions need no guard, and Element (the array element itself) is never missing.
-    if ($operator -eq 'exists' -or $assertion.Field.Kind -eq [BylawFieldKind]::Element) {
+    # An expression has no missing state (ADR-0025), exists conditions need no guard, and Element
+    # (the array element itself) is never missing.
+    if ($null -ne $assertion.Subject -or $operator -eq 'exists' -or $assertion.Field.Kind -eq [BylawFieldKind]::Element) {
         return $inverted
     }
 

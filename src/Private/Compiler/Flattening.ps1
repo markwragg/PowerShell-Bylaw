@@ -127,6 +127,9 @@ function Get-BylawValueKey {
     if ($Value -is [BylawExpr]) {
         return 'arm:' + $Value.Text
     }
+    if ($Value -is [BylawResourceGroupTag]) {
+        return 'rgtag:' + (Get-BylawValueKey -Value $Value.TagName)
+    }
     # Literals: JSON text tells true from 'true' and 5 from '5'.
     'literal:' + (ConvertTo-Json -InputObject $Value.Value -Compress -Depth 20)
 }

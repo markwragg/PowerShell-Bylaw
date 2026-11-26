@@ -34,6 +34,8 @@ enum BylawFieldKind {
     Field
     # The current element of a primitive array inside Each.
     Element
+    # A tag: Tag name. FieldRef.TagName holds the name or a Param reference (ADR-0020).
+    Tag
 }
 
 class BylawSourceLocation {
@@ -124,6 +126,25 @@ class BylawExpr : BylawValue {
     }
 }
 
+class BylawResourceGroupTag : BylawValue {
+    # The resource group's tag value: [resourceGroup().tags['name']] (ADR-0020). TagName is a
+    # BylawLiteral string or a BylawParamRef.
+    [BylawValue] $TagName
+
+    BylawResourceGroupTag() {}
+
+    BylawResourceGroupTag([BylawValue] $tagName) {
+        $this.TagName = $tagName
+    }
+
+    [string] ToString() {
+        if ($this.TagName -is [BylawParamRef]) {
+            return 'ResourceGroupTag ({0})' -f $this.TagName
+        }
+        return 'ResourceGroupTag {0}' -f $this.TagName
+    }
+}
+
 #endregion
 
 #region Fields
@@ -135,6 +156,8 @@ class BylawFieldRef : BylawNode {
     # Full alias or reserved field name, set by the alias resolution pass.
     [string] $Resolved
     [bool] $AllowUnknownAlias
+    # For Kind Tag: the tag name as a BylawLiteral string, or a BylawParamRef.
+    [BylawValue] $TagName
 
     BylawFieldRef() {}
 
@@ -145,6 +168,9 @@ class BylawFieldRef : BylawNode {
     [string] ToString() {
         if ($this.Kind -eq [BylawFieldKind]::Element) {
             return 'Element'
+        }
+        if ($this.Kind -eq [BylawFieldKind]::Tag -and $this.TagName -is [BylawParamRef]) {
+            return 'Tag ({0})' -f $this.TagName
         }
         if ($this.Resolved) {
             return $this.Resolved
@@ -322,8 +348,11 @@ class BylawPolicyRule : BylawNode {
 #region DSL layer (as written)
 
 class BylawAssertion : BylawNode {
-    # One Must statement, before inversion.
+    # One Must statement, before inversion. It tests either a field (Field) or, as a value
+    # condition, an expression (Subject: ResourceGroupTag, Param or Arm; ADR-0025). Exactly one of
+    # the two is set.
     [BylawFieldRef] $Field
+    [BylawValue] $Subject
     # DSL operator as written, without the dash, e.g. 'Be', 'BeIn', 'Exist'.
     [string] $DslOperator
     # The non-negated Azure operator it maps to, e.g. 'equals' for -Be (ADR-0015).
@@ -337,7 +366,7 @@ class BylawAssertion : BylawNode {
 
     [string] ToString() {
         $parts = [System.Collections.Generic.List[string]]::new()
-        $parts.Add([string] $this.Field)
+        $parts.Add($(if ($null -ne $this.Field) { [string] $this.Field } else { [string] $this.Subject }))
         $parts.Add('| Must')
         if ($this.Negated) {
             $parts.Add('-Not')

@@ -93,13 +93,18 @@ function New-BylawAssertion {
         [BylawSourceLocation] $Location
     )
 
-    if ($InputObject -isnot [BylawFieldRef]) {
+    # A field, or an expression for a value condition (ADR-0025). A literal is constant, so it
+    # can't be tested.
+    $isSubject = $InputObject -is [BylawValue] -and $InputObject -isnot [BylawLiteral]
+    if ($InputObject -isnot [BylawFieldRef] -and -not $isSubject) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1008' -Location $Location -Message (
-            'Must needs a Field (or Element inside Each) from the pipeline, e.g. Field publicNetworkAccess | Must -Be Disabled.'
+            'Must needs a Field, Tag or Element, or an expression (ResourceGroupTag, Param or Arm), from the pipeline, e.g. Field publicNetworkAccess | Must -Be Disabled.'
         )
         return $null
     }
-    $null = $Frame.PendingFields.Remove($InputObject)
+    if (-not $isSubject) {
+        $null = $Frame.PendingFields.Remove($InputObject)
+    }
 
     $operators = @($script:BylawMustOperators.Keys | Where-Object {
             $Bound.ContainsKey($_) -and -not ($_ -eq 'Exist' -and -not $Bound[$_])
@@ -119,6 +124,21 @@ function New-BylawAssertion {
     $context = Get-BylawConditionContext
     if (-not $context) {
         $context = $Frame.Keyword
+    }
+    if ($isSubject) {
+        $subjectError = if ($context -eq 'Each') {
+            "Testing an expression ($InputObject) isn't supported inside Each yet. Test it in a separate Require or in When, outside the Each."
+        }
+        elseif ($dslOperator -eq 'Exist') {
+            "-Exist tests whether a field is present, so it doesn't apply to an expression ($InputObject). To require a value, use Must -Not -Be ''."
+        }
+        elseif ($ifPresent -or $strict) {
+            "-IfPresent and -Strict don't apply to an expression ($InputObject): only fields can be missing."
+        }
+        if ($subjectError) {
+            Add-BylawDiagnostic -Severity Error -Code 'BYL1024' -Location $Location -Message $subjectError
+            return $null
+        }
     }
     $modeError = if ($ifPresent -and $strict) {
         '-IfPresent and -Strict cannot be used together.'
@@ -142,7 +162,12 @@ function New-BylawAssertion {
 
     $assertion = [BylawAssertion]::new()
     $assertion.Location = $Location
-    $assertion.Field = $InputObject
+    if ($isSubject) {
+        $assertion.Subject = $InputObject
+    }
+    else {
+        $assertion.Field = $InputObject
+    }
     $assertion.DslOperator = $dslOperator
     $assertion.Operator = $script:BylawMustOperators[$dslOperator]
     $assertion.Negated = $Bound.ContainsKey('Not') -and $Bound['Not']

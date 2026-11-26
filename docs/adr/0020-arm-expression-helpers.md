@@ -29,7 +29,9 @@ Chosen option: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide f
 * `Param Name` emits `[parameters('<jsonName>')]`. The parameter must exist (ADR-0021).
 * `Tag name` is a field reference to the tag, `tags['name']`. It can be piped into `Must` and into `Modify` operations (ADR-0024).
   * `Tag (Param TagName)` emits the field `[concat('tags[', parameters('tagName'), ']')]`, as Azure's built-in tag policies do.
-  * A tag name containing `'`, `[` or `]` is a compile error, because it can't be written safely inside `tags['...']`.
+  * A tag name containing `'`, `[` or `]` is a compile error (`BYL1023`), because it can't be written safely inside `tags['...']`.
+  * A parameter that holds a tag name must be declared, and must be of type `String` (`BYL3034`).
+  * `Tag` is a compile error inside `Each`, because fields there refer to the array element.
   * `Tag` is shorthand for `Field "tags['name']"`, so the two compile to the same output.
 * `ResourceGroupTag name` is a value: `[resourceGroup().tags['name']]`.
   * `ResourceGroupTag (Param TagName)` emits `[resourceGroup().tags[parameters('tagName')]]`.

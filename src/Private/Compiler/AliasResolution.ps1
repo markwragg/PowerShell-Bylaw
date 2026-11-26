@@ -9,6 +9,8 @@
 #   4. Inside Each, names are relative to the array alias; Element is the element itself.
 #   5. Under Resource *, only reserved fields and full aliases are allowed.
 #   6. [*] in a field outside Each is an error: negating it by swapping operators would be wrong.
+#   7. Tag name is tags['name']; Tag (Param X) is [concat('tags[', parameters('x'), ']')] (ADR-0020).
+#   Value conditions (ADR-0025) test an expression and have no field to resolve.
 
 $script:BylawReservedFields = @(
     'name', 'fullName', 'kind', 'type', 'location', 'id',
@@ -33,6 +35,7 @@ function Invoke-BylawAliasResolution {
     }
 
     $context = [pscustomobject]@{
+        Policy            = $Policy
         Snapshot          = $Snapshot
         Type              = $null
         TypeKnown         = $false
@@ -81,7 +84,10 @@ function Resolve-BylawNodeAlias {
     )
 
     if ($Node -is [BylawAssertion]) {
-        Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
+        # A value condition tests an expression, so it has no field to resolve (ADR-0025).
+        if ($null -ne $Node.Field) {
+            Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
+        }
         return
     }
     if ($Node -is [BylawConditionGroup]) {
@@ -135,6 +141,9 @@ function Get-BylawResolvedAlias {
 
     if ($Field.Kind -eq [BylawFieldKind]::Element) {
         return $ArrayAlias
+    }
+    if ($Field.Kind -eq [BylawFieldKind]::Tag) {
+        return Get-BylawTagFieldName -Field $Field -Policy $Context.Policy
     }
 
     $name = $Field.Name
@@ -253,6 +262,23 @@ function Resolve-BylawUnknownAlias {
         "$Description is not in the alias snapshot.$hint Use Field <name> -AllowUnknownAlias if the alias is newer than the snapshot, or refresh it with Update-BylawAliasCache."
     )
     ''
+}
+
+function Get-BylawTagFieldName {
+    # The field name for Tag (ADR-0020): tags['name'], or for a parameter the form Azure's built-in
+    # tag policies use, [concat('tags[', parameters('tagName'), ']')]. An undeclared parameter
+    # gives '', and validation reports it.
+    param([Parameter(Mandatory)] [BylawFieldRef] $Field, [Parameter(Mandatory)] [BylawPolicy] $Policy)
+
+    if ($Field.TagName -isnot [BylawParamRef]) {
+        return "tags['$($Field.TagName.Value)']"
+    }
+    $parameter = $Policy.FindParameter($Field.TagName.Name)
+    if ($null -eq $parameter) {
+        return ''
+    }
+    $jsonName = Get-BylawParameterJsonName -Name $parameter.Name -JsonName $parameter.JsonName
+    "[concat('tags[', parameters('$jsonName'), ']')]"
 }
 
 function Get-BylawReservedField {

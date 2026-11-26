@@ -246,6 +246,8 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `AllOf { }` | Inside `AnyOf`, one alternative made of several statements that must all hold. |
 | `Field name` | A field: a short name, a standard field (`name`, `type`, `location`, `tags`, ...), or a full alias. `-AllowUnknownAlias` accepts an alias missing from the snapshot. |
 | `Element` | The element itself, inside `Each` over an array of plain values. |
+| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter. |
+| `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
 | `Must` | An assertion about the `Field` or `Element` piped into it. See the operators below. |
 | `Effect` | `Audit`, `Deny` or `Disabled`, or `(Param Effect)`. |
 | `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. |
@@ -306,7 +308,9 @@ Each `Must` takes one operator. The violation column is what Bylaw emits: the co
 
 **Azure match patterns are not regular expressions.** `#` matches a digit, `?` a letter, `.` any character, and every other character, including `*`, matches only itself. Bylaw warns about patterns that look like a regex.
 
-`-Match` is case-insensitive, like PowerShell's. `-ContainText` tests text, unlike Pester's `-Contain`, which tests membership of a collection. Values can be literals, `(Param Name)` or `(Arm '[...]')`.
+`-Match` is case-insensitive, like PowerShell's. `-ContainText` tests text, unlike Pester's `-Contain`, which tests membership of a collection. Values can be literals, `(Param Name)`, `(ResourceGroupTag name)` or `(Arm '[...]')`.
+
+`Must` can also test an expression instead of a field: pipe `ResourceGroupTag`, `Param` or `Arm` into it. For example, `When { ResourceGroupTag CostCenter | Must -Not -Be '' }` applies a policy only to resource groups that have the tag. An expression is never missing, so `-IfPresent`, `-Strict` and `-Exist` don't apply to it, and it can't be used inside `Each` yet.
 
 ## Missing fields
 

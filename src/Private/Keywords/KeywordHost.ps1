@@ -10,7 +10,7 @@
 
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
-    'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm'
+    'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm'
 )
 
 # Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
@@ -92,6 +92,17 @@ function Exit-BylawFrame {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1007' -Location $field.Location -Message (
             "Field '{0}' is not piped to Must. Write: Field {0} | Must ..." -f $field
         )
+    }
+}
+
+function Remove-BylawPendingField {
+    # Forgets a field reference that was used, so Exit-BylawFrame doesn't also report it as
+    # "not piped to Must".
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes in-memory front-end state only.')]
+    param([Parameter(Mandatory)] [BylawFieldRef] $Field)
+
+    foreach ($frame in $script:BylawFrames) {
+        $null = $frame.PendingFields.Remove($Field)
     }
 }
 

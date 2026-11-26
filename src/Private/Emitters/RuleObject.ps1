@@ -48,6 +48,14 @@ function ConvertTo-BylawValueObject {
     if ($Value -is [BylawExpr]) {
         return $Value.Text
     }
+    if ($Value -is [BylawResourceGroupTag]) {
+        # [resourceGroup().tags['name']], or with a parameter [resourceGroup().tags[parameters('x')]].
+        if ($Value.TagName -is [BylawParamRef]) {
+            $parameterValue = ConvertTo-BylawValueObject -Value $Value.TagName -Policy $Policy
+            return "[resourceGroup().tags[$($parameterValue.Substring(1, $parameterValue.Length - 2))]]"
+        }
+        return "[resourceGroup().tags['$($Value.TagName.Value)']]"
+    }
     # Keep arrays as arrays even when they have one element.
     , $Value.Value
 }

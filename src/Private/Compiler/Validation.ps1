@@ -45,6 +45,7 @@ function Invoke-BylawValidation {
     if ($null -ne $scope) {
         foreach ($assertion in $assertions) {
             Test-BylawAssertionValue -Assertion $assertion -Policy $Policy -Add $add
+            Test-BylawTagParameter -Assertion $assertion -Policy $Policy -Add $add
         }
 
         if ($scope.Requirements.Count -eq 0) {
@@ -65,11 +66,13 @@ function Invoke-BylawValidation {
         $mode = if ($Policy.Properties -and $Policy.Properties.Mode) { $Policy.Properties.Mode } else { 'All' }
         if ($mode -eq 'All') {
             $tagOrLocation = $assertions | Where-Object {
-                $resolved = $_.Field.Resolved
-                $resolved -and ($resolved -eq 'location' -or $resolved -like 'tags*')
+                $null -ne $_.Field -and (
+                    $_.Field.Kind -eq [BylawFieldKind]::Tag -or
+                    ($_.Field.Resolved -and ($_.Field.Resolved -eq 'location' -or $_.Field.Resolved -like 'tags*'))
+                )
             } | Select-Object -First 1
             if ($tagOrLocation) {
-                & $add 'BYL3040' "Mode is All but the rule checks '$($tagOrLocation.Field.Resolved)'. Policies on tags or location usually want Mode = 'Indexed', so resources that don't support them aren't evaluated (ADR-0016)." $tagOrLocation.Location ([BylawSeverity]::Warning)
+                & $add 'BYL3040' "Mode is All but the rule checks '$($tagOrLocation.Field)'. Policies on tags or location usually want Mode = 'Indexed', so resources that don't support them aren't evaluated (ADR-0016)." $tagOrLocation.Location ([BylawSeverity]::Warning)
             }
         }
     }
@@ -227,6 +230,10 @@ function Test-BylawAssertionValue {
         Test-BylawParameterOperator -Parameter $parameter -DslOperator $Assertion.DslOperator -Location $value.Location -Add $Add
         return
     }
+    if ($value -is [BylawResourceGroupTag] -and $Assertion.DslOperator -eq 'BeIn') {
+        & $Add 'BYL3017' '-BeIn needs a list, but ResourceGroupTag is a single value. Use -Be.' $location
+        return
+    }
     if ($value -isnot [BylawLiteral]) {
         return
     }
@@ -259,6 +266,43 @@ function Test-BylawAssertionValue {
         if ($isArray -or $literal -is [bool] -or $literal -is [System.Collections.IDictionary]) {
             & $Add 'BYL3016' "$operatorName needs a number, string or date string to compare with." $location
         }
+    }
+}
+
+function Test-BylawTagParameter {
+    # Parameters used by Tag, by ResourceGroupTag, and as the subject of a value condition must be
+    # declared. One that holds a tag name must be a String (ADR-0020, ADR-0025).
+    param(
+        [Parameter(Mandatory)] [BylawAssertion] $Assertion,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $tagNames = [System.Collections.Generic.List[object]]::new()
+    if ($null -ne $Assertion.Field -and $Assertion.Field.Kind -eq [BylawFieldKind]::Tag) {
+        $tagNames.Add($Assertion.Field.TagName)
+    }
+    foreach ($value in $Assertion.Subject, $Assertion.Value) {
+        if ($value -is [BylawResourceGroupTag]) {
+            $tagNames.Add($value.TagName)
+        }
+    }
+    foreach ($tagName in $tagNames) {
+        if ($tagName -isnot [BylawParamRef]) {
+            continue
+        }
+        $parameter = $Policy.FindParameter($tagName.Name)
+        if ($null -eq $parameter) {
+            & $Add 'BYL3020' "Parameter '$($tagName.Name)' is used as a tag name but not declared. Add: Parameter $($tagName.Name) -Type String." $tagName.Location
+        }
+        elseif ($parameter.Type -ne 'String') {
+            & $Add 'BYL3034' "Parameter '$($parameter.Name)' holds a tag name, so it must be of type String (it is $($parameter.Type))." $tagName.Location
+        }
+    }
+
+    $subject = $Assertion.Subject
+    if ($subject -is [BylawParamRef] -and $null -eq $Policy.FindParameter($subject.Name)) {
+        & $Add 'BYL3020' "Parameter '$($subject.Name)' is used but not declared. Add a Parameter $($subject.Name) declaration." $subject.Location
     }
 }
 
@@ -324,18 +368,30 @@ function Test-BylawParameterValueType {
 }
 
 function Get-BylawUsedParameterName {
-    # Lower-cased DSL names of the parameters a policy references: Param values in assertions, the
-    # effect, and parameters('...') inside Arm expressions (ADR-0021).
+    # DSL names of the parameters a policy references: Param values and value-condition subjects in
+    # assertions, tag names in Tag and ResourceGroupTag, the effect, and parameters('...') inside
+    # Arm expressions (ADR-0021).
     param([Parameter(Mandatory)] [BylawPolicy] $Policy, [object[]] $Assertions = @())
 
     $values = [System.Collections.Generic.List[object]]::new()
     foreach ($assertion in $Assertions) {
-        if ($null -ne $assertion.Value) {
-            $values.Add($assertion.Value)
+        foreach ($value in $assertion.Value, $assertion.Subject) {
+            if ($null -ne $value) {
+                $values.Add($value)
+            }
+        }
+        if ($null -ne $assertion.Field -and $null -ne $assertion.Field.TagName) {
+            $values.Add($assertion.Field.TagName)
         }
     }
     if ($null -ne $Policy.Effect -and $null -ne $Policy.Effect.Value) {
         $values.Add($Policy.Effect.Value)
+    }
+    # ResourceGroupTag (Param X) uses X.
+    foreach ($value in @($values)) {
+        if ($value -is [BylawResourceGroupTag]) {
+            $values.Add($value.TagName)
+        }
     }
 
     $used = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
