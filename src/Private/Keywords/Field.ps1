@@ -14,7 +14,7 @@ function Field {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Field')
-    $frame = Test-BylawParent -Keyword 'Field' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify' -Location $location
+    $frame = Test-BylawParent -Keyword 'Field' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify', 'Append' -Location $location
     if ($null -eq $frame) {
         return
     }

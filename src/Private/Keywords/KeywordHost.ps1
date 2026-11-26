@@ -11,11 +11,11 @@
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
-    'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual'
+    'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append'
 )
 
 # Keywords that set the effect. A policy has exactly one (ADR-0017).
-$script:BylawEffectKeywordNames = @('Effect', 'Modify', 'DenyAction', 'Manual')
+$script:BylawEffectKeywordNames = @('Effect', 'Modify', 'Append', 'DenyAction', 'Manual')
 
 # Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
 $script:BylawGroupKeywords = @('AnyOf', 'AllOf')
@@ -96,6 +96,9 @@ function Exit-BylawFrame {
     foreach ($field in $Frame.PendingFields) {
         $message = if ($Frame.Keyword -eq 'Modify') {
             "Field '{0}' is not piped to an operation. Write: {0} | AddOrReplace ..., | Add ... or | Remove" -f $field
+        }
+        elseif ($Frame.Keyword -eq 'Append') {
+            "Field '{0}' is not piped to Add. Write: {0} | Add ..." -f $field
         }
         else {
             "Field '{0}' is not piped to Must. Write: Field {0} | Must ..." -f $field

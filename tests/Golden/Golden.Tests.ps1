@@ -42,8 +42,9 @@ Describe 'Golden files in <Name> (<Format>)' -ForEach $GoldenRoots {
             })
     }
 
-    It 'compiles without warnings' {
-        $BuildWarnings | Should -BeNullOrEmpty
+    It 'compiles without warnings, except BYL4010 for Append in EPAC' {
+        # BYL4010 is expected: Append details are an array, which the EPAC schema doesn't allow.
+        @($BuildWarnings | Where-Object { "$_" -notmatch '\] BYL4010: ' }) | Should -BeNullOrEmpty
     }
 
     It 'has a golden file for every policy, and a policy for every golden file' {
@@ -78,7 +79,17 @@ Describe 'Golden files in <Name> (<Format>)' -ForEach $GoldenRoots {
     }
 
     It 'has a golden <Relative> that is valid against the EPAC schema' -ForEach @($Golden | Where-Object Format -EQ 'Epac') -AllowNullOrEmptyForEach {
-        Test-Json -Json ([System.IO.File]::ReadAllText($File)) -SchemaFile $Schema -ErrorAction SilentlyContinue | Should -BeTrue
+        $text = [System.IO.File]::ReadAllText($File)
+        # Append details are an array, as Azure requires; the EPAC schema says object (BYL4010). Check
+        # everything else against the schema.
+        $node = [System.Text.Json.Nodes.JsonNode]::Parse($text)
+        $then = $node['properties']['policyRule']['then']
+        if ($then['details'] -is [System.Text.Json.Nodes.JsonArray]) {
+            $then['effect'].ToString() | Should -BeIn @('Append', "[parameters('effect')]")
+            $then['details'] = [System.Text.Json.Nodes.JsonObject]::new()
+            $text = $node.ToJsonString()
+        }
+        Test-Json -Json $text -SchemaFile $Schema -ErrorAction SilentlyContinue | Should -BeTrue
     }
 
     It 'has a golden <Relative> with the plain definition structure' -ForEach @($Golden | Where-Object Format -EQ 'PlainJson') -AllowNullOrEmptyForEach {

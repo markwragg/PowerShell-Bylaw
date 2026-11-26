@@ -49,3 +49,31 @@ Policy 'golden-manual' {
 
     Manual -DefaultState NonCompliant
 }
+
+# Append (ADR-0030): a scalar field, and an object added to a [*] array. Each added field is
+# checked by a Require. The details are an array, as Azure requires (BYL4010).
+Policy 'golden-append' {
+
+    Properties @{
+        DisplayName = 'Golden: storage accounts use HTTPS and allow the office IP range'
+        Category    = 'Storage'
+        Version     = '1.0.0'
+        Mode        = 'Indexed'
+    }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        Require 'HTTPS only' {
+            Field supportsHttpsTrafficOnly | Must -Be $true
+        }
+        Require 'The office IP range is allowed' {
+            Each networkAcls.ipRules[*] {
+                Field action | Must -Be 'Allow'
+            }
+        }
+    }
+
+    Append {
+        Field supportsHttpsTrafficOnly | Add $true
+        Field 'networkAcls.ipRules[*]' | Add ([ordered]@{ value = '40.40.40.0/24'; action = 'Allow' })
+    }
+}

@@ -5,7 +5,7 @@
 
 $script:BylawLaterEffects = [ordered]@{
     Modify            = "Modify has its own block, which takes the place of Effect: Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' } (ADR-0024)."
-    Append            = 'Append is not planned; use Modify (Milestone 2), which Azure recommends over Append.'
+    Append            = 'Append has its own block, which takes the place of Effect: Append { Field supportsHttpsTrafficOnly | Add $true } (ADR-0030).'
     AuditIfNotExists  = 'AuditIfNotExists is planned for a later milestone.'
     DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
     DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0029).'
@@ -85,6 +85,9 @@ function Invoke-BylawValidation {
         }
         if ($Policy.Effect -is [BylawModify]) {
             Test-BylawModify -Modify $Policy.Effect -Policy $Policy -Snapshot $Snapshot -Add $add
+        }
+        if ($Policy.Effect -is [BylawAppend]) {
+            Test-BylawAppend -Append $Policy.Effect -Policy $Policy -Add $add
         }
         if ($Policy.Effect -is [BylawDenyAction]) {
             Test-BylawDenyAction -DenyAction $Policy.Effect -Policy $Policy -Add $add
@@ -495,7 +498,7 @@ function Get-BylawUsedParameterName {
     if ($null -ne $Policy.Effect -and $null -ne $Policy.Effect.Value) {
         $values.Add($Policy.Effect.Value)
     }
-    if ($Policy.Effect -is [BylawModify]) {
+    if ($Policy.Effect -is [BylawModify] -or $Policy.Effect -is [BylawAppend]) {
         foreach ($operation in $Policy.Effect.Operations) {
             foreach ($value in $operation.Value, $operation.Condition, $operation.Field.TagName) {
                 if ($null -ne $value) {

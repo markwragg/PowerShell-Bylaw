@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-append",
+  "properties": {
+    "displayName": "Golden: storage accounts use HTTPS and allow the office IP range",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Append",
+          "Disabled"
+        ],
+        "defaultValue": "Append"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.Storage/storageAccounts/supportsHttpsTrafficOnly",
+                "notEquals": true
+              },
+              {
+                "count": {
+                  "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*]",
+                  "where": {
+                    "allOf": [
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].action",
+                        "exists": true
+                      },
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*].action",
+                        "notEquals": "Allow"
+                      }
+                    ]
+                  }
+                },
+                "greater": 0
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": [
+          {
+            "field": "Microsoft.Storage/storageAccounts/supportsHttpsTrafficOnly",
+            "value": true
+          },
+          {
+            "field": "Microsoft.Storage/storageAccounts/networkAcls.ipRules[*]",
+            "value": {
+              "value": "40.40.40.0/24",
+              "action": "Allow"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

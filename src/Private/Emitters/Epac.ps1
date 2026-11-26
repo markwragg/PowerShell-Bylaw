@@ -67,6 +67,9 @@ function Test-BylawEpacPolicy {
     if ($null -eq $Policy.Effect) {
         return
     }
+    if ($Policy.Effect -is [BylawAppend]) {
+        & $new 'BYL4010' "Append details are an array, as Azure requires. EPAC deploys it, but the EPAC schema says details is an object, so editors will flag the file (ADR-0030)." $Policy.Effect.Location ([BylawSeverity]::Warning)
+    }
     $effectValue = $Policy.Effect.Value
     if ($effectValue -is [BylawExpr]) {
         & $new 'BYL4008' "EPAC definitions need the effect to be [parameters('effect')]. Use Effect (Param Effect) instead of an Arm expression (ADR-0023)." $Policy.Effect.Location

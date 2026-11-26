@@ -96,3 +96,18 @@ Policy 'plain-manual' {
 
     Manual
 }
+
+Policy 'plain-append' {
+
+    Properties @{ DisplayName = 'Plain: storage accounts use HTTPS'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        Require 'HTTPS only' {
+            Field supportsHttpsTrafficOnly | Must -Be $true
+        }
+    }
+
+    Append {
+        Field supportsHttpsTrafficOnly | Add $true
+    }
+}

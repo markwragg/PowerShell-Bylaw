@@ -128,7 +128,7 @@ function AddOrReplace {
 
     begin {
         $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'AddOrReplace')
-        $frame = Test-BylawParent -Keyword 'AddOrReplace' -Allowed 'Modify' -Location $location
+        $frame = Test-BylawModifyOnlyParent -Keyword 'AddOrReplace' -Location $location
         $received = $false
         $bound = $PSBoundParameters
     }
@@ -148,7 +148,8 @@ function AddOrReplace {
 function Add {
     <#
     .SYNOPSIS
-        Sets the piped field to a value only when it has none. Use inside Modify.
+        In Modify, sets the piped field to a value only when it has none. In Append, adds the value
+        to the request: it sets a field, or adds an element to a [*] array.
 
     .EXAMPLE
         Tag CostCenter | Add (ResourceGroupTag CostCenter)
@@ -167,7 +168,7 @@ function Add {
 
     begin {
         $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Add')
-        $frame = Test-BylawParent -Keyword 'Add' -Allowed 'Modify' -Location $location
+        $frame = Test-BylawParent -Keyword 'Add' -Allowed 'Modify', 'Append' -Location $location
         $received = $false
         $bound = $PSBoundParameters
     }
@@ -207,7 +208,7 @@ function Remove {
 
     begin {
         $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Remove')
-        $frame = Test-BylawParent -Keyword 'Remove' -Allowed 'Modify' -Location $location
+        $frame = Test-BylawModifyOnlyParent -Keyword 'Remove' -Location $location
         $received = $false
         $bound = $PSBoundParameters
     }
@@ -222,6 +223,21 @@ function Remove {
             Add-BylawMissingOperationField -Keyword 'Remove' -Location $location
         }
     }
+}
+
+function Test-BylawModifyOnlyParent {
+    # The frame for AddOrReplace and Remove, which only Modify has. In Append, BYL1036 explains that
+    # Append only adds (ADR-0030).
+    param([Parameter(Mandatory)] [string] $Keyword, [BylawSourceLocation] $Location)
+
+    $current = Get-BylawCurrentFrame
+    if ($null -ne $current -and $current.Keyword -eq 'Append') {
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1036' -Location $Location -Message (
+            "$Keyword can't be used in Append, which can only Add values to the request. To replace or remove a value, use Modify."
+        )
+        return $null
+    }
+    Test-BylawParent -Keyword $Keyword -Allowed 'Modify' -Location $Location
 }
 
 function Add-BylawMissingOperationField {
@@ -265,6 +281,12 @@ function Add-BylawModifyOperation {
     }
 
     $condition = $null
+    if ($Frame.Keyword -eq 'Append' -and $Bound.ContainsKey('Condition')) {
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1037' -Location $Location -Message (
+            "Add in Append takes no -Condition: Azure's append details have no conditions. Put the condition in When or Require."
+        )
+        return
+    }
     if ($Bound.ContainsKey('Condition')) {
         if ($Bound['Condition'] -isnot [BylawExpr]) {
             Add-BylawDiagnostic -Severity Error -Code 'BYL1028' -Location $Location -Message (

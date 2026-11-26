@@ -212,7 +212,7 @@ Describe 'Modify (ADR-0024)' {
         It 'reports no effect when there is neither Effect nor Modify' {
             $result = Invoke-BylawTestScript -Script (Format-ModifyPolicy -Modify '')
             $result.Codes | Should -Contain 'BYL1006'
-            ($result.Diagnostics | Where-Object Code -EQ 'BYL1006').Message | Should -BeLike '*Modify block*'
+            ($result.Diagnostics | Where-Object Code -EQ 'BYL1006').Message | Should -BeLike '*Modify or Append block*'
         }
 
         It 'says a field in Modify is not piped to an operation, not to Must' {

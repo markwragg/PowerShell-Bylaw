@@ -77,6 +77,7 @@ Chosen option: "Generate what can be derived, and fail the EPAC build for what c
 **Warnings:**
 
 * `BYL4009`: a parameter of type `DateTime`. Azure accepts it but the EPAC schema doesn't list it. The policy still compiles, because it deploys.
+* `BYL4010`: an `Append` policy. Azure requires its details to be an array, but the EPAC schema says `details` is an object. The policy still compiles, because it deploys (ADR-0030).
 
 ### Consequences
 

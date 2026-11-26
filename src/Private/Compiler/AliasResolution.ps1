@@ -10,7 +10,8 @@
 #   5. Under Resource *, only reserved fields and full aliases are allowed.
 #   6. [*] in a field outside Each is an error: negating it by swapping operators would be wrong.
 #   7. Tag name is tags['name']; Tag (Param X) is [concat('tags[', parameters('x'), ']')] (ADR-0020).
-#   8. Fields in Modify operations resolve as top-level fields (ADR-0024).
+#   8. Fields in Modify operations resolve as top-level fields (ADR-0024). So do Append fields,
+#      which may also end in [*] (ADR-0030).
 #   Value conditions (ADR-0025) test an expression and have no field to resolve.
 
 $script:BylawReservedFields = @(
@@ -81,6 +82,19 @@ function Invoke-BylawAliasResolution {
                 continue
             }
             Resolve-BylawFieldAlias -Field $operation.Field -Context $context -ArrayAlias $null
+        }
+    }
+    # Append fields resolve the same way, and may end in [*] to add an array element. A [*]
+    # anywhere else is left to validation (ADR-0030).
+    if ($Policy.Effect -is [BylawAppend]) {
+        foreach ($operation in $Policy.Effect.Operations) {
+            $field = $operation.Field
+            $isArray = $field.Kind -eq [BylawFieldKind]::Field -and $field.Name.EndsWith('[*]')
+            $inner = if ($isArray) { $field.Name.Substring(0, $field.Name.Length - 3) } else { $field.Name }
+            if ($field.Kind -eq [BylawFieldKind]::Field -and $inner.Contains('[*]')) {
+                continue
+            }
+            Resolve-BylawFieldAlias -Field $field -Context $context -ArrayAlias $null -IsArrayPath:$isArray
         }
     }
 

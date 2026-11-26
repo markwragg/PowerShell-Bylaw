@@ -13,6 +13,7 @@ $script:BylawModifyGeneratedEffects = @('Modify', 'Disabled')
 # literal effect, which is the keyword's own effect.
 $script:BylawEffectKeywords = [ordered]@{
     Modify     = @{ Allowed = $script:BylawModifyEffects; Generated = $script:BylawModifyGeneratedEffects; Example = "Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' }" }
+    Append     = @{ Allowed = @('Append', 'Disabled'); Generated = @('Append', 'Disabled'); Example = 'Append { Field supportsHttpsTrafficOnly | Add $true }' }
     DenyAction = @{ Allowed = @('DenyAction', 'Disabled'); Generated = @('DenyAction', 'Disabled'); Example = 'DenyAction Delete' }
     Manual     = @{ Allowed = @('Manual', 'Disabled'); Generated = @('Manual', 'Disabled'); Example = 'Manual -DefaultState Unknown' }
 }
@@ -23,6 +24,7 @@ function Get-BylawEffectKeyword {
     param([Parameter(Mandatory)] [BylawEffect] $Effect)
 
     if ($Effect -is [BylawModify]) { return 'Modify' }
+    if ($Effect -is [BylawAppend]) { return 'Append' }
     if ($Effect -is [BylawDenyAction]) { return 'DenyAction' }
     if ($Effect -is [BylawManual]) { return 'Manual' }
     'Effect'
@@ -165,6 +167,16 @@ function ConvertTo-BylawPolicyRuleObject {
     $thenObject = [ordered]@{ effect = $effect }
     if ($then -is [BylawModify]) {
         $thenObject['details'] = ConvertTo-BylawModifyDetailsObject -Modify $then -Policy $Policy
+    }
+    elseif ($then -is [BylawAppend]) {
+        # [ { field, value } ], in the order written (ADR-0030).
+        $operations = foreach ($operation in $then.Operations) {
+            [ordered]@{
+                field = Get-BylawFieldName -Field $operation.Field
+                value = ConvertTo-BylawValueObject -Value $operation.Value -Policy $Policy
+            }
+        }
+        $thenObject['details'] = [object[]] @($operations)
     }
     elseif ($then -is [BylawDenyAction]) {
         # { actionNames, cascadeBehaviors? }, in Learn's order (ADR-0029).

@@ -367,6 +367,17 @@ class BylawModify : BylawEffect {
     BylawModify([BylawValue] $value) : base($value) {}
 }
 
+class BylawAppend : BylawEffect {
+    # Append { Field x | Add v } (ADR-0030). Value is the literal 'Append', or the -Effect parameter
+    # or expression. Operations are BylawModifyOperation objects with Operation 'add' and no
+    # Condition, in the order written.
+    [System.Collections.Generic.List[object]] $Operations = [System.Collections.Generic.List[object]]::new()
+
+    BylawAppend() {}
+
+    BylawAppend([BylawValue] $value) : base($value) {}
+}
+
 class BylawDenyAction : BylawEffect {
     # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0029). Value is the literal 'DenyAction',
     # or the -Effect parameter or expression.

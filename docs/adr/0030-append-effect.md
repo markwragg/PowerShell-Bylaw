@@ -40,6 +40,13 @@ Append {
 * Warning: a field that no `Require` checks, as for `Modify` (ADR-0024). Append marks existing resources that match the rule as non-compliant, so the rule should check what Append adds.
 * The effect is emitted as `Append`. `-Effect (Param Effect)` may allow `Append` and `Disabled`, the values the ALZ Append policies use. A literal effect gets a generated EPAC parameter with those values. Learn doesn't say whether `Audit` or `Deny` are valid on a definition with append details, so they are compile errors until measured.
 * `Append` has no roles: it changes the request, not the resource.
+* A hashtable value can't contain `Param` or `Arm` (BYL1020), because Learn doesn't say whether expressions nested in an object value are evaluated. A parameter of type `Object` can hold the whole value.
+* The details are emitted as an array, as Azure requires. The EPAC schema says `details` is an object, so EPAC output gets the warning BYL4010 (ADR-0023). EPAC deploys it. The golden test checks the rest of the file against the schema.
+
+### Diagnostics
+
+* Front end: BYL1036 (`AddOrReplace` or `Remove` in `Append`), BYL1037 (`Add -Condition` in `Append`), BYL1020 (`Param` or `Arm` inside a hashtable value). As for `Modify`, BYL1013 is an empty block, BYL1027 an `Add` without a value, BYL1030 a literal `-Effect`, and BYL1031 an `Add` with no field.
+* Validation: BYL3080 (`[*]` before the end of the path), BYL3081 (the same field twice), BYL3072 (an effect parameter that allows anything but `Append` and `Disabled`), and the warnings BYL3082 (a tag field) and BYL3083 (a field no `Require` checks, where a `[*]` field counts as checked by an `Each` over it).
 
 ### Consequences
 

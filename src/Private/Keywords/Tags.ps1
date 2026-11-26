@@ -18,7 +18,7 @@ function Tag {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Tag')
-    $frame = Test-BylawParent -Keyword 'Tag' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify' -Location $location
+    $frame = Test-BylawParent -Keyword 'Tag' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify', 'Append' -Location $location
     if ($null -eq $frame) {
         return
     }

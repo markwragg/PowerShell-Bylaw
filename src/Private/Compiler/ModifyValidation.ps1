@@ -152,7 +152,8 @@ function Test-BylawModifyParameter {
 }
 
 function Get-BylawRequirementFieldName {
-    # The resolved names of the fields that Require blocks check, ignoring case.
+    # The resolved names of the fields that Require blocks check, ignoring case, including the
+    # array paths of Each blocks (such as 'x/ipRules[*]').
     param([Parameter(Mandatory)] [BylawResourceScope] $Scope)
 
     $names = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -166,6 +167,9 @@ function Get-BylawRequirementFieldName {
         $index++
         if ($node -is [BylawEach] -or $node -is [BylawConditionGroup]) {
             $queue.AddRange($node.Children)
+            if ($node -is [BylawEach] -and $node.Field.Resolved) {
+                $null = $names.Add($node.Field.Resolved)
+            }
         }
         elseif ($node -is [BylawAssertion] -and $null -ne $node.Field -and $node.Field.Resolved) {
             $null = $names.Add($node.Field.Resolved)
