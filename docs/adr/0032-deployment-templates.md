@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
@@ -24,7 +24,7 @@ decision-makers: Bylaw maintainers
 
 ## Decision Outcome
 
-Proposed: "A `Deployment` keyword inside the `DeployIfNotExists` block, taking a JSON file or a hashtable".
+Chosen option: "A `Deployment` keyword inside the `DeployIfNotExists` block, taking a JSON file or a hashtable".
 
 ```powershell
 DeployIfNotExists -Type 'Microsoft.Sql/servers/databases/transparentDataEncryption' -Name current -Role 'SQL DB Contributor' {

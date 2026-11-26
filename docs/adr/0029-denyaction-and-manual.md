@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
@@ -22,7 +22,7 @@ decision-makers: Bylaw maintainers
 
 ## Decision Outcome
 
-Proposed: "A keyword per effect, with parameters for the details", because it matches `Modify` and each detail can be validated.
+Chosen option: "A keyword per effect, with parameters for the details", because it matches `Modify` and each detail can be validated.
 
 ### DenyAction
 

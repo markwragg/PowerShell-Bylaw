@@ -138,4 +138,4 @@ This gives a single guard rule:
 * [Policy rule conditions](https://learn.microsoft.com/azure/governance/policy/concepts/definition-structure-policy-rule#conditions)
 * [Author policies for array properties](https://learn.microsoft.com/azure/governance/policy/how-to/author-policies-for-arrays)
 * Related: [ADR-0002](0002-desired-state-semantics.md), [ADR-0015](0015-must-operator-vocabulary.md)
-* Milestone 3 (proposed): in an existence condition, which isn't inverted, the same rules are applied to the compliant form, so a missing field still doesn't satisfy a requirement unless `-IfPresent` is used ([ADR-0031](0031-if-not-exists-effects.md)). A `Count -Where` selection is written as is and gets no guards ([ADR-0033](0033-count-expressions.md)).
+* Milestone 3: in an existence condition, which isn't inverted, the same rules are applied to the compliant form, so a missing field still doesn't satisfy a requirement unless `-IfPresent` is used ([ADR-0031](0031-if-not-exists-effects.md)). A `Count -Where` selection is written as is and gets no guards ([ADR-0033](0033-count-expressions.md)).

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
@@ -23,7 +23,7 @@ decision-makers: Bylaw maintainers
 
 ## Decision Outcome
 
-Proposed: "An `Append` block of `Add` operations".
+Chosen option: "An `Append` block of `Add` operations".
 
 ```powershell
 Append {

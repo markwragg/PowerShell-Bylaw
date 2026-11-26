@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
@@ -30,7 +30,7 @@ Learn also documents comparing a count with other numbers: "exactly one", "at le
 
 ## Decision Outcome
 
-Proposed: "A `Count` keyword whose result is piped to `Must`".
+Chosen option: "A `Count` keyword whose result is piped to `Must`".
 
 ```powershell
 Require 'At least one IP rule' {

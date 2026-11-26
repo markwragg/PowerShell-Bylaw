@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
@@ -24,7 +24,7 @@ ADR-0010 limits names to lowercase kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`). That
 
 ## Decision Outcome
 
-Proposed: "Accept any name Azure accepts that is also a safe file name".
+Chosen option: "Accept any name Azure accepts that is also a safe file name".
 
 * A name is 1 to 64 characters. It can't contain `<`, `>`, `*`, `%`, `&`, `:`, `\`, `?`, `.`, `+` or `/`, which Azure Resource Manager rejects, nor `"`, `|` or control characters, which aren't safe in file names. It can't start or end with a space, and it can't be a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`), ignoring case.
 * Lowercase kebab-case stays the recommended style in the documentation and examples, but isn't enforced or warned about. A warning would fire on every policy imported from ALZ or the portal, and the author can't change those names without changing the definitions' identity.

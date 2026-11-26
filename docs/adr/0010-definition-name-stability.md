@@ -38,4 +38,4 @@ Unit tests cover valid and invalid names, the length limit and duplicate names.
 
 ## More Information
 
-* [ADR-0028](0028-policy-names.md) (proposed) replaces the naming rule with any name Azure accepts that is also a safe file name, so existing definitions such as the Azure Landing Zones Library's can keep their names. The rest of this ADR stands.
+* [ADR-0028](0028-policy-names.md) replaces the naming rule with any name Azure accepts that is also a safe file name, so existing definitions such as the Azure Landing Zones Library's can keep their names. The rest of this ADR stands.

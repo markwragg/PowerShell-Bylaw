@@ -81,4 +81,4 @@ Unit tests check each inversion rule. Golden tests check complete compiled rules
 
 ## More Information
 
-* Two places compile the compliant state as written instead of its violation (Milestone 3, proposed): the existence condition of `AuditIfNotExists` and `DeployIfNotExists` ([ADR-0031](0031-if-not-exists-effects.md)), and the `-Where` selection of `Count` ([ADR-0033](0033-count-expressions.md)).
+* Two places compile the compliant state as written instead of its violation (Milestone 3): the existence condition of `AuditIfNotExists` and `DeployIfNotExists` ([ADR-0031](0031-if-not-exists-effects.md)), and the `-Where` selection of `Count` ([ADR-0033](0033-count-expressions.md)).

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
@@ -24,7 +24,7 @@ decision-makers: Bylaw maintainers
 
 ## Decision Outcome
 
-Proposed: "A keyword per effect, whose block holds `Require` blocks for the related resource".
+Chosen option: "A keyword per effect, whose block holds `Require` blocks for the related resource".
 
 ```powershell
 Resource 'Microsoft.Compute/virtualMachines' {

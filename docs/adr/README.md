@@ -31,9 +31,9 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0025](0025-value-conditions.md) | Must can test an expression as well as a field, emitting a value condition | Accepted |
 | [0026](0026-anyof-and-allof-groups.md) | AnyOf and AllOf groups let a requirement have alternatives | Accepted |
 | [0027](0027-plain-json-output.md) | Plain JSON output is a policy definition with name and properties, emitted as written | Accepted |
-| [0028](0028-policy-names.md) | Policy names accept any name Azure accepts that is also a safe file name | Proposed |
-| [0029](0029-denyaction-and-manual.md) | DenyAction and Manual are keywords that take the place of Effect | Proposed |
-| [0030](0030-append-effect.md) | Append is a block of Add operations, like Modify | Proposed |
-| [0031](0031-if-not-exists-effects.md) | AuditIfNotExists and DeployIfNotExists describe the related resource's compliant state | Proposed |
-| [0032](0032-deployment-templates.md) | DeployIfNotExists takes its template from a JSON file or a hashtable, with checked parameters | Proposed |
-| [0033](0033-count-expressions.md) | Count is piped to Must, for field counts and value counts | Proposed |
+| [0028](0028-policy-names.md) | Policy names accept any name Azure accepts that is also a safe file name | Accepted |
+| [0029](0029-denyaction-and-manual.md) | DenyAction and Manual are keywords that take the place of Effect | Accepted |
+| [0030](0030-append-effect.md) | Append is a block of Add operations, like Modify | Accepted |
+| [0031](0031-if-not-exists-effects.md) | AuditIfNotExists and DeployIfNotExists describe the related resource's compliant state | Accepted |
+| [0032](0032-deployment-templates.md) | DeployIfNotExists takes its template from a JSON file or a hashtable, with checked parameters | Accepted |
+| [0033](0033-count-expressions.md) | Count is piped to Must, for field counts and value counts | Accepted |
