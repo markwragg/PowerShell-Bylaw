@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vaultName": {
+      "type": "string"
+    },
+    "workspaceId": {
+      "type": "string"
+    },
+    "settingName": {
+      "type": "string",
+      "defaultValue": "send-to-workspace"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.KeyVault/vaults/providers/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "name": "[concat(parameters('vaultName'), '/Microsoft.Insights/', parameters('settingName'))]",
+      "properties": {
+        "workspaceId": "[parameters('workspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "audit",
+            "enabled": true
+          }
+        ]
+      }
+    }
+  ]
+}

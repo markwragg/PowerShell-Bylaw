@@ -1,0 +1,108 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "key-vault-deploy-diagnostics",
+  "properties": {
+    "displayName": "Key vaults send audit logs to a Log Analytics workspace",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Key Vault"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "workspaceId": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Workspace id",
+          "description": "Resource ID of the Log Analytics workspace."
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "type",
+        "equals": "Microsoft.KeyVault/vaults"
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "type": "microsoft.insights/diagnosticSettings",
+          "existenceCondition": {
+            "allOf": [
+              {
+                "field": "Microsoft.Insights/diagnosticSettings/workspaceId",
+                "equals": "[parameters('workspaceId')]"
+              },
+              {
+                "field": "Microsoft.Insights/diagnosticSettings/logs.enabled",
+                "equals": true
+              }
+            ]
+          },
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/92aaf0da-9dab-42b6-94a3-d43ce8d16293",
+            "/providers/Microsoft.Authorization/roleDefinitions/749f88d5-cbae-40b8-bcfc-e573ddc772fa"
+          ],
+          "deployment": {
+            "properties": {
+              "mode": "incremental",
+              "template": {
+                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                "contentVersion": "1.0.0.0",
+                "parameters": {
+                  "vaultName": {
+                    "type": "string"
+                  },
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "settingName": {
+                    "type": "string",
+                    "defaultValue": "send-to-workspace"
+                  }
+                },
+                "resources": [
+                  {
+                    "type": "Microsoft.KeyVault/vaults/providers/diagnosticSettings",
+                    "apiVersion": "2021-05-01-preview",
+                    "name": "[concat(parameters('vaultName'), '/Microsoft.Insights/', parameters('settingName'))]",
+                    "properties": {
+                      "workspaceId": "[parameters('workspaceId')]",
+                      "logs": [
+                        {
+                          "categoryGroup": "audit",
+                          "enabled": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "parameters": {
+                "vaultName": {
+                  "value": "[field('name')]"
+                },
+                "workspaceId": {
+                  "value": "[parameters('workspaceId')]"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

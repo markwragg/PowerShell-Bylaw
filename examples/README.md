@@ -22,8 +22,17 @@ The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tes
 | [tags/inherit-tag](tags/inherit-tag.bylaw.ps1) | `Modify` with `AddOrReplace`: keep a tag in step with the resource group, as the built-in policy does |
 | [tags/inherit-tag-if-missing](tags/inherit-tag-if-missing.bylaw.ps1) | `Modify` with `Add`: add the resource group's tag only where it is missing |
 | [storage/minimum-tls-modify](storage/minimum-tls-modify.bylaw.ps1) | `Modify` on an alias, with `-ConflictEffect Audit`, `-Condition` and an effect parameter |
+| [storage/append-secure-transfer](storage/append-secure-transfer.bylaw.ps1) | `Append`, with a `Require` that checks the added field |
+| [storage/protect-from-deletion](storage/protect-from-deletion.bylaw.ps1) | `DenyAction Delete` with `-CascadeBehavior`, on resources selected by a tag in `When` |
+| [general/attest-access-review](general/attest-access-review.bylaw.ps1) | `Manual` with `-DefaultState`, for a control that people attest |
+| [compute/audit-antimalware](compute/audit-antimalware.bylaw.ps1) | `AuditIfNotExists` on a VM extension, and the full alias for a field named like a reserved one |
+| [key-vault/deploy-diagnostics](key-vault/deploy-diagnostics.bylaw.ps1) | `DeployIfNotExists` with a template file in [key-vault/templates](key-vault/templates/), roles by ID, and an effect parameter that allows `AuditIfNotExists` |
+| [tags/require-mandatory-tags](tags/require-mandatory-tags.bylaw.ps1) | A value count over a parameter, with `Tag (Current tagName)`, compared with the parameter's length |
+| [network/limit-inbound-allow-rules](network/limit-inbound-allow-rules.bylaw.ps1) | A field count with `-Where`, compared with an `Integer` parameter |
 
-`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, and every `Modify` operation and option. `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
+Template files live in `templates` folders. They are inputs, not golden files.
+
+`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, every `Modify` operation and option, the other effects with their options (`effects/`), and the count patterns of the Azure Landing Zones Library (`count/`). `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
 
 After an intended change to the compiler's output, regenerate the golden files and review the diff:
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "storage-protect-from-deletion",
+  "properties": {
+    "displayName": "Protected storage accounts cannot be deleted",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Blocks deleting a storage account tagged protection=locked, and deleting its resource group.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "DenyAction",
+          "Disabled"
+        ],
+        "defaultValue": "DenyAction"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "field": "tags['protection']",
+            "equals": "locked"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "actionNames": [
+            "delete"
+          ],
+          "cascadeBehaviors": {
+            "resourceGroup": "deny"
+          }
+        }
+      }
+    }
+  }
+}
