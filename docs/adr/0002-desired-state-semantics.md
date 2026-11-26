@@ -78,3 +78,7 @@ Unit tests check each inversion rule. Golden tests check complete compiled rules
 
 * Good, because it is a one-to-one mapping with no inversion risk.
 * Bad, because it removes one of Bylaw's main reasons to exist.
+
+## More Information
+
+* Two places compile the compliant state as written instead of its violation (Milestone 3, proposed): the existence condition of `AuditIfNotExists` and `DeployIfNotExists` ([ADR-0031](0031-if-not-exists-effects.md)), and the `-Where` selection of `Count` ([ADR-0033](0033-count-expressions.md)).
