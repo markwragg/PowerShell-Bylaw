@@ -44,6 +44,11 @@ then = effect
 * `Each path[*] { P }` means "every element satisfies P". Its negation is "at least one element violates P", which is emitted as `{ "count": { "field": "<path>[*]", "where": NOT P }, "greater": 0 }`. The negation is pushed into `where` with the same rules.
 * Missing-field guards are added as described in [ADR-0004](0004-strict-missing-field-behaviour.md).
 
+Two places compile a compliant state as written instead of its violation, because Azure expects the compliant form there:
+
+* The existence condition of `AuditIfNotExists` and `DeployIfNotExists`, which says what a related resource must look like. Its `Require` blocks are emitted uninverted, with the same missing-field rules ([ADR-0030](0030-if-not-exists-effects.md)).
+* The `-Where` selection of `Count`, which says which elements to count. Like `When`, it is a selection, not a requirement ([ADR-0032](0032-count-expressions.md)).
+
 Every operator Bylaw supports in language version 1.0 has an inverse, so `not` is never needed. The IR keeps a `Not` node anyway, so that a future decompiler can read hand-written JSON that uses `not`. Emitters only produce `not` for IR that cannot be pushed further. That cannot happen in 1.0, and if it ever does it is a compiler bug, caught by tests.
 
 Edge cases:
@@ -78,7 +83,3 @@ Unit tests check each inversion rule. Golden tests check complete compiled rules
 
 * Good, because it is a one-to-one mapping with no inversion risk.
 * Bad, because it removes one of Bylaw's main reasons to exist.
-
-## More Information
-
-* Two places compile the compliant state as written instead of its violation (Milestone 3): the existence condition of `AuditIfNotExists` and `DeployIfNotExists` ([ADR-0030](0030-if-not-exists-effects.md)), and the `-Where` selection of `Count` ([ADR-0032](0032-count-expressions.md)).

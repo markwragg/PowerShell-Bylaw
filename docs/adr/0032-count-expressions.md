@@ -54,7 +54,7 @@ Require 'Every mandatory tag is set' {
 ### Count
 
 * `Count path[*]` is a field count, emitted as `{ "count": { "field": "<alias>[*]" } }`. `Count -Value <array> [-Name <name>]` is a value count. The array is a literal, a `Param` or an `Arm` expression.
-* `-Where { }` selects the elements to count, emitted as `count.where`. Without it, every element is counted. Statements in `-Where` are emitted **as written**, like `When`: they select elements, they aren't requirements, so they aren't inverted and get no missing-field guards. `AnyOf`, `AllOf` and nested `Count` work inside. `Each` isn't allowed inside `-Where`: use a nested `Count`.
+* `-Where { }` selects the elements to count, emitted as `count.where`. Without it, every element is counted. Statements in `-Where` are emitted **as written**, like `When`: they select elements, they aren't requirements, so they aren't inverted and get no missing-field guards. As in `When`, `-IfPresent` and `-Strict` are compile errors there. `AnyOf`, `AllOf` and nested `Count` work inside. `Each` isn't allowed inside `-Where`: use a nested `Count`.
 * In a field count's `-Where`, field names are relative to the element, as in `Each`, and `Element` is the element itself.
 * `Count` is piped to `Must` like a value condition (ADR-0025). In `Require` the assertion is inverted and never guarded, since a count is never missing. In `When` it is emitted as written. The operators are `-Be`, `-BeIn` and the four comparisons. Others are a compile error.
 * `Count` works in `When`, `Require` and `Each`, and in an existence condition (ADR-0030). Inside `Each`, a field count's path is relative to the element, which gives the nested counts Learn allows.

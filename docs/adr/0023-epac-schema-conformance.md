@@ -26,7 +26,7 @@ How should Bylaw's EPAC emitter handle these differences?
 * Output from `-Format Epac` passes the EPAC schema, so editors and CI raise no errors.
 * Authors don't write boilerplate that the compiler can generate (spec: "Generated boilerplate for effect parameters and metadata").
 * No silent guesses about content that only the author knows, such as the category.
-* The policy layer of the IR stays format-neutral. EPAC rules live in the EPAC emitter, so the Plain JSON emitter (Milestone 2) isn't bound by them.
+* The policy layer of the IR stays format-neutral. EPAC rules live in the EPAC emitter, so the plain JSON emitter (ADR-0027) isn't bound by them.
 
 ## Considered Options
 
@@ -59,7 +59,7 @@ Chosen option: "Generate what can be derived, and fail the EPAC build for what c
   }
   ```
 
-  The allowed values are every effect supported in the language version, and the default is the literal effect, so the policy behaves as written unless an assignment overrides it. The parameter is added after the declared parameters. The description is the text Azure built-in policies use.
+  For `Effect`, the allowed values are `Audit`, `Deny` and `Disabled`. For a keyword in place of `Effect`, they are its own effect and `Disabled`, as built-in policies use, for example `Modify` and `Disabled` (ADR-0017). The default is the literal effect, so the policy behaves as written unless an assignment overrides it. The parameter is added after the declared parameters. The description is the text Azure built-in policies use.
 * A declared effect parameter (`Effect (Param Effect)`) gets `metadata.displayName` `Effect`, and the same description unless the author sets one.
 * Any other parameter without a `DisplayName` gets one from its name, split into words in sentence case: `AllowedLocations` becomes `Allowed locations` and `TLSVersion` becomes `TLS version`.
 
@@ -83,7 +83,7 @@ Chosen option: "Generate what can be derived, and fail the EPAC build for what c
 
 * Good, because every definition from `-Format Epac` passes the EPAC schema, which CI checks for the golden files.
 * Good, because `Effect Deny` stays the simplest thing to write, and the output still matches EPAC's convention.
-* Bad, because a literal effect is no longer fixed: an assignment can change it. Plain JSON output (Milestone 2) will emit literal effects as written.
+* Bad, because a literal effect is no longer fixed: an assignment can change it. Plain JSON output emits literal effects as written (ADR-0027).
 * Bad, because `Category` and `Version` are now required for EPAC output, which ADR-0016 lists as optional.
 * Neutral: the EPAC schema follows EPAC's `main` branch. A copy is pinned in `tests/Schemas/` and refreshed deliberately, as ADR-0011 says.
 
