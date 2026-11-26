@@ -25,14 +25,21 @@ Chosen option: "A fresh runspace per file".
 * All compiler passes and the emitter run inside that runspace. Only plain data comes back: emitted text, diagnostics, and result data for `-PassThru` (ADR-0006).
 * The runspace is disposed after use, including on failure.
 * The runspace inherits the current working directory, set to the folder that contains the file, so relative paths inside the file resolve predictably.
-* Files are compiled one after another in Milestone 1. Running them in parallel with a runspace pool is possible later and wouldn't change the output, because results are collected in a fixed order (ADR-0013).
+* Several files compile at once, each in its own fresh runspace. `Build-Bylaw -ThrottleLimit` sets how many: by default the number of processors, at most 16, and `1` compiles one at a time. A `RunspacePool` is not used, because it reuses runspaces and state could then leak from one file into the next.
+* Results are collected in file order (ADR-0013), not completion order, so output, warnings and errors are the same at any throttle limit.
+* The alias snapshot is read once by the caller and passed to every runspace. Runspaces only read it, so sharing it across threads is safe.
 
 ### Consequences
 
 * Good, because no state can leak between files, and output doesn't depend on file order.
-* Bad, because importing the module once per file costs time. Mitigation: the release build merges the module into a single `.psm1` to speed up import, and a pool can be added later.
+* Bad, because importing the module once per file costs time: about 0.85 seconds per file, because each import parses Bylaw afresh (ADR-0006). Mitigation: files compile in parallel. A 12-file build takes 3.8 seconds on 12 processors, against 10.3 seconds one at a time.
+* Bad, because files compiling at once share the process. Anything process-wide a file changes, such as environment variables or `[Environment]::CurrentDirectory`, is visible to the files compiling at the same time. Build files like that with `-ThrottleLimit 1`.
 * Bad, because `.bylaw.ps1` files are still arbitrary code with the caller's permissions. Isolating them in a runspace is not a security sandbox. The README must say that compiling a policy file runs it, which matters for CI on pull requests from forks.
 
 ### Confirmation
 
-A test defines a variable and a function in file A and checks they're not visible in file B. A test checks that the reported file and line numbers point into the source file.
+A test defines a variable and a function in file A and checks they're not visible in file B. With several files at once, a test checks that no file sees state set by another. A test checks that the reported file and line numbers point into the source file. Tests check that builds at different throttle limits return the same results, warnings and errors in the same order, including when later files finish first.
+
+## More Information
+
+Parallel compilation depends on the two rules in ADR-0006. Before those rules, two runspaces importing Bylaw at the same moment defined the classes from one shared parse, and the definitions mixed: for example, a `BylawPolicy` ended up deriving from the other runspace's `BylawNode`. Now each runspace parses its own copy, so nothing is shared to race on. Before adopting parallel compilation, 30 builds of 12 files, 12 at a time and flushing PowerShell's script cache between rounds, all succeeded with identical output.

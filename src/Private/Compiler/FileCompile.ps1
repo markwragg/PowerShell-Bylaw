@@ -1,8 +1,10 @@
 # Compiling one source file (ADR-0014).
 #
-# Invoke-BylawFileInRunspace runs in the caller. It creates a fresh runspace, imports Bylaw there,
-# runs the file by path, and calls Invoke-BylawFileCompile in that runspace's copy of the module.
-# Only plain data crosses back: Bylaw classes don't exist outside the runspace that loaded them.
+# Invoke-BylawFileInRunspace runs in the caller. For each file it creates a fresh runspace, imports
+# Bylaw there, runs the file by path, and calls Invoke-BylawFileCompile in that runspace's copy of
+# the module. Several files can compile at once, each in its own runspace; results are returned
+# in file order, so output doesn't depend on which finishes first.
+# Only plain data crosses back: each runspace defines its own copy of Bylaw's classes (ADR-0006).
 
 # Runs in the new runspace. The file is invoked from outside the module, as an author would run it.
 $script:BylawFileRunnerScript = @'
@@ -23,22 +25,80 @@ catch {
 } $File $thrown $SnapshotData $AllowUnknownAlias $Format
 '@
 
+function Get-BylawDefaultThrottleLimit {
+    # Files compiled at once by default: one per processor, at most 16.
+    [OutputType([int])]
+    param()
+
+    [Math]::Max(1, [Math]::Min([Environment]::ProcessorCount, 16))
+}
+
 function Invoke-BylawFileInRunspace {
-    # Compiles one file in a fresh runspace. Returns the plain result of Invoke-BylawFileCompile,
-    # with Diagnostics and each policy's Diagnostics converted back to BylawDiagnostic.
+    # Compiles files, each in its own fresh runspace, up to ThrottleLimit at once. Runspaces are
+    # never reused (ADR-0014). Returns one result per file, in the order of -File: the plain result
+    # of Invoke-BylawFileCompile, with diagnostics converted back to BylawDiagnostic.
     [CmdletBinding()]
+    [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory)] [string] $File,
+        [Parameter(Mandatory)] [string[]] $File,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
         [bool] $AllowUnknownAlias,
-        [string] $Format = 'Epac'
+        [string] $Format = 'Epac',
+        [ValidateRange(1, 64)] [int] $ThrottleLimit = 1
     )
 
     $manifest = Join-Path -Path $ExecutionContext.SessionState.Module.ModuleBase -ChildPath 'Bylaw.psd1'
+    # Use the caller's effective policy, e.g. a -ExecutionPolicy Bypass process.
+    $executionPolicy = if ($IsWindows) { Get-ExecutionPolicy } else { $null }
+    $results = [object[]]::new($File.Count)
+    $running = [System.Collections.Generic.List[object]]::new()
+    $next = 0
+    try {
+        while ($next -lt $File.Count -or $running.Count -gt 0) {
+            while ($running.Count -lt $ThrottleLimit -and $next -lt $File.Count) {
+                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -AllowUnknownAlias $AllowUnknownAlias -Format $Format))
+                $next++
+            }
+            # Wait in short slices so Ctrl+C can stop the build.
+            $handles = [System.Threading.WaitHandle[]] @($running | ForEach-Object { $_.Async.AsyncWaitHandle })
+            $done = [System.Threading.WaitHandle]::WaitAny($handles, 200)
+            if ($done -eq [System.Threading.WaitHandle]::WaitTimeout) {
+                continue
+            }
+            $job = $running[$done]
+            $running.RemoveAt($done)
+            $results[$job.Index] = Complete-BylawFileJob -Job $job
+        }
+    }
+    finally {
+        # Only reached with jobs still running when the build is stopped.
+        foreach ($job in $running) {
+            $job.Shell.Stop()
+            $job.Shell.Dispose()
+            $job.Runspace.Dispose()
+        }
+    }
+    foreach ($result in $results) {
+        $result
+    }
+}
+
+function Start-BylawFileJob {
+    # Starts compiling one file in a new runspace, asynchronously.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts an in-memory runspace only.')]
+    param(
+        [Parameter(Mandatory)] [int] $Index,
+        [Parameter(Mandatory)] [string] $File,
+        [Parameter(Mandatory)] [string] $Manifest,
+        [AllowNull()] [object] $ExecutionPolicy,
+        [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [bool] $AllowUnknownAlias,
+        [string] $Format
+    )
+
     $initialState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault2()
-    if ($IsWindows) {
-        # Use the caller's effective policy, e.g. a -ExecutionPolicy Bypass process.
-        $initialState.ExecutionPolicy = Get-ExecutionPolicy
+    if ($null -ne $ExecutionPolicy) {
+        $initialState.ExecutionPolicy = $ExecutionPolicy
     }
     $runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($initialState)
     $shell = $null
@@ -47,14 +107,33 @@ function Invoke-BylawFileInRunspace {
         $shell = [powershell]::Create()
         $shell.Runspace = $runspace
         $null = $shell.AddScript($script:BylawFileRunnerScript)
-        foreach ($argument in @($manifest, $File, $SnapshotData, $AllowUnknownAlias, $Format)) {
+        foreach ($argument in @($Manifest, $File, $SnapshotData, $AllowUnknownAlias, $Format)) {
             $null = $shell.AddArgument($argument)
         }
+        $async = $shell.BeginInvoke()
+    }
+    catch {
+        if ($shell) {
+            $shell.Dispose()
+        }
+        $runspace.Dispose()
+        throw
+    }
+    [pscustomobject]@{ Index = $Index; File = $File; Runspace = $runspace; Shell = $shell; Async = $async }
+}
 
+function Complete-BylawFileJob {
+    # Collects a finished file job's result and disposes its runspace.
+    param([Parameter(Mandatory)] [object] $Job)
+
+    $shell = $Job.Shell
+    $runspace = $Job.Runspace
+    $File = $Job.File
+    try {
         $output = $null
         $failure = $null
         try {
-            $output = @($shell.Invoke()) | Select-Object -Last 1
+            $output = @($shell.EndInvoke($Job.Async)) | Select-Object -Last 1
         }
         catch {
             $failure = $_.Exception.InnerException ?? $_.Exception
@@ -87,9 +166,7 @@ function Invoke-BylawFileInRunspace {
         }
     }
     finally {
-        if ($shell) {
-            $shell.Dispose()
-        }
+        $shell.Dispose()
         $runspace.Dispose()
     }
 }

@@ -127,6 +127,40 @@ Describe 'Build-Bylaw output' {
     }
 }
 
+Describe 'Build-Bylaw parallel compilation' {
+    BeforeAll {
+        # Later files finish first: the earlier a file sorts, the longer it sleeps.
+        $files = @{}
+        foreach ($index in 1..8) {
+            $sleep = (9 - $index) * 40
+            $files["p$index.bylaw.ps1"] = Get-TestPolicyText -Name "policy-$index" -Before "Start-Sleep -Milliseconds $sleep"
+        }
+        $files['p5.bylaw.ps1'] = Get-TestPolicyText -Name 'policy-5' -Body "Require 'r' { Field nope | Must -Be 'x' }"
+        $script:ParallelProject = New-TestProject $files
+        $files.Remove('p5.bylaw.ps1')
+        $script:ParallelGood = New-TestProject $files
+    }
+
+    It 'produces the same results in the same order at any -ThrottleLimit' {
+        $one = @(Build-Bylaw -Path $ParallelGood -PassThru -ThrottleLimit 1)
+        $many = @(Build-Bylaw -Path $ParallelGood -PassThru -ThrottleLimit 8)
+        $many.Name | Should -Be $one.Name
+        $many.Json | Should -Be $one.Json
+        $one.Name | Should -Be @(1, 2, 3, 4, 6, 7, 8 | ForEach-Object { "policy-$_" })
+    }
+
+    It 'reports errors in file order at any -ThrottleLimit' {
+        $one = Get-BuildError { Build-Bylaw -Path $ParallelProject -PassThru -ThrottleLimit 1 }
+        $many = Get-BuildError { Build-Bylaw -Path $ParallelProject -PassThru -ThrottleLimit 8 }
+        $many.ErrorDetails.Message | Should -Be $one.ErrorDetails.Message
+        $many.ErrorDetails.Message | Should -BeLike '*p5.bylaw.ps1*'
+    }
+
+    It 'rejects a -ThrottleLimit of <Value>' -ForEach @(@{ Value = 0 }, @{ Value = 65 }) {
+        { Build-Bylaw -Path $ParallelGood -PassThru -ThrottleLimit $Value } | Should -Throw
+    }
+}
+
 Describe 'Build-Bylaw discovery' {
     It 'accepts files and folders, several of each, and pipeline input' {
         $project = New-TestProject @{
@@ -231,7 +265,18 @@ if ($global:BylawLeak -or $shared -or (Get-Command Get-BylawLeak -ErrorAction Si
 if ((Get-Location).ProviderPath -ne $PSScriptRoot) { throw "working folder is $((Get-Location).ProviderPath)" }
 '@
         $project = New-TestProject @{ 'a.bylaw.ps1' = $leaky; 'sub/b.bylaw.ps1' = $check }
-        (Build-Bylaw -Path $project -PassThru).Name | Should -Be @('policy-a', 'policy-b')
+        # One at a time, so file a has run before file b checks for its state.
+        (Build-Bylaw -Path $project -PassThru -ThrottleLimit 1).Name | Should -Be @('policy-a', 'policy-b')
+    }
+
+    It 'runs each file in its own runspace when compiling several at once' {
+        $files = @{}
+        foreach ($index in 1..6) {
+            $before = "if (`$global:BylawParallelLeak) { throw 'state leaked' }; `$global:BylawParallelLeak = $index; Start-Sleep -Milliseconds 50"
+            $files["f$index.bylaw.ps1"] = Get-TestPolicyText -Name "policy-$index" -Before $before
+        }
+        $project = New-TestProject $files
+        (Build-Bylaw -Path $project -PassThru -ThrottleLimit 3).Name | Should -Be @(1..6 | ForEach-Object { "policy-$_" })
     }
 
     It 'keeps working after PowerShell flushes its script cache' {

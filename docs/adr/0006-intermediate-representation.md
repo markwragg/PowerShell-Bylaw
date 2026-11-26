@@ -46,9 +46,9 @@ Rules:
 * Bad, because PowerShell's per-process caches don't keep classes apart between imports or runspaces. Two rules follow, found when `Build-Bylaw` started failing after about 1,000 scripts had run in a session (on macOS, and only by luck not elsewhere):
   * **Module files are parsed afresh on every import, never dot-sourced.** PowerShell caches dot-sourced scripts per process and shares them between runspaces. With shared parses, every runspace used the classes of whichever import defined them first. Their methods ran in that runspace, which could be the caller's session or a `Build-Bylaw` runspace that had already been disposed. When the cache filled up and was flushed, some cached functions stayed bound to an earlier import's classes ('Cannot convert BylawPolicy to BylawPolicy'). `src/Bylaw.psm1` and the packaged `Bylaw.psm1` both use `Parser.ParseFile` and `GetScriptBlock()`, so each import defines its own classes. This makes each runspace import slower, by about 0.2 seconds.
   * **Bylaw classes are never used inside generic or array type names.** PowerShell also caches type names such as `List[BylawDiagnostic]` per process, and they keep pointing at the first import's class ('Cannot find an overload for "Add"'). Collections are `List[object]` and `[object[]]`. A repository test enforces this.
+  * Together these rules let `Build-Bylaw` compile files in parallel runspaces (ADR-0014).
   * A `Build-Bylaw` test flushes the script cache and builds again. The package task builds the examples with the packaged module in a new process.
   * The class attribute `[NoRunspaceAffinity()]` would also fix the method problem, but it needs PowerShell 7.4, and fresh parsing makes it unnecessary.
-* Bad, because files can't be compiled in parallel runspaces of one process (ADR-0014).
 
 ### Confirmation
 

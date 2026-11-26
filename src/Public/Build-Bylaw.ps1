@@ -36,6 +36,10 @@ function Build-Bylaw {
     .PARAMETER AllowUnknownAlias
         Reports unknown aliases as warnings instead of errors, for the whole build.
 
+    .PARAMETER ThrottleLimit
+        How many files to compile at once, each in its own fresh runspace. Defaults to the number
+        of processors, at most 16. Use 1 to compile one file at a time. Output is the same either way.
+
     .EXAMPLE
         Build-Bylaw -Path ./policies -OutputPath ./Definitions/policyDefinitions
 
@@ -61,7 +65,10 @@ function Build-Bylaw {
 
         [string] $AliasCachePath,
 
-        [switch] $AllowUnknownAlias
+        [switch] $AllowUnknownAlias,
+
+        [ValidateRange(1, 64)]
+        [int] $ThrottleLimit
     )
 
     begin {
@@ -112,12 +119,18 @@ function Build-Bylaw {
         }
         Write-Verbose "Alias snapshot: $($snapshotData.Path)"
 
-        # Compile every file, one runspace each (ADR-0014).
+        # Compile every file, one fresh runspace each, several at once (ADR-0014).
+        # Results come back in file order, so output doesn't depend on which file finishes first.
+        $throttle = if ($PSBoundParameters.ContainsKey('ThrottleLimit')) { $ThrottleLimit } else { Get-BylawDefaultThrottleLimit }
+        $throttle = [Math]::Min($throttle, $sources.Count)
+        Write-Verbose "Compiling $($sources.Count) file(s), up to $throttle at once"
+        $results = @(Invoke-BylawFileInRunspace -File @($sources.File) -SnapshotData $snapshotData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name -ThrottleLimit $throttle)
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $compiled = [System.Collections.Generic.List[object]]::new()
-        foreach ($source in $sources) {
-            Write-Verbose "Compiling $($source.Relative)"
-            $result = Invoke-BylawFileInRunspace -File $source.File -SnapshotData $snapshotData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name
+        for ($index = 0; $index -lt $sources.Count; $index++) {
+            $source = $sources[$index]
+            $result = $results[$index]
+            Write-Verbose "Compiled $($source.Relative)"
             $diagnostics.AddRange([object[]] @($result.Diagnostics))
             foreach ($policy in $result.Policies) {
                 $diagnostics.AddRange([object[]] @($policy.Diagnostics))
