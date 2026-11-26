@@ -1,18 +1,22 @@
-# Golden-file tests (ADR-0009): building examples/ and tests/Golden/ must reproduce the expected
-# JSON beside each source file byte for byte, and every golden file must be EPAC-valid.
+# Golden-file tests (ADR-0009): building each golden folder must reproduce the expected JSON beside
+# each source file byte for byte. The folders and their formats are listed in GoldenRoots.psd1.
+# EPAC golden files must be valid against the EPAC schema; plain JSON ones (ADR-0027) have no
+# published schema, so their structure is checked instead.
 #
 # After an intentional output change, regenerate with ./build/build.ps1 -Task UpdateGolden and
 # review the diff.
 
 BeforeDiscovery {
     $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).ProviderPath
-    $script:GoldenRoots = foreach ($relative in 'examples', 'tests/Golden') {
-        $root = Join-Path $repoRoot $relative
+    $roots = (Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot 'GoldenRoots.psd1')).Roots
+    $script:GoldenRoots = foreach ($golden in $roots) {
+        $root = Join-Path $repoRoot $golden.Path
         @{
-            Name   = $relative
+            Name   = $golden.Path
             Root   = $root
+            Format = $golden.Format
             Golden = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.json' | ForEach-Object {
-                    @{ Relative = [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/'); File = $_.FullName }
+                    @{ Relative = [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/'); File = $_.FullName; Format = $golden.Format }
                 })
         }
     }
@@ -27,11 +31,11 @@ AfterAll {
     Remove-Module -Name Bylaw -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'Golden files in <Name>' -ForEach $GoldenRoots {
+Describe 'Golden files in <Name> (<Format>)' -ForEach $GoldenRoots {
     BeforeAll {
         $script:Out = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         $warnings = $null
-        $script:Results = @(Build-Bylaw -Path $Root -OutputPath $Out -PassThru -WarningVariable warnings -WarningAction SilentlyContinue)
+        $script:Results = @(Build-Bylaw -Path $Root -OutputPath $Out -Format $Format -PassThru -WarningVariable warnings -WarningAction SilentlyContinue)
         $script:BuildWarnings = @($warnings)
         $script:Produced = @(Get-ChildItem -LiteralPath $Out -Recurse -File | ForEach-Object {
                 [System.IO.Path]::GetRelativePath($Out, $_.FullName).Replace('\', '/')
@@ -73,7 +77,27 @@ Describe 'Golden files in <Name>' -ForEach $GoldenRoots {
         $bytes | Should -Not -Contain ([byte] 13)
     }
 
-    It 'has a golden <Relative> that is valid against the EPAC schema' -ForEach $Golden {
+    It 'has a golden <Relative> that is valid against the EPAC schema' -ForEach @($Golden | Where-Object Format -EQ 'Epac') -AllowNullOrEmptyForEach {
         Test-Json -Json ([System.IO.File]::ReadAllText($File)) -SchemaFile $Schema -ErrorAction SilentlyContinue | Should -BeTrue
+    }
+
+    It 'has a golden <Relative> with the plain definition structure' -ForEach @($Golden | Where-Object Format -EQ 'PlainJson') -AllowNullOrEmptyForEach {
+        $text = [System.IO.File]::ReadAllText($File)
+        # Key order from System.Text.Json: -AsHashtable only keeps it from PowerShell 7.3.
+        $parsed = [System.Text.Json.JsonDocument]::Parse($text)
+        try {
+            @($parsed.RootElement.EnumerateObject() | ForEach-Object Name) | Should -Be @('name', 'properties')
+        }
+        finally {
+            $parsed.Dispose()
+        }
+        $properties = ($text | ConvertFrom-Json -AsHashtable)['properties']
+        foreach ($key in 'displayName', 'policyType', 'mode', 'policyRule') {
+            $properties.Contains($key) | Should -BeTrue -Because "plain definitions need properties.$key"
+        }
+        $allowed = 'displayName', 'policyType', 'mode', 'description', 'metadata', 'parameters', 'policyRule'
+        @($properties.Keys | Where-Object { $_ -notin $allowed }) | Should -BeNullOrEmpty
+        @($properties['policyRule'].Keys | Sort-Object) | Should -Be @('if', 'then')
+        $properties['policyRule']['then'].Contains('effect') | Should -BeTrue
     }
 }

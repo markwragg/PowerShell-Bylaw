@@ -15,6 +15,13 @@
 # Each path[*] { P } means every element satisfies P; its violation is
 #   count(field: path[*], where: violation(P)) greater 0.
 #
+# AnyOf { P; Q } holds when either holds; its violation is allOf[ violation(P), violation(Q) ].
+# AllOf { P; Q } holds when both hold; its violation is anyOf[ violation(P), violation(Q) ]
+# (ADR-0026). Each statement inside keeps its own missing-field handling.
+#
+# A value condition (ResourceGroupTag, Param or Arm piped into Must) is inverted like a field
+# condition, but never guarded: an expression has no missing state (ADR-0025).
+#
 # Run the alias resolution pass first: conditions use FieldRef.Resolved.
 
 function ConvertTo-BylawPolicyRule {
@@ -66,24 +73,64 @@ function ConvertTo-BylawPolicyRule {
 }
 
 function ConvertTo-BylawApplicabilityCondition {
-    # A When assertion, emitted as written: the compliant operator, no guards.
+    # A When assertion or group, emitted as written: the compliant operator, no guards.
     param(
-        [Parameter(Mandatory)] [BylawAssertion] $Node
+        [Parameter(Mandatory)] [BylawNode] $Node
     )
 
+    if ($Node -is [BylawConditionGroup]) {
+        $children = foreach ($child in $Node.Children) {
+            ConvertTo-BylawApplicabilityCondition -Node $child
+        }
+        $group = [BylawGroup]::new($Node.Kind, [object[]] @($children))
+        $group.Location = $Node.Location
+        $group.Origin = $Node
+        return $group
+    }
+
     $operator, $value = Get-BylawAssertedOperator -Assertion $Node -Invert $false
-    $condition = [BylawFieldCondition]::new($Node.Field, $operator, $value)
-    $condition.Location = $Node.Location
-    $condition.Origin = $Node
+    New-BylawAssertionCondition -Assertion $Node -Operator $operator -Value $value
+}
+
+function New-BylawAssertionCondition {
+    # The condition for an assertion with the given operator: a field condition, or a value
+    # condition when the assertion tests an expression (ADR-0025).
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory IR node only.')]
+    param(
+        [Parameter(Mandatory)] [BylawAssertion] $Assertion,
+        [Parameter(Mandatory)] [string] $Operator,
+        [AllowNull()] [BylawValue] $Value
+    )
+
+    $condition = if ($null -ne $Assertion.Subject) {
+        [BylawValueCondition]::new($Assertion.Subject, $Operator, $Value)
+    }
+    else {
+        [BylawFieldCondition]::new($Assertion.Field, $Operator, $Value)
+    }
+    $condition.Location = $Assertion.Location
+    $condition.Origin = $Assertion
     $condition
 }
 
 function ConvertTo-BylawViolation {
-    # The violation (negation) of a Require child: an assertion or an Each block.
+    # The violation (negation) of a Require child: an assertion, an Each block or a group.
     param(
         [Parameter(Mandatory)] [BylawNode] $Node,
         [Parameter(Mandatory)] [bool] $InEach
     )
+
+    if ($Node -is [BylawConditionGroup]) {
+        # De Morgan: the violation of AnyOf is allOf of the violations, and the reverse for AllOf.
+        $children = foreach ($child in $Node.Children) {
+            ConvertTo-BylawViolation -Node $child -InEach $InEach
+        }
+        $kind = if ($Node.Kind -eq [BylawGroupKind]::AnyOf) { [BylawGroupKind]::AllOf } else { [BylawGroupKind]::AnyOf }
+        $group = [BylawGroup]::new($kind, [object[]] @($children))
+        $group.Location = $Node.Location
+        $group.Origin = $Node
+        return $group
+    }
 
     if ($Node -is [BylawEach]) {
         $elementViolations = foreach ($child in $Node.Children) {
@@ -99,12 +146,11 @@ function ConvertTo-BylawViolation {
 
     $assertion = [BylawAssertion] $Node
     $operator, $value = Get-BylawAssertedOperator -Assertion $assertion -Invert $true
-    $inverted = [BylawFieldCondition]::new($assertion.Field, $operator, $value)
-    $inverted.Location = $assertion.Location
-    $inverted.Origin = $assertion
+    $inverted = New-BylawAssertionCondition -Assertion $assertion -Operator $operator -Value $value
 
-    # exists conditions need no guard, and Element (the array element itself) is never missing.
-    if ($operator -eq 'exists' -or $assertion.Field.Kind -eq [BylawFieldKind]::Element) {
+    # An expression has no missing state (ADR-0025), exists conditions need no guard, and Element
+    # (the array element itself) is never missing.
+    if ($null -ne $assertion.Subject -or $operator -eq 'exists' -or $assertion.Field.Kind -eq [BylawFieldKind]::Element) {
         return $inverted
     }
 

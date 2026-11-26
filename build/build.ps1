@@ -10,8 +10,9 @@
       Analyze    Run PSScriptAnalyzer over src, tests and build with the repository settings.
       Test       Run the Pester suite. With -CI, writes NUnit results and fails the process on failure.
       Package    Produce out/Bylaw: the manifest, data files and a single merged Bylaw.psm1.
-      UpdateGolden  Regenerate the expected JSON in examples/ and tests/Golden/ after an
-                 intentional output change. Review the diff before committing.
+      UpdateGolden  Regenerate the expected JSON in the golden folders listed in
+                 tests/Golden/GoldenRoots.psd1 after an intentional output change. Review the
+                 diff before committing.
 
     Default: Analyze, Test.
 
@@ -110,10 +111,11 @@ function Invoke-UpdateGolden {
     # Golden files are the expected output beside each source file, so building a golden folder
     # into itself regenerates them. Review the diff before committing.
     Import-Module -Name (Join-Path $sourceRoot 'Bylaw.psd1') -Force -ErrorAction Stop
-    foreach ($relative in 'examples', 'tests/Golden') {
-        $root = Join-Path $repoRoot $relative
-        $results = @(Build-Bylaw -Path $root -OutputPath $root -PassThru)
-        Write-Information "${relative}: $($results.Count) golden file(s)." -InformationAction Continue
+    $goldenRoots = Import-PowerShellDataFile -Path (Join-Path $repoRoot 'tests/Golden/GoldenRoots.psd1')
+    foreach ($golden in $goldenRoots.Roots) {
+        $root = Join-Path $repoRoot $golden.Path
+        $results = @(Build-Bylaw -Path $root -OutputPath $root -Format $golden.Format -PassThru)
+        Write-Information "$($golden.Path) ($($golden.Format)): $($results.Count) golden file(s)." -InformationAction Continue
     }
 }
 

@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-25
+status: accepted
+date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
 
@@ -18,27 +18,35 @@ The `modify` effect needs `details.roleDefinitionIds`, a list of full role defin
 
 ## Considered Options
 
-* A bundled built-in role map, refreshed alongside the alias cache
+* A bundled built-in role map, with its own refresh command
 * A live lookup through Az at compile time
 * IDs only, with no name resolution
 
 ## Decision Outcome
 
-Proposed: "A bundled built-in role map, refreshed alongside the alias cache".
+Chosen option: "A bundled built-in role map, with its own refresh command".
 
-* `src/Data/roles.json` maps built-in role names (ignoring case) to role GUIDs. It is written with the canonical writer and sorted.
-* `Update-BylawAliasCache -IncludeRoles` (or a sibling `Update-BylawRoleCache`, to be decided when this is implemented) refreshes it from `Get-AzRoleDefinition`, using the same snapshot locations as ADR-0008.
-* `-Role` accepts:
-  * a built-in role name, resolved through the map,
-  * a GUID, wrapped as `/providers/Microsoft.Authorization/roleDefinitions/<guid>`,
-  * a full role definition ID, passed through unchanged.
-* An unknown name is a compile error that suggests the closest names.
+* `src/Data/roles.json` maps built-in role names to role GUIDs. It is written with the canonical writer and sorted by name. The bundled file is a starter set of common roles: Owner, Contributor, Reader, Tag Contributor, Storage Account Contributor, Network Contributor, Virtual Machine Contributor and Key Vault Contributor. Each GUID was checked against Learn's list of built-in roles on 2026-11-26. The full map is generated with the refresh command, as for aliases (ADR-0008).
+* A map file that isn't valid, or a role whose ID isn't a GUID, fails the build before anything is compiled (`BYL2020`).
+* `Update-BylawRoleCache` refreshes it from `Get-AzRoleDefinition`, reading built-in roles only. It is a separate command from `Update-BylawAliasCache`, because the data and the Az command behind it are different, and refreshing one shouldn't require refreshing the other.
+* The map used is the first of: `Build-Bylaw -RoleCachePath`, `roleCache` in `bylaw.json`, `~/.bylaw/roles.json`, the bundled file. This is the same order as for aliases.
+* `-Role` accepts one or more of:
+  * a built-in role name, ignoring case, resolved through the map;
+  * a GUID, emitted as `/providers/Microsoft.Authorization/roleDefinitions/<guid>`;
+  * a full role definition ID starting with `/providers/Microsoft.Authorization/roleDefinitions/`, emitted unchanged.
+* IDs are emitted in the order written. A role given twice, by any form, is a compile error.
+* An unknown name is a compile error that suggests the closest names, and says that custom roles must be given by GUID.
 * Built-in role GUIDs are the same in every Azure tenant, so the map is portable. Custom roles have to be given by GUID or full ID.
+* Bylaw doesn't check that a role grants the permissions the operations need. Learn only says the role must include the operations of Contributor or Tag Contributor for the fields it changes, and the permissions of custom roles can't be known offline.
 
 ### Consequences
 
 * Good, because builds are offline and deterministic, and role names are readable.
 * Bad, because the map can go stale when Microsoft adds roles. The refresh command addresses this.
+
+### Confirmation
+
+Unit tests cover each form of `-Role`, duplicates, unknown names with suggestions, and the lookup order. Each role in the bundled starter set is checked against Learn's list of built-in roles.
 
 ## Pros and Cons of the Options
 
@@ -56,3 +64,8 @@ Proposed: "A bundled built-in role map, refreshed alongside the alias cache".
 
 * Good, because there is no data to maintain.
 * Bad, because GUIDs are unreadable and a typo in one goes unnoticed.
+
+## More Information
+
+* [Azure built-in roles](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles)
+* Related: [ADR-0024](0024-modify-effect.md)

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-modify-operations",
+  "properties": {
+    "displayName": "Golden: Modify operations",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Modify",
+          "Disabled"
+        ],
+        "defaultValue": "Modify"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "tags['Environment']",
+                "notEquals": "Production"
+              },
+              {
+                "field": "tags['Owner']",
+                "exists": false
+              },
+              {
+                "field": "tags['Temporary']",
+                "exists": true
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/4a9ae827-6dc8-4573-8ac7-8239d42aa03f",
+            "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c",
+            "/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7"
+          ],
+          "operations": [
+            {
+              "operation": "addOrReplace",
+              "field": "tags['Environment']",
+              "value": "Production"
+            },
+            {
+              "operation": "add",
+              "field": "tags['Owner']",
+              "value": "unassigned"
+            },
+            {
+              "operation": "remove",
+              "field": "tags['Temporary']"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

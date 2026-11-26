@@ -1,0 +1,105 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-groups",
+  "properties": {
+    "displayName": "Golden: AnyOf and AllOf",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "kind",
+                "equals": "StorageV2"
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "kind",
+                    "equals": "BlockBlobStorage"
+                  },
+                  {
+                    "field": "Microsoft.Storage/storageAccounts/sku.name",
+                    "notLike": "Standard_*"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.Storage/storageAccounts/publicNetworkAccess",
+                    "notEquals": "Disabled"
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "field": "Microsoft.Storage/storageAccounts/networkAcls.defaultAction",
+                        "notEquals": "Deny"
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/networkAcls.bypass",
+                            "exists": true
+                          },
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/networkAcls.bypass",
+                            "notContains": "AzureServices"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.Storage/storageAccounts/minimumTlsVersion",
+                    "notEquals": "TLS1_2"
+                  },
+                  {
+                    "field": "Microsoft.Storage/storageAccounts/minimumTlsVersion",
+                    "notEquals": "TLS1_3"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

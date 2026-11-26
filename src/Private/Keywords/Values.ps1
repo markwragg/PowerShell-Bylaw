@@ -9,6 +9,14 @@ function ConvertTo-BylawValue {
     if ($Value -is [BylawValue]) {
         return $Value
     }
+    if ($Value -is [BylawFieldRef]) {
+        # Field and Tag are only consumed by Must; as a value they would be emitted as nonsense.
+        Remove-BylawPendingField -Field $Value
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1025' -Location $Location -Message (
+            "A field ($Value) can't be used as a value. Pipe it to Must instead, or compare two fields with Arm, e.g. Arm `"[field('name')]`"."
+        )
+        return $null
+    }
     if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string] -and $Value -isnot [System.Collections.IDictionary]) {
         $items = @($Value)
         if (@($items | Where-Object { $_ -is [BylawValue] }).Count -gt 0) {

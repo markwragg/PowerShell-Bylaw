@@ -1,0 +1,60 @@
+{
+  "name": "plain-parameters",
+  "properties": {
+    "displayName": "Plain: parameters",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Storage accounts use an allowed minimum TLS version.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage",
+      "owner": "platform-team"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      },
+      "allowedTlsVersions": {
+        "type": "Array",
+        "defaultValue": [
+          "TLS1_2"
+        ]
+      },
+      "exemptTag": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Exemption tag",
+          "description": "Resources with this tag are not evaluated."
+        },
+        "defaultValue": "tls-exempt"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "field": "[concat('tags[', parameters('exemptTag'), ']')]",
+            "exists": false
+          },
+          {
+            "field": "Microsoft.Storage/storageAccounts/minimumTlsVersion",
+            "notIn": "[parameters('allowedTlsVersions')]"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

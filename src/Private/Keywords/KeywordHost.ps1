@@ -9,9 +9,13 @@
 # same property). tests/Unit/Keywords/KeywordHost.Tests.ps1 fails loudly if it ever disappears.
 
 $script:BylawKeywordNames = @(
-    'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each',
-    'Field', 'Element', 'Must', 'Effect', 'Param', 'Arm'
+    'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
+    'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
+    'Modify', 'AddOrReplace', 'Add', 'Remove'
 )
+
+# Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
+$script:BylawGroupKeywords = @('AnyOf', 'AllOf')
 
 $script:BylawSessionStateProperty = [scriptblock].GetProperty(
     'SessionStateInternal',
@@ -78,7 +82,8 @@ function Enter-BylawFrame {
 }
 
 function Exit-BylawFrame {
-    # Pops the given frame and reports any Field that was never piped to Must.
+    # Pops the given frame and reports any Field that was never piped to Must (or, in Modify, to an
+    # operation).
     param([Parameter(Mandatory)] [BylawFrame] $Frame)
 
     $index = $script:BylawFrames.LastIndexOf($Frame)
@@ -86,9 +91,24 @@ function Exit-BylawFrame {
         $script:BylawFrames.RemoveRange($index, $script:BylawFrames.Count - $index)
     }
     foreach ($field in $Frame.PendingFields) {
-        Add-BylawDiagnostic -Severity Error -Code 'BYL1007' -Location $field.Location -Message (
+        $message = if ($Frame.Keyword -eq 'Modify') {
+            "Field '{0}' is not piped to an operation. Write: {0} | AddOrReplace ..., | Add ... or | Remove" -f $field
+        }
+        else {
             "Field '{0}' is not piped to Must. Write: Field {0} | Must ..." -f $field
-        )
+        }
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1007' -Location $field.Location -Message $message
+    }
+}
+
+function Remove-BylawPendingField {
+    # Forgets a field reference that was used, so Exit-BylawFrame doesn't also report it as
+    # "not piped to Must".
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes in-memory front-end state only.')]
+    param([Parameter(Mandatory)] [BylawFieldRef] $Field)
+
+    foreach ($frame in $script:BylawFrames) {
+        $null = $frame.PendingFields.Remove($Field)
     }
 }
 
@@ -115,6 +135,40 @@ function Test-BylawParent {
         return $null
     }
     $frame
+}
+
+function Get-BylawConditionContext {
+    # The keyword of the innermost When, Require or Each block, looking through AnyOf and AllOf
+    # groups (ADR-0026). Missing-field switches and Element follow the rules of that block.
+    [OutputType([string])]
+    param()
+
+    for ($index = $script:BylawFrames.Count - 1; $index -ge 0; $index--) {
+        $keyword = $script:BylawFrames[$index].Keyword
+        if ($script:BylawGroupKeywords -notcontains $keyword) {
+            return $keyword
+        }
+    }
+    $null
+}
+
+function Test-BylawConditionContext {
+    # For keywords allowed inside groups: returns $true when the block the groups are in is one
+    # of the allowed ones; otherwise records the same diagnostic as Test-BylawParent.
+    param(
+        [Parameter(Mandatory)] [string] $Keyword,
+        [Parameter(Mandatory)] [string[]] $Allowed,
+        [BylawSourceLocation] $Location
+    )
+    $context = Get-BylawConditionContext
+    if ($Allowed -contains $context) {
+        return $true
+    }
+    $where = ($Allowed | ForEach-Object { "'$_'" }) -join ' or '
+    Add-BylawDiagnostic -Severity Error -Code 'BYL1002' -Location $Location -Message (
+        "'$Keyword' cannot be used inside '$context', even inside AnyOf or AllOf. It must be inside $where."
+    )
+    $false
 }
 
 function Test-BylawSingleton {

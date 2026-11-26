@@ -1,0 +1,77 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-modify-parameters",
+  "properties": {
+    "displayName": "Golden: Modify with parameters",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Modify",
+          "Disabled"
+        ],
+        "defaultValue": "Disabled"
+      },
+      "tagName": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Tag name"
+        }
+      },
+      "tagValue": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Tag value"
+        }
+      },
+      "enforce": {
+        "type": "Boolean",
+        "metadata": {
+          "displayName": "Enforce"
+        },
+        "defaultValue": true
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "field": "[concat('tags[', parameters('tagName'), ']')]",
+            "notEquals": "[parameters('tagValue')]"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/4a9ae827-6dc8-4573-8ac7-8239d42aa03f"
+          ],
+          "conflictEffect": "disabled",
+          "operations": [
+            {
+              "operation": "addOrReplace",
+              "field": "[concat('tags[', parameters('tagName'), ']')]",
+              "value": "[parameters('tagValue')]",
+              "condition": "[parameters('enforce')]"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

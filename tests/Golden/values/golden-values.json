@@ -99,10 +99,6 @@
               },
               {
                 "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                "exists": false
-              },
-              {
-                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
                 "greater": 90
               }
             ]

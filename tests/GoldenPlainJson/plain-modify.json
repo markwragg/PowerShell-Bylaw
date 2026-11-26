@@ -1,0 +1,37 @@
+{
+  "name": "plain-modify",
+  "properties": {
+    "displayName": "Plain: inherit the CostCenter tag",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "value": "[resourceGroup().tags['CostCenter']]",
+            "notEquals": ""
+          },
+          {
+            "field": "tags['CostCenter']",
+            "notEquals": "[resourceGroup().tags['CostCenter']]"
+          }
+        ]
+      },
+      "then": {
+        "effect": "Modify",
+        "details": {
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/4a9ae827-6dc8-4573-8ac7-8239d42aa03f"
+          ],
+          "operations": [
+            {
+              "operation": "addOrReplace",
+              "field": "tags['CostCenter']",
+              "value": "[resourceGroup().tags['CostCenter']]"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

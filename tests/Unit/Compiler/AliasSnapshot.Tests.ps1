@@ -26,6 +26,25 @@ Describe 'Bundled alias snapshot' {
         }
     }
 
+    It 'knows which aliases are Modifiable, ignoring case (ADR-0024)' {
+        InModuleScope Bylaw -Parameters @{ Path = $bundledPath } {
+            param($Path)
+            $snapshot = Get-BylawAliasSnapshot -Path $Path
+            $snapshot.IsModifiable('microsoft.storage/storageaccounts/minimumtlsversion') | Should -BeTrue
+            $snapshot.IsModifiable('Microsoft.Storage/storageAccounts/accessTier') | Should -BeFalse
+            $snapshot.IsModifiable('Microsoft.Storage/storageAccounts/notAnAlias') | Should -BeFalse
+        }
+    }
+
+    It 'passes the Modifiable aliases through the plain snapshot data' {
+        InModuleScope Bylaw -Parameters @{ Path = $bundledPath } {
+            param($Path)
+            $data = Read-BylawAliasSnapshotData -Path $Path
+            $data.Modifiable | Should -Contain 'Microsoft.Storage/storageAccounts/publicNetworkAccess'
+            (New-BylawAliasSnapshot -Data $data).IsModifiable('Microsoft.Storage/storageAccounts/publicNetworkAccess') | Should -BeTrue
+        }
+    }
+
     It 'is in canonical form, so a refresh gives minimal diffs' {
         InModuleScope Bylaw -Parameters @{ Path = $bundledPath } {
             param($Path)

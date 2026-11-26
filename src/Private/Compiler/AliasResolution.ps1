@@ -9,6 +9,9 @@
 #   4. Inside Each, names are relative to the array alias; Element is the element itself.
 #   5. Under Resource *, only reserved fields and full aliases are allowed.
 #   6. [*] in a field outside Each is an error: negating it by swapping operators would be wrong.
+#   7. Tag name is tags['name']; Tag (Param X) is [concat('tags[', parameters('x'), ']')] (ADR-0020).
+#   8. Fields in Modify operations resolve as top-level fields (ADR-0024).
+#   Value conditions (ADR-0025) test an expression and have no field to resolve.
 
 $script:BylawReservedFields = @(
     'name', 'fullName', 'kind', 'type', 'location', 'id',
@@ -33,6 +36,7 @@ function Invoke-BylawAliasResolution {
     }
 
     $context = [pscustomobject]@{
+        Policy            = $Policy
         Snapshot          = $Snapshot
         Type              = $null
         TypeKnown         = $false
@@ -69,6 +73,16 @@ function Invoke-BylawAliasResolution {
             Resolve-BylawNodeAlias -Node $child -Context $context -ArrayAlias $null
         }
     }
+    # Modify operation fields resolve like top-level fields. A [*] field is left to validation,
+    # which explains that Modify can't change array elements (ADR-0024).
+    if ($Policy.Effect -is [BylawModify]) {
+        foreach ($operation in $Policy.Effect.Operations) {
+            if ($operation.Field.Kind -eq [BylawFieldKind]::Field -and $operation.Field.Name.Contains('[*]')) {
+                continue
+            }
+            Resolve-BylawFieldAlias -Field $operation.Field -Context $context -ArrayAlias $null
+        }
+    }
 
     $context.Diagnostics
 }
@@ -81,7 +95,17 @@ function Resolve-BylawNodeAlias {
     )
 
     if ($Node -is [BylawAssertion]) {
-        Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
+        # A value condition tests an expression, so it has no field to resolve (ADR-0025).
+        if ($null -ne $Node.Field) {
+            Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
+        }
+        return
+    }
+    if ($Node -is [BylawConditionGroup]) {
+        # A group doesn't change the scope: fields resolve as they would outside it.
+        foreach ($child in $Node.Children) {
+            Resolve-BylawNodeAlias -Node $child -Context $Context -ArrayAlias $ArrayAlias
+        }
         return
     }
     if ($Node -is [BylawEach]) {
@@ -128,6 +152,9 @@ function Get-BylawResolvedAlias {
 
     if ($Field.Kind -eq [BylawFieldKind]::Element) {
         return $ArrayAlias
+    }
+    if ($Field.Kind -eq [BylawFieldKind]::Tag) {
+        return Get-BylawTagFieldName -Field $Field -Policy $Context.Policy
     }
 
     $name = $Field.Name
@@ -246,6 +273,23 @@ function Resolve-BylawUnknownAlias {
         "$Description is not in the alias snapshot.$hint Use Field <name> -AllowUnknownAlias if the alias is newer than the snapshot, or refresh it with Update-BylawAliasCache."
     )
     ''
+}
+
+function Get-BylawTagFieldName {
+    # The field name for Tag (ADR-0020): tags['name'], or for a parameter the form Azure's built-in
+    # tag policies use, [concat('tags[', parameters('tagName'), ']')]. An undeclared parameter
+    # gives '', and validation reports it.
+    param([Parameter(Mandatory)] [BylawFieldRef] $Field, [Parameter(Mandatory)] [BylawPolicy] $Policy)
+
+    if ($Field.TagName -isnot [BylawParamRef]) {
+        return "tags['$($Field.TagName.Value)']"
+    }
+    $parameter = $Policy.FindParameter($Field.TagName.Name)
+    if ($null -eq $parameter) {
+        return ''
+    }
+    $jsonName = Get-BylawParameterJsonName -Name $parameter.Name -JsonName $parameter.JsonName
+    "[concat('tags[', parameters('$jsonName'), ']')]"
 }
 
 function Get-BylawReservedField {

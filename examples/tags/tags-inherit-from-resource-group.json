@@ -1,0 +1,64 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "tags-inherit-from-resource-group",
+  "properties": {
+    "displayName": "Inherit a tag from the resource group",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Sets the tag to its value on the resource group when a resource is created or updated.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Tags"
+    },
+    "parameters": {
+      "tagName": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Tag name",
+          "description": "The tag to inherit, for example CostCenter."
+        }
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Modify",
+          "Disabled"
+        ],
+        "defaultValue": "Modify"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "value": "[resourceGroup().tags[parameters('tagName')]]",
+            "notEquals": ""
+          },
+          {
+            "field": "[concat('tags[', parameters('tagName'), ']')]",
+            "notEquals": "[resourceGroup().tags[parameters('tagName')]]"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/4a9ae827-6dc8-4573-8ac7-8239d42aa03f"
+          ],
+          "operations": [
+            {
+              "operation": "addOrReplace",
+              "field": "[concat('tags[', parameters('tagName'), ']')]",
+              "value": "[resourceGroup().tags[parameters('tagName')]]"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

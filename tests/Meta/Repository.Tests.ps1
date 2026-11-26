@@ -61,6 +61,28 @@ Describe 'README' {
         $block.Count | Should -Be 1
         $block[0] | Should -BeExactly $storageGolden -Because 'the before and after in README.md must match the golden file'
     }
+
+    It 'shows the policy rule the Modify example compiles to, which is the rule of examples/tags' {
+        $source = @($readmePowerShell | Where-Object { $_ -match "^Policy 'tags-inherit-from-resource-group'" })
+        $source.Count | Should -Be 1
+        $shown = @($readmeJson | Where-Object { $_ -match '^"policyRule"' -and $_.Contains('"details"') })
+        $shown.Count | Should -Be 1
+
+        Import-Module -Name (Join-Path $repoRoot 'src/Bylaw.psd1') -Force
+        try {
+            $file = Join-Path $TestDrive 'readme-modify.bylaw.ps1'
+            Set-Content -LiteralPath $file -Value $source[0] -Encoding utf8NoBOM
+            $compiled = Build-Bylaw -Path $file -PassThru -WarningAction SilentlyContinue
+        }
+        finally {
+            Remove-Module -Name Bylaw -Force -ErrorAction SilentlyContinue
+        }
+        $toRule = { param([string] $Json) ($Json | ConvertFrom-Json -AsHashtable)['properties']['policyRule'] | ConvertTo-Json -Depth 50 -Compress }
+        $readmeRule = ("{$($shown[0])}" | ConvertFrom-Json -AsHashtable)['policyRule'] | ConvertTo-Json -Depth 50 -Compress
+        & $toRule $compiled.Json | Should -BeExactly $readmeRule -Because 'the JSON in README.md must be what its Modify example compiles to'
+        $golden = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'examples/tags/tags-inherit-from-resource-group.json'))
+        & $toRule $golden | Should -BeExactly $readmeRule -Because 'the README example must have the same rule as examples/tags/inherit-tag.bylaw.ps1'
+    }
 }
 
 Describe 'No backtick line continuation' {

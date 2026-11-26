@@ -92,8 +92,13 @@ Describe 'Validation pass' {
     }
 
     It 'explains when an effect arrives in a later milestone' {
+        $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace('Effect Deny', 'Effect DeployIfNotExists')
+        ($result.Diagnostics | Where-Object Code -EQ 'BYL3030').Message | Should -BeLike '*planned for a later milestone*'
+    }
+
+    It 'points Effect Modify to the Modify block' {
         $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace('Effect Deny', 'Effect Modify')
-        ($result.Diagnostics | Where-Object Code -EQ 'BYL3030').Message | Should -BeLike '*Modify arrives in Milestone 2*'
+        ($result.Diagnostics | Where-Object Code -EQ 'BYL3030').Message | Should -BeLike '*Modify has its own block*'
     }
 
     It 'reports alias and validation errors from one run together' {

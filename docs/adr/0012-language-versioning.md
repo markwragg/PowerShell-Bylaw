@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-25
+date: 2026-11-26
 decision-makers: Bylaw maintainers
 ---
 
@@ -29,7 +29,7 @@ Chosen option: "`languageVersion` in `bylaw.json`", defaulting to `1.0` when the
 }
 ```
 
-* Keys for Milestone 1: `languageVersion` and `aliasCache` (ADR-0008). Unknown keys are a build error, so typos aren't silently ignored.
+* Keys: `languageVersion`, `aliasCache` (ADR-0008) and `roleCache` (ADR-0022). Unknown keys are a build error, so typos aren't silently ignored.
 * **Discovery:** `-Settings <path>` if given. Otherwise the file is searched for upward from `-Path`, stopping at the first folder that contains `.git`, or at the filesystem root.
 * An unsupported `languageVersion` is a build error that lists the supported versions.
 
@@ -38,6 +38,10 @@ Chosen option: "`languageVersion` in `bylaw.json`", defaulting to `1.0` when the
 * `major.minor`. A minor version only adds things: new keywords and operators, with no change to the output of existing input. A major version may change semantics or output.
 * The compiler looks up behaviour through the language version, not the module version.
 * Every module release documents the language versions it supports.
+
+### Before the first public release
+
+These rules protect published users, and there are none yet. Until Bylaw is first released publicly, language version `1.0` stays open: new keywords and changes to output are added to `1.0` directly, and golden files are regenerated. From the first public release, `1.0` is frozen and the rules above apply. Milestone 2 (`Modify`, `Tag`, `ResourceGroupTag`, value conditions, `AnyOf` and `AllOf`) is part of `1.0` on this basis.
 
 ### Consequences
 

@@ -241,6 +241,28 @@ Describe 'Build-Bylaw errors' {
         $diagnostic.Message | Should -BeLike '*broken file*'
     }
 
+    It 'explains <Written> at the start of a block before the parse errors' -ForEach @(
+        @{ Written = 'Param(Enabled)' }
+        @{ Written = "Param ('Enabled')" }
+        @{ Written = 'Param ("Enabled")' }
+    ) {
+        $text = "Policy 'p' {`n    Resource * {`n        When {`n            $Written | Must -Be `$true`n        }`n    }`n    Effect Audit`n}`n"
+        $project = New-TestProject @{ 'a.bylaw.ps1' = $text }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
+        $codes = @($record.Exception.Diagnostics | ForEach-Object Code)
+        $codes | Should -Be @('BYL5013', 'BYL5010')
+        $hint = $record.Exception.Diagnostics[0]
+        $hint.Location.Line | Should -Be 4
+        $hint.Message | Should -BeLike '*write Param Enabled without brackets, or (Param Enabled).'
+    }
+
+    It 'gives no Param hint for a parse error elsewhere, even with param blocks in helper functions' {
+        $text = "function Get-Value { param([string] `$Name, `$Default) `$Default }`nfunction Get-Other {`n    param(`$x)`n    `$x`n}`n`$broken = (1 +`n"
+        $project = New-TestProject @{ 'a.bylaw.ps1' = $text }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
+        @($record.Exception.Diagnostics | ForEach-Object Code) | Should -Be @('BYL5010')
+    }
+
     It 'reports an error written outside Policy' {
         $project = New-TestProject @{ 'a.bylaw.ps1' = (Get-TestPolicyText -Name 'policy-a' -Before "Write-Error 'something is wrong'") }
         $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
@@ -324,6 +346,36 @@ Describe 'Build-Bylaw settings and aliases' {
     It 'fails when -AliasCachePath does not exist' {
         $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText }
         { Build-Bylaw -Path $project -PassThru -AliasCachePath (Join-Path $project 'missing.json') } | Should -Throw '*BYL2010*'
+    }
+
+    It 'reads the role map from <Source>' -ForEach @(
+        @{ Source = '-RoleCachePath'; UseSettings = $false }
+        @{ Source = 'bylaw.json roleCache'; UseSettings = $true }
+    ) {
+        $files = @{ 'a.bylaw.ps1' = Get-TestPolicyText; 'roles.json' = '{ "schemaVersion": 1, "roles": { "Reader": "acdd72a7-3385-48ef-bd42-f606fba81ae7" } }' }
+        if ($UseSettings) {
+            $files['bylaw.json'] = '{ "roleCache": "roles.json" }'
+        }
+        $project = New-TestProject $files
+        $buildArguments = @{ Path = $project; PassThru = $true; Verbose = $true }
+        if (-not $UseSettings) {
+            $buildArguments['RoleCachePath'] = Join-Path $project 'roles.json'
+        }
+        $verbose = Build-Bylaw @buildArguments 4>&1 | Where-Object { $_ -is [System.Management.Automation.VerboseRecord] }
+        $verbose.Message | Should -Contain "Role map: $([System.IO.Path]::GetFullPath((Join-Path $project 'roles.json')))"
+    }
+
+    It 'fails before compiling when the role map from <Source> is missing or invalid' -ForEach @(
+        @{ Source = '-RoleCachePath'; Files = @{}; PathArguments = @{ RoleCachePath = 'missing.json' }; Message = '*BYL2020*-RoleCachePath*' }
+        @{ Source = 'bylaw.json'; Files = @{ 'bylaw.json' = '{ "roleCache": "missing.json" }' }; PathArguments = @{}; Message = "*BYL2020*bylaw.json 'roleCache'*" }
+        @{ Source = 'an invalid file'; Files = @{ 'roles.json' = '{ "schemaVersion": 1 }' }; PathArguments = @{ RoleCachePath = 'roles.json' }; Message = '*BYL2020*not a Bylaw role map*' }
+    ) {
+        $project = New-TestProject (@{ 'a.bylaw.ps1' = Get-TestPolicyText } + $Files)
+        $buildArguments = @{ Path = $project; PassThru = $true }
+        foreach ($key in $PathArguments.Keys) {
+            $buildArguments[$key] = Join-Path $project $PathArguments[$key]
+        }
+        { Build-Bylaw @buildArguments } | Should -Throw $Message
     }
 
     It 'turns unknown aliases into warnings with -AllowUnknownAlias' {

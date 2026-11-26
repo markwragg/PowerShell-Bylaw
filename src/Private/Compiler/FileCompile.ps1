@@ -8,7 +8,7 @@
 
 # Runs in the new runspace. The file is invoked from outside the module, as an author would run it.
 $script:BylawFileRunnerScript = @'
-param($ModuleManifest, $File, $SnapshotData, $AllowUnknownAlias, $Format)
+param($ModuleManifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)
 Set-Location -LiteralPath ([System.IO.Path]::GetDirectoryName($File))
 $module = Import-Module -Name $ModuleManifest -PassThru -Force -ErrorAction Stop
 & $module { Reset-BylawFrontEnd }
@@ -20,9 +20,9 @@ catch {
     $thrown = $_
 }
 & $module {
-    param($File, $Thrown, $SnapshotData, $AllowUnknownAlias, $Format)
-    Invoke-BylawFileCompile -File $File -Thrown $Thrown -SnapshotData $SnapshotData -AllowUnknownAlias $AllowUnknownAlias -Format $Format
-} $File $thrown $SnapshotData $AllowUnknownAlias $Format
+    param($File, $Thrown, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)
+    Invoke-BylawFileCompile -File $File -Thrown $Thrown -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format
+} $File $thrown $SnapshotData $RoleData $AllowUnknownAlias $Format
 '@
 
 function Get-BylawDefaultThrottleLimit {
@@ -42,6 +42,7 @@ function Invoke-BylawFileInRunspace {
     param(
         [Parameter(Mandatory)] [string[]] $File,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format = 'Epac',
         [ValidateRange(1, 64)] [int] $ThrottleLimit = 1
@@ -56,7 +57,7 @@ function Invoke-BylawFileInRunspace {
     try {
         while ($next -lt $File.Count -or $running.Count -gt 0) {
             while ($running.Count -lt $ThrottleLimit -and $next -lt $File.Count) {
-                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -AllowUnknownAlias $AllowUnknownAlias -Format $Format))
+                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format))
                 $next++
             }
             # Wait in short slices so Ctrl+C can stop the build.
@@ -92,6 +93,7 @@ function Start-BylawFileJob {
         [Parameter(Mandatory)] [string] $Manifest,
         [AllowNull()] [object] $ExecutionPolicy,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format
     )
@@ -107,7 +109,7 @@ function Start-BylawFileJob {
         $shell = [powershell]::Create()
         $shell.Runspace = $runspace
         $null = $shell.AddScript($script:BylawFileRunnerScript)
-        foreach ($argument in @($Manifest, $File, $SnapshotData, $AllowUnknownAlias, $Format)) {
+        foreach ($argument in @($Manifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)) {
             $null = $shell.AddArgument($argument)
         }
         $async = $shell.BeginInvoke()
@@ -179,15 +181,27 @@ function Invoke-BylawFileCompile {
         [Parameter(Mandatory)] [string] $File,
         [AllowNull()] [System.Management.Automation.ErrorRecord] $Thrown,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format = 'Epac'
     )
+
+    # Read by the Modify checks (ADR-0022). One runspace compiles one file, so a module variable
+    # is safe here.
+    $script:BylawRoleData = $RoleData
 
     $fileDiagnostics = [System.Collections.Generic.List[object]]::new()
     foreach ($diagnostic in Get-BylawFrontEndDiagnostic) {
         $fileDiagnostics.Add($diagnostic)
     }
     if ($Thrown) {
+        # Explain the one way the Param keyword clashes with PowerShell's param block, before
+        # PowerShell's own parse errors.
+        if ($Thrown.Exception -is [System.Management.Automation.ParseException]) {
+            foreach ($hint in Get-BylawParamKeywordHint -File $File) {
+                $fileDiagnostics.Add($hint)
+            }
+        }
         $fileDiagnostics.Add((ConvertTo-BylawErrorRecordDiagnostic -ErrorRecord $Thrown -File $File -Code 'BYL5010' -Prefix 'The file failed'))
     }
 
@@ -224,6 +238,31 @@ function Invoke-BylawFileCompile {
     [pscustomobject]@{
         Diagnostics = @($fileDiagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
         Policies    = $policies.ToArray()
+    }
+}
+
+function Get-BylawParamKeywordHint {
+    # 'param' is a PowerShell keyword at the start of a script block, so Param(Enabled) or
+    # Param ('Enabled') as the first statement of a When or Require block is read as a parameter
+    # declaration, and the file fails to parse. A real declaration starts with a variable, a type
+    # or an attribute, so 'param (' followed by a name or a string is this mistake.
+    [OutputType([BylawDiagnostic])]
+    param([Parameter(Mandatory)] [string] $File)
+
+    $tokens = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($File, [ref] $tokens, [ref] $null)
+    $significant = @($tokens | Where-Object { $_.Kind -notin 'NewLine', 'LineContinuation', 'Comment' })
+    $nameKinds = @('Identifier', 'Generic', 'StringLiteral', 'StringExpandable')
+    for ($index = 0; $index -lt $significant.Count - 2; $index++) {
+        if ($significant[$index].Kind -ne 'Param' -or $significant[$index + 1].Kind -ne 'LParen' -or $significant[$index + 2].Kind -notin $nameKinds) {
+            continue
+        }
+        $name = $significant[$index + 2].Text.Trim("'", '"')
+        $location = [BylawSourceLocation]::new($File, $significant[$index].Extent.StartLineNumber, $significant[$index].Extent.StartColumnNumber, 'Param')
+        [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL5013', (
+                "PowerShell reads 'Param(' at the start of a block as a parameter declaration, so the file can't be parsed. " +
+                "To reference the Bylaw parameter, write Param $name without brackets, or (Param $name)."
+            ), $location)
     }
 }
 

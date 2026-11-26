@@ -106,6 +106,8 @@ function Read-BylawAliasSnapshotData {
         }
 
         $types = [System.Collections.Generic.Dictionary[string, string[]]]::new([System.StringComparer]::Ordinal)
+        $modifiable = [System.Collections.Generic.List[string]]::new()
+        $flag = [System.Text.Json.JsonElement]::new()
         foreach ($type in $typesElement.EnumerateObject()) {
             $names = [System.Collections.Generic.List[string]]::new()
             $aliases = [System.Text.Json.JsonElement]::new()
@@ -114,6 +116,11 @@ function Read-BylawAliasSnapshotData {
                 $aliases.ValueKind -eq [System.Text.Json.JsonValueKind]::Object) {
                 foreach ($alias in $aliases.EnumerateObject()) {
                     $names.Add($alias.Name)
+                    if ($alias.Value.ValueKind -eq [System.Text.Json.JsonValueKind]::Object -and
+                        $alias.Value.TryGetProperty('modifiable', [ref] $flag) -and
+                        $flag.ValueKind -eq [System.Text.Json.JsonValueKind]::True) {
+                        $modifiable.Add($alias.Name)
+                    }
                 }
             }
             $types[$type.Name] = $names.ToArray()
@@ -123,7 +130,7 @@ function Read-BylawAliasSnapshotData {
         $document.Dispose()
     }
 
-    $data = @{ Path = $fullPath; GeneratedAt = $generated; Types = $types }
+    $data = @{ Path = $fullPath; GeneratedAt = $generated; Types = $types; Modifiable = $modifiable.ToArray() }
     $script:BylawAliasSnapshotDataCache[$fullPath] = @{ Stamp = $stamp; Data = $data }
     $data
 }
@@ -135,5 +142,6 @@ function New-BylawAliasSnapshot {
     [OutputType([BylawAliasSnapshot])]
     param([Parameter(Mandatory)] [hashtable] $Data)
 
-    [BylawAliasSnapshot]::new($Data.Path, $Data.GeneratedAt, $Data.Types)
+    $modifiable = if ($Data.Modifiable) { [string[]] $Data.Modifiable } else { [string[]] @() }
+    [BylawAliasSnapshot]::new($Data.Path, $Data.GeneratedAt, $Data.Types, $modifiable)
 }

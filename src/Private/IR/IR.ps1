@@ -4,7 +4,8 @@
 # parsed together. Two layers:
 #
 #   DSL layer     - what the keywords produce, exactly as written: BylawAssertion (Must), BylawEach,
-#                   BylawRequirement, BylawResourceScope. Lossless, so the decompiler can target it.
+#                   BylawConditionGroup (AnyOf, AllOf), BylawRequirement, BylawResourceScope.
+#                   Lossless, so the decompiler can target it.
 #   Policy layer  - Azure Policy conditions: BylawFieldCondition, BylawValueCondition,
 #                   BylawCountCondition, BylawGroup, BylawNot. Produced by the compiler passes from
 #                   the DSL layer, or directly by the decompiler from JSON.
@@ -33,6 +34,8 @@ enum BylawFieldKind {
     Field
     # The current element of a primitive array inside Each.
     Element
+    # A tag: Tag name. FieldRef.TagName holds the name or a Param reference (ADR-0020).
+    Tag
 }
 
 class BylawSourceLocation {
@@ -123,6 +126,25 @@ class BylawExpr : BylawValue {
     }
 }
 
+class BylawResourceGroupTag : BylawValue {
+    # The resource group's tag value: [resourceGroup().tags['name']] (ADR-0020). TagName is a
+    # BylawLiteral string or a BylawParamRef.
+    [BylawValue] $TagName
+
+    BylawResourceGroupTag() {}
+
+    BylawResourceGroupTag([BylawValue] $tagName) {
+        $this.TagName = $tagName
+    }
+
+    [string] ToString() {
+        if ($this.TagName -is [BylawParamRef]) {
+            return 'ResourceGroupTag ({0})' -f $this.TagName
+        }
+        return 'ResourceGroupTag {0}' -f $this.TagName
+    }
+}
+
 #endregion
 
 #region Fields
@@ -134,6 +156,8 @@ class BylawFieldRef : BylawNode {
     # Full alias or reserved field name, set by the alias resolution pass.
     [string] $Resolved
     [bool] $AllowUnknownAlias
+    # For Kind Tag: the tag name as a BylawLiteral string, or a BylawParamRef.
+    [BylawValue] $TagName
 
     BylawFieldRef() {}
 
@@ -144,6 +168,9 @@ class BylawFieldRef : BylawNode {
     [string] ToString() {
         if ($this.Kind -eq [BylawFieldKind]::Element) {
             return 'Element'
+        }
+        if ($this.Kind -eq [BylawFieldKind]::Tag -and $this.TagName -is [BylawParamRef]) {
+            return 'Tag ({0})' -f $this.TagName
         }
         if ($this.Resolved) {
             return $this.Resolved
@@ -292,16 +319,52 @@ class BylawNot : BylawCondition {
 }
 
 class BylawEffect : BylawNode {
-    # Literal effect name or a BylawParamRef.
+    # Literal effect name, a BylawParamRef or a BylawExpr.
     [BylawValue] $Value
-    # The 'details' block for effects that need one (Modify in Milestone 2); $null otherwise.
-    [System.Collections.Specialized.OrderedDictionary] $Details
 
     BylawEffect() {}
 
     BylawEffect([BylawValue] $value) {
         $this.Value = $value
     }
+}
+
+class BylawModifyOperation : BylawNode {
+    # One operation in a Modify block (ADR-0024): Field | AddOrReplace v, | Add v or | Remove.
+    # Operation is the emitted name: 'addOrReplace', 'add' or 'remove'.
+    [string] $Operation
+    [BylawFieldRef] $Field
+    # $null for remove.
+    [BylawValue] $Value
+    # The operation's optional condition, an Arm expression.
+    [BylawExpr] $Condition
+
+    BylawModifyOperation() {}
+
+    BylawModifyOperation([string] $operation, [BylawFieldRef] $field) {
+        $this.Operation = $operation
+        $this.Field = $field
+    }
+
+    [string] ToString() {
+        return '{0} {1}' -f $this.Field, $this.Operation
+    }
+}
+
+class BylawModify : BylawEffect {
+    # Modify -Role ... { operations } (ADR-0024). Value is the literal 'Modify', or the -Effect
+    # parameter or expression.
+    # -Role values as written (ADR-0022).
+    [string[]] $Roles = @()
+    # Full role definition IDs, in the order written, set by the validation pass.
+    [string[]] $RoleDefinitionIds = @()
+    # 'audit', 'deny' or 'disabled' as emitted, or $null when not set.
+    [string] $ConflictEffect
+    [System.Collections.Generic.List[object]] $Operations = [System.Collections.Generic.List[object]]::new()
+
+    BylawModify() {}
+
+    BylawModify([BylawValue] $value) : base($value) {}
 }
 
 class BylawPolicyRule : BylawNode {
@@ -321,8 +384,11 @@ class BylawPolicyRule : BylawNode {
 #region DSL layer (as written)
 
 class BylawAssertion : BylawNode {
-    # One Must statement, before inversion.
+    # One Must statement, before inversion. It tests either a field (Field) or, as a value
+    # condition, an expression (Subject: ResourceGroupTag, Param or Arm; ADR-0025). Exactly one of
+    # the two is set.
     [BylawFieldRef] $Field
+    [BylawValue] $Subject
     # DSL operator as written, without the dash, e.g. 'Be', 'BeIn', 'Exist'.
     [string] $DslOperator
     # The non-negated Azure operator it maps to, e.g. 'equals' for -Be (ADR-0015).
@@ -336,7 +402,7 @@ class BylawAssertion : BylawNode {
 
     [string] ToString() {
         $parts = [System.Collections.Generic.List[string]]::new()
-        $parts.Add([string] $this.Field)
+        $parts.Add($(if ($null -ne $this.Field) { [string] $this.Field } else { [string] $this.Subject }))
         $parts.Add('| Must')
         if ($this.Negated) {
             $parts.Add('-Not')
@@ -352,10 +418,24 @@ class BylawAssertion : BylawNode {
     }
 }
 
+class BylawConditionGroup : BylawNode {
+    # AnyOf { } or AllOf { } (ADR-0026), describing the compliant state like everything else in the
+    # DSL layer: AnyOf holds when any child holds. Children are BylawAssertion, BylawEach and nested
+    # BylawConditionGroup nodes, in source order.
+    [BylawGroupKind] $Kind
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
+
+    BylawConditionGroup() {}
+
+    BylawConditionGroup([BylawGroupKind] $kind) {
+        $this.Kind = $kind
+    }
+}
+
 class BylawEach : BylawNode {
     # The [*] array path as written, e.g. 'networkAcls.ipRules[*]'.
     [BylawFieldRef] $Field
-    # BylawAssertion and nested BylawEach nodes, in source order.
+    # BylawAssertion, nested BylawEach and BylawConditionGroup nodes, in source order.
     [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawEach() {}
@@ -367,7 +447,7 @@ class BylawEach : BylawNode {
 
 class BylawRequirement : BylawNode {
     [string] $Description
-    # BylawAssertion and BylawEach nodes, in source order.
+    # BylawAssertion, BylawEach and BylawConditionGroup nodes, in source order.
     [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 
     BylawRequirement() {}
@@ -378,7 +458,7 @@ class BylawRequirement : BylawNode {
 }
 
 class BylawApplicability : BylawNode {
-    # One When block. Its assertions are emitted as written, not inverted (ADR-0002).
+    # One When block. Its assertions and groups are emitted as written, not inverted (ADR-0002).
     [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
 }
 
@@ -476,8 +556,22 @@ class BylawAliasSnapshot {
     hidden [System.Collections.Generic.Dictionary[string, string]] $TypeNames
     hidden [System.Collections.Generic.Dictionary[string, System.Collections.Generic.Dictionary[string, string]]] $TypeIndex
     hidden [System.Collections.Generic.Dictionary[string, string]] $GlobalIndex
+    # Alias names marked Modifiable, ignoring case (ADR-0024). Empty when the data has none.
+    hidden [System.Collections.Generic.HashSet[string]] $Modifiable
 
     BylawAliasSnapshot([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types) {
+        $this.Init($path, $generatedAt, $types, $null)
+    }
+
+    BylawAliasSnapshot([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types, [string[]] $modifiable) {
+        $this.Init($path, $generatedAt, $types, $modifiable)
+    }
+
+    hidden [void] Init([string] $path, [string] $generatedAt, [System.Collections.IDictionary] $types, [string[]] $modifiable) {
+        $this.Modifiable = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($null -ne $modifiable) {
+            $this.Modifiable.UnionWith($modifiable)
+        }
         $this.Path = $path
         $this.GeneratedAt = $generatedAt
         $this.Types = $types
@@ -530,6 +624,11 @@ class BylawAliasSnapshot {
         }
         return ''
     }
+
+    # Whether the snapshot marks the alias Modifiable, so Modify can change it.
+    [bool] IsModifiable([string] $alias) {
+        return $this.Modifiable.Contains($alias)
+    }
 }
 
 #endregion
@@ -537,7 +636,8 @@ class BylawAliasSnapshot {
 #region Front-end state
 
 class BylawFrame {
-    # One open keyword block (Policy, Resource, When, Require, Each) while the DSL runs.
+    # One open keyword block (Policy, Resource, When, Require, Each, AnyOf, AllOf, Modify) while
+    # the DSL runs.
     [string] $Keyword
     [BylawNode] $Node
     # Field references produced in this block that no Must has consumed yet.
