@@ -369,6 +369,18 @@ That writes `~/.bylaw/aliases.json`, which Bylaw then uses by default. To limit 
 
 The snapshot used is the first of: `-AliasCachePath`, `aliasCache` in `bylaw.json`, `~/.bylaw/aliases.json`, the bundled snapshot.
 
+### Roles
+
+`Modify -Role` takes built-in role names, which Bylaw turns into role definition IDs using a role map, offline. The bundled map only has a starter set of common roles: Owner, Contributor, Reader, Tag Contributor, and the Storage Account, Network, Virtual Machine and Key Vault Contributor roles. For the full list of built-in roles, refresh it from Azure, which only reads role definitions:
+
+```powershell
+Update-BylawRoleCache
+```
+
+That writes `~/.bylaw/roles.json`. Built-in role IDs are the same in every tenant, so the map can be shared. Custom roles aren't in it; give them by GUID or full role definition ID.
+
+The map used is the first of: `-RoleCachePath`, `roleCache` in `bylaw.json`, `~/.bylaw/roles.json`, the bundled map.
+
 ### `bylaw.json`
 
 An optional settings file. Bylaw looks for it from `-Path` upwards, stopping at the repository root, or uses `-Settings`.
@@ -376,7 +388,8 @@ An optional settings file. Bylaw looks for it from `-Path` upwards, stopping at 
 ```json
 {
   "languageVersion": "1.0",
-  "aliasCache": "./aliases.json"
+  "aliasCache": "./aliases.json",
+  "roleCache": "./roles.json"
 }
 ```
 

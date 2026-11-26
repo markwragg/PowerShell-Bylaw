@@ -10,7 +10,7 @@
 
     # Only Policy and the build/utility cmdlets are exported (ADR-0005).
     # Entries are added as each command is implemented.
-    FunctionsToExport    = @('Build-Bylaw', 'Policy', 'Update-BylawAliasCache')
+    FunctionsToExport    = @('Build-Bylaw', 'Policy', 'Update-BylawAliasCache', 'Update-BylawRoleCache')
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()

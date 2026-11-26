@@ -33,6 +33,9 @@ function Build-Bylaw {
     .PARAMETER AliasCachePath
         Alias snapshot to resolve and validate aliases against, instead of the default.
 
+    .PARAMETER RoleCachePath
+        Role map to resolve Modify -Role names against, instead of the default.
+
     .PARAMETER AllowUnknownAlias
         Reports unknown aliases as warnings instead of errors, for the whole build.
 
@@ -64,6 +67,8 @@ function Build-Bylaw {
         [string] $Settings,
 
         [string] $AliasCachePath,
+
+        [string] $RoleCachePath,
 
         [switch] $AllowUnknownAlias,
 
@@ -101,7 +106,8 @@ function Build-Bylaw {
             return
         }
 
-        # Settings (ADR-0012) and alias snapshot (ADR-0008), read once for the whole build.
+        # Settings (ADR-0012), alias snapshot (ADR-0008) and role map (ADR-0022), read once for the
+        # whole build.
         $settingsPath = if ($Settings) { $Settings } else { Find-BylawSettingsFile -StartPath $sources[0].Root }
         $settingsResult = Read-BylawSettingsFile -Path $settingsPath
         if ($settingsResult.Diagnostics.Count -gt 0) {
@@ -118,13 +124,21 @@ function Build-Bylaw {
             $PSCmdlet.ThrowTerminatingError((New-BylawErrorRecord -Message $_.Exception.Message -Id 'BylawAliasSnapshot' -Category ObjectNotFound))
         }
         Write-Verbose "Alias snapshot: $($snapshotData.Path)"
+        try {
+            $roleMapPath = Resolve-BylawRoleMapPath -RoleCachePath $RoleCachePath -SettingsRoleCache $settingsResult.Settings.RoleCache
+            $roleData = Read-BylawRoleMapData -Path $roleMapPath
+        }
+        catch {
+            $PSCmdlet.ThrowTerminatingError((New-BylawErrorRecord -Message $_.Exception.Message -Id 'BylawRoleMap' -Category ObjectNotFound))
+        }
+        Write-Verbose "Role map: $($roleData.Path)"
 
         # Compile every file, one fresh runspace each, several at once (ADR-0014).
         # Results come back in file order, so output doesn't depend on which file finishes first.
         $throttle = if ($PSBoundParameters.ContainsKey('ThrottleLimit')) { $ThrottleLimit } else { Get-BylawDefaultThrottleLimit }
         $throttle = [Math]::Min($throttle, $sources.Count)
         Write-Verbose "Compiling $($sources.Count) file(s), up to $throttle at once"
-        $results = @(Invoke-BylawFileInRunspace -File @($sources.File) -SnapshotData $snapshotData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name -ThrottleLimit $throttle)
+        $results = @(Invoke-BylawFileInRunspace -File @($sources.File) -SnapshotData $snapshotData -RoleData $roleData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name -ThrottleLimit $throttle)
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $compiled = [System.Collections.Generic.List[object]]::new()
         for ($index = 0; $index -lt $sources.Count; $index++) {

@@ -8,7 +8,7 @@
 
 # Runs in the new runspace. The file is invoked from outside the module, as an author would run it.
 $script:BylawFileRunnerScript = @'
-param($ModuleManifest, $File, $SnapshotData, $AllowUnknownAlias, $Format)
+param($ModuleManifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)
 Set-Location -LiteralPath ([System.IO.Path]::GetDirectoryName($File))
 $module = Import-Module -Name $ModuleManifest -PassThru -Force -ErrorAction Stop
 & $module { Reset-BylawFrontEnd }
@@ -20,9 +20,9 @@ catch {
     $thrown = $_
 }
 & $module {
-    param($File, $Thrown, $SnapshotData, $AllowUnknownAlias, $Format)
-    Invoke-BylawFileCompile -File $File -Thrown $Thrown -SnapshotData $SnapshotData -AllowUnknownAlias $AllowUnknownAlias -Format $Format
-} $File $thrown $SnapshotData $AllowUnknownAlias $Format
+    param($File, $Thrown, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)
+    Invoke-BylawFileCompile -File $File -Thrown $Thrown -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format
+} $File $thrown $SnapshotData $RoleData $AllowUnknownAlias $Format
 '@
 
 function Get-BylawDefaultThrottleLimit {
@@ -42,6 +42,7 @@ function Invoke-BylawFileInRunspace {
     param(
         [Parameter(Mandatory)] [string[]] $File,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format = 'Epac',
         [ValidateRange(1, 64)] [int] $ThrottleLimit = 1
@@ -56,7 +57,7 @@ function Invoke-BylawFileInRunspace {
     try {
         while ($next -lt $File.Count -or $running.Count -gt 0) {
             while ($running.Count -lt $ThrottleLimit -and $next -lt $File.Count) {
-                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -AllowUnknownAlias $AllowUnknownAlias -Format $Format))
+                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format))
                 $next++
             }
             # Wait in short slices so Ctrl+C can stop the build.
@@ -92,6 +93,7 @@ function Start-BylawFileJob {
         [Parameter(Mandatory)] [string] $Manifest,
         [AllowNull()] [object] $ExecutionPolicy,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format
     )
@@ -107,7 +109,7 @@ function Start-BylawFileJob {
         $shell = [powershell]::Create()
         $shell.Runspace = $runspace
         $null = $shell.AddScript($script:BylawFileRunnerScript)
-        foreach ($argument in @($Manifest, $File, $SnapshotData, $AllowUnknownAlias, $Format)) {
+        foreach ($argument in @($Manifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)) {
             $null = $shell.AddArgument($argument)
         }
         $async = $shell.BeginInvoke()
@@ -179,9 +181,14 @@ function Invoke-BylawFileCompile {
         [Parameter(Mandatory)] [string] $File,
         [AllowNull()] [System.Management.Automation.ErrorRecord] $Thrown,
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
+        [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format = 'Epac'
     )
+
+    # Read by the Modify checks (ADR-0022). One runspace compiles one file, so a module variable
+    # is safe here.
+    $script:BylawRoleData = $RoleData
 
     $fileDiagnostics = [System.Collections.Generic.List[object]]::new()
     foreach ($diagnostic in Get-BylawFrontEndDiagnostic) {

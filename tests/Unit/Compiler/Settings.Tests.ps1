@@ -66,6 +66,12 @@ Describe 'Read-BylawSettingsFile' {
         $result.Settings.AliasCache | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'read/data/aliases.json')))
     }
 
+    It 'resolves roleCache relative to bylaw.json' {
+        $result = Read-TestSettingsFile '{ "roleCache": "data/roles.json" }'
+        $result.Diagnostics | Should -BeNullOrEmpty
+        $result.Settings.RoleCache | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'read/data/roles.json')))
+    }
+
     It 'reports <Code> for <Case>' -ForEach @(
         @{ Code = 'BYL5001'; Case = 'invalid JSON'; Json = '{ "languageVersion": ' }
         @{ Code = 'BYL5001'; Case = 'a JSON array'; Json = '[]' }
@@ -74,6 +80,7 @@ Describe 'Read-BylawSettingsFile' {
         @{ Code = 'BYL5004'; Case = 'an unsupported language version'; Json = '{ "languageVersion": "2.0" }' }
         @{ Code = 'BYL5004'; Case = 'a numeric language version'; Json = '{ "languageVersion": 1.0 }' }
         @{ Code = 'BYL5005'; Case = 'an aliasCache that is not a string'; Json = '{ "aliasCache": 5 }' }
+        @{ Code = 'BYL5005'; Case = 'an empty roleCache'; Json = '{ "roleCache": "" }' }
     ) {
         @((Read-TestSettingsFile $Json).Diagnostics.Code) | Should -Contain $Code
     }

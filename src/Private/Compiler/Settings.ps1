@@ -1,12 +1,13 @@
 # bylaw.json project settings (ADR-0012).
 #
-#   { "languageVersion": "1.0", "aliasCache": "./aliases.json" }
+#   { "languageVersion": "1.0", "aliasCache": "./aliases.json", "roleCache": "./roles.json" }
 #
 # Found with -Settings, else by searching upward from the build path, stopping at the first folder
-# that contains .git, or at the filesystem root. aliasCache is relative to the settings file.
+# that contains .git, or at the filesystem root. aliasCache and roleCache are relative to the
+# settings file.
 
 $script:BylawSettingsFileName = 'bylaw.json'
-$script:BylawSettingsKeys = @('languageVersion', 'aliasCache')
+$script:BylawSettingsKeys = @('languageVersion', 'aliasCache', 'roleCache')
 $script:BylawSupportedLanguageVersions = @('1.0')
 
 function Find-BylawSettingsFile {
@@ -35,12 +36,12 @@ function Find-BylawSettingsFile {
 
 function Read-BylawSettingsFile {
     # Settings from a bylaw.json path, or the defaults when Path is empty.
-    # Returns @{ Settings = @{ Path; LanguageVersion; AliasCache }; Diagnostics = @(...) }.
+    # Returns @{ Settings = @{ Path; LanguageVersion; AliasCache; RoleCache }; Diagnostics = @(...) }.
     [CmdletBinding()]
     [OutputType([hashtable])]
     param([string] $Path)
 
-    $settings = @{ Path = $null; LanguageVersion = '1.0'; AliasCache = $null }
+    $settings = @{ Path = $null; LanguageVersion = '1.0'; AliasCache = $null; RoleCache = $null }
     $diagnostics = [System.Collections.Generic.List[object]]::new()
     $result = @{ Settings = $settings; Diagnostics = $diagnostics }
     if (-not $Path) {
@@ -90,13 +91,19 @@ function Read-BylawSettingsFile {
         }
     }
 
-    if ($data.Contains('aliasCache')) {
-        $aliasCache = $data['aliasCache']
-        if ($aliasCache -isnot [string] -or -not $aliasCache) {
-            & $add 'BYL5005' 'aliasCache must be a path to an alias snapshot file, relative to bylaw.json.'
+    foreach ($entry in @(
+            @{ Key = 'aliasCache'; Setting = 'AliasCache'; What = 'an alias snapshot file' }
+            @{ Key = 'roleCache'; Setting = 'RoleCache'; What = 'a role map file' }
+        )) {
+        if (-not $data.Contains($entry.Key)) {
+            continue
+        }
+        $value = $data[$entry.Key]
+        if ($value -isnot [string] -or -not $value) {
+            & $add 'BYL5005' "$($entry.Key) must be a path to $($entry.What), relative to bylaw.json."
         }
         else {
-            $settings.AliasCache = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($fullPath), $aliasCache))
+            $settings[$entry.Setting] = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($fullPath), $value))
         }
     }
     $result

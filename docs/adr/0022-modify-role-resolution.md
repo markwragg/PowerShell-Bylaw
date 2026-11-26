@@ -26,7 +26,8 @@ The `modify` effect needs `details.roleDefinitionIds`, a list of full role defin
 
 Chosen option: "A bundled built-in role map, with its own refresh command".
 
-* `src/Data/roles.json` maps built-in role names to role GUIDs. It is written with the canonical writer and sorted by name. The bundled file is a starter set of common roles. The full map is generated with the refresh command, as for aliases (ADR-0008).
+* `src/Data/roles.json` maps built-in role names to role GUIDs. It is written with the canonical writer and sorted by name. The bundled file is a starter set of common roles: Owner, Contributor, Reader, Tag Contributor, Storage Account Contributor, Network Contributor, Virtual Machine Contributor and Key Vault Contributor. Each GUID was checked against Learn's list of built-in roles on 2026-11-26. The full map is generated with the refresh command, as for aliases (ADR-0008).
+* A map file that isn't valid, or a role whose ID isn't a GUID, fails the build before anything is compiled (`BYL2020`).
 * `Update-BylawRoleCache` refreshes it from `Get-AzRoleDefinition`, reading built-in roles only. It is a separate command from `Update-BylawAliasCache`, because the data and the Az command behind it are different, and refreshing one shouldn't require refreshing the other.
 * The map used is the first of: `Build-Bylaw -RoleCachePath`, `roleCache` in `bylaw.json`, `~/.bylaw/roles.json`, the bundled file. This is the same order as for aliases.
 * `-Role` accepts one or more of:

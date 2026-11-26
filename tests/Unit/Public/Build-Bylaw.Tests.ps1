@@ -348,6 +348,36 @@ Describe 'Build-Bylaw settings and aliases' {
         { Build-Bylaw -Path $project -PassThru -AliasCachePath (Join-Path $project 'missing.json') } | Should -Throw '*BYL2010*'
     }
 
+    It 'reads the role map from <Source>' -ForEach @(
+        @{ Source = '-RoleCachePath'; UseSettings = $false }
+        @{ Source = 'bylaw.json roleCache'; UseSettings = $true }
+    ) {
+        $files = @{ 'a.bylaw.ps1' = Get-TestPolicyText; 'roles.json' = '{ "schemaVersion": 1, "roles": { "Reader": "acdd72a7-3385-48ef-bd42-f606fba81ae7" } }' }
+        if ($UseSettings) {
+            $files['bylaw.json'] = '{ "roleCache": "roles.json" }'
+        }
+        $project = New-TestProject $files
+        $buildArguments = @{ Path = $project; PassThru = $true; Verbose = $true }
+        if (-not $UseSettings) {
+            $buildArguments['RoleCachePath'] = Join-Path $project 'roles.json'
+        }
+        $verbose = Build-Bylaw @buildArguments 4>&1 | Where-Object { $_ -is [System.Management.Automation.VerboseRecord] }
+        $verbose.Message | Should -Contain "Role map: $([System.IO.Path]::GetFullPath((Join-Path $project 'roles.json')))"
+    }
+
+    It 'fails before compiling when the role map from <Source> is missing or invalid' -ForEach @(
+        @{ Source = '-RoleCachePath'; Files = @{}; PathArguments = @{ RoleCachePath = 'missing.json' }; Message = '*BYL2020*-RoleCachePath*' }
+        @{ Source = 'bylaw.json'; Files = @{ 'bylaw.json' = '{ "roleCache": "missing.json" }' }; PathArguments = @{}; Message = "*BYL2020*bylaw.json 'roleCache'*" }
+        @{ Source = 'an invalid file'; Files = @{ 'roles.json' = '{ "schemaVersion": 1 }' }; PathArguments = @{ RoleCachePath = 'roles.json' }; Message = '*BYL2020*not a Bylaw role map*' }
+    ) {
+        $project = New-TestProject (@{ 'a.bylaw.ps1' = Get-TestPolicyText } + $Files)
+        $buildArguments = @{ Path = $project; PassThru = $true }
+        foreach ($key in $PathArguments.Keys) {
+            $buildArguments[$key] = Join-Path $project $PathArguments[$key]
+        }
+        { Build-Bylaw @buildArguments } | Should -Throw $Message
+    }
+
     It 'turns unknown aliases into warnings with -AllowUnknownAlias' {
         $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText -Body "Require 'r' { Field notAnAlias | Must -Be 'x' }" }
         $result = Build-Bylaw -Path $project -PassThru -AllowUnknownAlias -WarningAction SilentlyContinue
