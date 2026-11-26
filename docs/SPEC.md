@@ -236,9 +236,10 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 
 ### Milestone 4: initiatives
 
-- An initiative keyword: member policies from the same build or built-in policies by ID, parameters passed to members, policy groups
-- Cross-file checks after every file has compiled: references exist, passed parameters match
-- EPAC policy set definition output, and plain JSON
+- An initiative keyword: member policies from the same build or built-in policies by ID, parameters passed to members, policy groups (ADR-0033)
+- Cross-file checks after every file has compiled: references exist, passed parameters match (ADR-0034)
+- EPAC policy set definition output, and plain JSON, with a separate output folder for initiatives (ADR-0035)
+- Golden tests, examples and README for all of the above
 
 ### Milestone 5: decompiler and ALZ round-trip
 

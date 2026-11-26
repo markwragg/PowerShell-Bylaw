@@ -36,3 +36,6 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0030](0030-if-not-exists-effects.md) | AuditIfNotExists and DeployIfNotExists describe the related resource's compliant state | Accepted |
 | [0031](0031-deployment-templates.md) | DeployIfNotExists takes its template from a JSON file or a hashtable, with checked parameters | Accepted |
 | [0032](0032-count-expressions.md) | Count is piped to Must, for field counts and value counts | Accepted |
+| [0033](0033-initiatives.md) | Initiative is a top-level keyword like Policy, with Member for each policy it includes | Proposed |
+| [0034](0034-initiative-member-checks.md) | Initiative members are checked against the emitted definitions after every file has compiled | Proposed |
+| [0035](0035-initiative-output.md) | Initiatives are emitted as EPAC policy set definitions or plain JSON, to their own output folder | Proposed |
