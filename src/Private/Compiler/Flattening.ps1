@@ -4,8 +4,12 @@
 #   - a group nested in a group of the same kind is merged into its parent (allOf[a, allOf[b]] = allOf[a, b])
 #   - a group with one child is replaced by that child
 #   - empty groups are removed from their parent
-# Order is preserved. Count 'where' clauses and Not children are flattened too. New group nodes are
-# created; leaf conditions are reused.
+#   - a condition that repeats an earlier sibling exactly is removed (ADR-0004): a field or value
+#     condition, or a group made only of those. A repeated condition never changes the result of
+#     an allOf or an anyOf. This mostly removes the repeated exists guards from several negated
+#     checks on the same field.
+# Order is preserved, and the first of any repeated conditions is kept. Count 'where' clauses and
+# Not children are flattened too. New group nodes are created; leaf conditions are reused.
 
 function Optimize-BylawCondition {
     [CmdletBinding()]
@@ -17,7 +21,7 @@ function Optimize-BylawCondition {
     }
 
     if ($Condition -is [BylawGroup]) {
-        $children = [System.Collections.Generic.List[object]]::new()
+        $merged = [System.Collections.Generic.List[object]]::new()
         foreach ($child in $Condition.Children) {
             $optimized = Optimize-BylawCondition -Condition $child
             if ($null -eq $optimized) {
@@ -25,12 +29,21 @@ function Optimize-BylawCondition {
             }
             if ($optimized -is [BylawGroup] -and $optimized.Kind -eq $Condition.Kind) {
                 foreach ($grandchild in $optimized.Children) {
-                    $children.Add($grandchild)
+                    $merged.Add($grandchild)
                 }
             }
             else {
-                $children.Add($optimized)
+                $merged.Add($optimized)
             }
+        }
+        $children = [System.Collections.Generic.List[object]]::new()
+        $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($child in $merged) {
+            $key = Get-BylawConditionKey -Condition $child
+            if ($null -ne $key -and -not $seen.Add($key)) {
+                continue
+            }
+            $children.Add($child)
         }
         if ($children.Count -eq 0) {
             return $null
@@ -69,4 +82,51 @@ function Optimize-BylawCondition {
     }
 
     $Condition
+}
+
+function Get-BylawConditionKey {
+    # A key that is equal for two conditions exactly when they emit the same JSON, or $null for a
+    # condition that has no key (counts and Not). Siblings are in the same scope, so a field name
+    # means the same field in both, even before alias resolution.
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [BylawCondition] $Condition)
+
+    if ($Condition -is [BylawFieldCondition]) {
+        $field = if ($Condition.Field.Kind -eq [BylawFieldKind]::Element) { '@element' } elseif ($Condition.Field.Resolved) { $Condition.Field.Resolved } else { $Condition.Field.Name }
+        return 'field|{0}|{1}|{2}' -f $field, $Condition.Operator, (Get-BylawValueKey -Value $Condition.Value)
+    }
+    if ($Condition -is [BylawValueCondition]) {
+        return 'value|{0}|{1}|{2}' -f (Get-BylawValueKey -Value $Condition.Subject), $Condition.Operator, (Get-BylawValueKey -Value $Condition.Value)
+    }
+    if ($Condition -is [BylawGroup]) {
+        # A group of keyed conditions, in order. Counts and Not have no key, so a group that holds
+        # one is never treated as a repeat.
+        $childKeys = [System.Collections.Generic.List[string]]::new()
+        foreach ($child in $Condition.Children) {
+            $childKey = Get-BylawConditionKey -Condition $child
+            if ($null -eq $childKey) {
+                return $null
+            }
+            $childKeys.Add($childKey)
+        }
+        return '{0}({1})' -f $Condition.Kind, ($childKeys -join ',')
+    }
+    $null
+}
+
+function Get-BylawValueKey {
+    [OutputType([string])]
+    param([AllowNull()] [BylawValue] $Value)
+
+    if ($null -eq $Value) {
+        return 'none'
+    }
+    if ($Value -is [BylawParamRef]) {
+        return 'param:' + $Value.Name
+    }
+    if ($Value -is [BylawExpr]) {
+        return 'arm:' + $Value.Text
+    }
+    # Literals: JSON text tells true from 'true' and 5 from '5'.
+    'literal:' + (ConvertTo-Json -InputObject $Value.Value -Compress -Depth 20)
 }

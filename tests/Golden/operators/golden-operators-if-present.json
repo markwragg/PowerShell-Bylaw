@@ -181,38 +181,6 @@
               {
                 "field": "tags",
                 "containsKey": "temporary"
-              },
-              {
-                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                "greater": 90
-              },
-              {
-                "allOf": [
-                  {
-                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                    "exists": true
-                  },
-                  {
-                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                    "greaterOrEquals": 91
-                  }
-                ]
-              },
-              {
-                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                "less": 7
-              },
-              {
-                "allOf": [
-                  {
-                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                    "exists": true
-                  },
-                  {
-                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
-                    "lessOrEquals": 6
-                  }
-                ]
               }
             ]
           }
