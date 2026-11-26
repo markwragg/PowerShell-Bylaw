@@ -59,7 +59,7 @@ When several conditions in the same `anyOf` need the same guard, for example sev
 
 ### Observed behaviour on a missing field
 
-These results come from two sandbox runs, on 2026-11-25 and 2026-11-26. A missing tag and a missing alias property of the resource's own type gave identical results. The full table is in [assets/0004-missing-field-results.md](assets/0004-missing-field-results.md).
+These results come from sandbox runs on 2026-11-25 and 2026-11-26. A missing tag and a missing alias property of the resource's own type gave identical results, and so did a missing property of a related resource in an `AuditIfNotExists` existence condition. The full tables are in [assets/0004-missing-field-results.md](assets/0004-missing-field-results.md).
 
 * Every operator pair is an exact complement on a missing field: one side is true and the other is false. Every pair is also a complement on a present value.
 * These operators are **false** on a missing field: `equals`, `in`, `like`, `match`, `matchInsensitively`, `contains`, `containsKey`, `greater`, `less` and `exists: true`.
