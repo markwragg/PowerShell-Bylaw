@@ -241,6 +241,28 @@ Describe 'Build-Bylaw errors' {
         $diagnostic.Message | Should -BeLike '*broken file*'
     }
 
+    It 'explains <Written> at the start of a block before the parse errors' -ForEach @(
+        @{ Written = 'Param(Enabled)' }
+        @{ Written = "Param ('Enabled')" }
+        @{ Written = 'Param ("Enabled")' }
+    ) {
+        $text = "Policy 'p' {`n    Resource * {`n        When {`n            $Written | Must -Be `$true`n        }`n    }`n    Effect Audit`n}`n"
+        $project = New-TestProject @{ 'a.bylaw.ps1' = $text }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
+        $codes = @($record.Exception.Diagnostics | ForEach-Object Code)
+        $codes | Should -Be @('BYL5013', 'BYL5010')
+        $hint = $record.Exception.Diagnostics[0]
+        $hint.Location.Line | Should -Be 4
+        $hint.Message | Should -BeLike '*write Param Enabled without brackets, or (Param Enabled).'
+    }
+
+    It 'gives no Param hint for a parse error elsewhere, even with param blocks in helper functions' {
+        $text = "function Get-Value { param([string] `$Name, `$Default) `$Default }`nfunction Get-Other {`n    param(`$x)`n    `$x`n}`n`$broken = (1 +`n"
+        $project = New-TestProject @{ 'a.bylaw.ps1' = $text }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
+        @($record.Exception.Diagnostics | ForEach-Object Code) | Should -Be @('BYL5010')
+    }
+
     It 'reports an error written outside Policy' {
         $project = New-TestProject @{ 'a.bylaw.ps1' = (Get-TestPolicyText -Name 'policy-a' -Before "Write-Error 'something is wrong'") }
         $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }

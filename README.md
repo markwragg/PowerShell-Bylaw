@@ -250,7 +250,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
 | `Must` | An assertion about the `Field` or `Element` piped into it. See the operators below. |
 | `Effect` | `Audit`, `Deny` or `Disabled`, or `(Param Effect)`. |
-| `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. |
+| `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
 | `Arm '[...]'` | A raw ARM template expression, for anything else. |
 
 `Each` over objects uses the element's fields. Over plain values, it uses `Element`:

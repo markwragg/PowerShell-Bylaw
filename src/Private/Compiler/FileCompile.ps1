@@ -188,6 +188,13 @@ function Invoke-BylawFileCompile {
         $fileDiagnostics.Add($diagnostic)
     }
     if ($Thrown) {
+        # Explain the one way the Param keyword clashes with PowerShell's param block, before
+        # PowerShell's own parse errors.
+        if ($Thrown.Exception -is [System.Management.Automation.ParseException]) {
+            foreach ($hint in Get-BylawParamKeywordHint -File $File) {
+                $fileDiagnostics.Add($hint)
+            }
+        }
         $fileDiagnostics.Add((ConvertTo-BylawErrorRecordDiagnostic -ErrorRecord $Thrown -File $File -Code 'BYL5010' -Prefix 'The file failed'))
     }
 
@@ -224,6 +231,31 @@ function Invoke-BylawFileCompile {
     [pscustomobject]@{
         Diagnostics = @($fileDiagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
         Policies    = $policies.ToArray()
+    }
+}
+
+function Get-BylawParamKeywordHint {
+    # 'param' is a PowerShell keyword at the start of a script block, so Param(Enabled) or
+    # Param ('Enabled') as the first statement of a When or Require block is read as a parameter
+    # declaration, and the file fails to parse. A real declaration starts with a variable, a type
+    # or an attribute, so 'param (' followed by a name or a string is this mistake.
+    [OutputType([BylawDiagnostic])]
+    param([Parameter(Mandatory)] [string] $File)
+
+    $tokens = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($File, [ref] $tokens, [ref] $null)
+    $significant = @($tokens | Where-Object { $_.Kind -notin 'NewLine', 'LineContinuation', 'Comment' })
+    $nameKinds = @('Identifier', 'Generic', 'StringLiteral', 'StringExpandable')
+    for ($index = 0; $index -lt $significant.Count - 2; $index++) {
+        if ($significant[$index].Kind -ne 'Param' -or $significant[$index + 1].Kind -ne 'LParen' -or $significant[$index + 2].Kind -notin $nameKinds) {
+            continue
+        }
+        $name = $significant[$index + 2].Text.Trim("'", '"')
+        $location = [BylawSourceLocation]::new($File, $significant[$index].Extent.StartLineNumber, $significant[$index].Extent.StartColumnNumber, 'Param')
+        [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL5013', (
+                "PowerShell reads 'Param(' at the start of a block as a parameter declaration, so the file can't be parsed. " +
+                "To reference the Bylaw parameter, write Param $name without brackets, or (Param $name)."
+            ), $location)
     }
 }
 
