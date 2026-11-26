@@ -1,0 +1,82 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "key-vault-deny-purge-permission",
+  "properties": {
+    "displayName": "Key vault access policies should not grant purge",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Denies key vaults with an access policy that grants the purge permission on keys, secrets or certificates.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Key Vault"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "count": {
+              "field": "Microsoft.Keyvault/vaults/accessPolicies[*]",
+              "where": {
+                "anyOf": [
+                  {
+                    "count": {
+                      "field": "Microsoft.Keyvault/vaults/accessPolicies[*].permissions.keys[*]",
+                      "where": {
+                        "field": "Microsoft.Keyvault/vaults/accessPolicies[*].permissions.keys[*]",
+                        "equals": "purge"
+                      }
+                    },
+                    "greater": 0
+                  },
+                  {
+                    "count": {
+                      "field": "Microsoft.Keyvault/vaults/accessPolicies[*].permissions.secrets[*]",
+                      "where": {
+                        "field": "Microsoft.Keyvault/vaults/accessPolicies[*].permissions.secrets[*]",
+                        "equals": "purge"
+                      }
+                    },
+                    "greater": 0
+                  },
+                  {
+                    "count": {
+                      "field": "Microsoft.Keyvault/vaults/accessPolicies[*].permissions.certificates[*]",
+                      "where": {
+                        "field": "Microsoft.Keyvault/vaults/accessPolicies[*].permissions.certificates[*]",
+                        "equals": "purge"
+                      }
+                    },
+                    "greater": 0
+                  }
+                ]
+              }
+            },
+            "greater": 0
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

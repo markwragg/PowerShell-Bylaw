@@ -1,0 +1,72 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "compute-linux-vm-standards",
+  "properties": {
+    "displayName": "Linux virtual machines should follow the platform standards",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Audits Linux virtual machines that use password sign-in, an unapproved image publisher or a VM size outside the D series.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Compute"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      },
+      "approvedPublishers": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Approved image publishers"
+        },
+        "defaultValue": [
+          "Canonical",
+          "RedHat"
+        ]
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Compute/virtualMachines"
+          },
+          {
+            "field": "Microsoft.Compute/virtualMachines/storageProfile.osDisk.osType",
+            "equals": "Linux"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.Compute/virtualMachines/osProfile.linuxConfiguration.disablePasswordAuthentication",
+                "notEquals": true
+              },
+              {
+                "field": "Microsoft.Compute/virtualMachines/imagePublisher",
+                "notIn": "[parameters('approvedPublishers')]"
+              },
+              {
+                "field": "Microsoft.Compute/virtualMachines/hardwareProfile.vmSize",
+                "notLike": "Standard_D*"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

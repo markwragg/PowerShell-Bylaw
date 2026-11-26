@@ -1,0 +1,61 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "key-vault-require-recovery",
+  "properties": {
+    "displayName": "Key vaults should be recoverable",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Audits key vaults without purge protection, or that keep deleted vaults for less than the minimum number of days.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Key Vault"
+    },
+    "parameters": {
+      "minimumRetentionDays": {
+        "type": "Integer",
+        "metadata": {
+          "displayName": "Minimum retention in days"
+        },
+        "defaultValue": 90
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "anyOf": [
+              {
+                "field": "Microsoft.KeyVault/vaults/enablePurgeProtection",
+                "notEquals": true
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "less": "[parameters('minimumRetentionDays')]"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

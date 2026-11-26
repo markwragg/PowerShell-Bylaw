@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "general-allowed-locations",
+  "properties": {
+    "displayName": "Resources should be deployed to allowed locations",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "description": "Denies resources outside the allowed locations. Global resources are not affected.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "General"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      },
+      "allowedLocations": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed locations"
+        },
+        "defaultValue": [
+          "uksouth",
+          "ukwest"
+        ]
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "location",
+            "notEquals": "global"
+          },
+          {
+            "field": "location",
+            "notIn": "[parameters('allowedLocations')]"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

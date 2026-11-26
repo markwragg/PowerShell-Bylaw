@@ -1,0 +1,226 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-operators-if-present",
+  "properties": {
+    "displayName": "Golden: operators, lenient",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Golden"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.KeyVault/vaults"
+          },
+          {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/sku.name",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/sku.name",
+                    "notEquals": "premium"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/publicNetworkAccess",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/publicNetworkAccess",
+                    "notIn": [
+                      "Disabled",
+                      "SecuredByPerimeter"
+                    ]
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/networkAcls.defaultAction",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/networkAcls.defaultAction",
+                    "notLike": "D*"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "name",
+                    "exists": true
+                  },
+                  {
+                    "field": "name",
+                    "notMatchInsensitively": "kv-???-##"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "name",
+                    "exists": true
+                  },
+                  {
+                    "field": "name",
+                    "notMatch": "kv-???-##"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.Keyvault/vaults/networkAcls.bypass",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.Keyvault/vaults/networkAcls.bypass",
+                    "notContains": "AzureServices"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "tags",
+                    "exists": true
+                  },
+                  {
+                    "field": "tags",
+                    "notContainsKey": "owner"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "lessOrEquals": 6
+                  }
+                ]
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "less": 7
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "greaterOrEquals": 91
+                  }
+                ]
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greater": 90
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/sku.name",
+                "equals": "standard"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/publicNetworkAccess",
+                "in": [
+                  "Enabled"
+                ]
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/networkAcls.defaultAction",
+                "like": "A*"
+              },
+              {
+                "field": "name",
+                "matchInsensitively": "tmp-#"
+              },
+              {
+                "field": "name",
+                "match": "TMP-#"
+              },
+              {
+                "field": "Microsoft.Keyvault/vaults/networkAcls.bypass",
+                "contains": "None"
+              },
+              {
+                "field": "tags",
+                "containsKey": "temporary"
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "greater": 90
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "greaterOrEquals": 91
+                  }
+                ]
+              },
+              {
+                "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                "less": 7
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "exists": true
+                  },
+                  {
+                    "field": "Microsoft.KeyVault/vaults/softDeleteRetentionInDays",
+                    "lessOrEquals": 6
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

@@ -10,6 +10,8 @@
       Analyze    Run PSScriptAnalyzer over src, tests and build with the repository settings.
       Test       Run the Pester suite. With -CI, writes NUnit results and fails the process on failure.
       Package    Produce out/Bylaw: the manifest, data files and a single merged Bylaw.psm1.
+      UpdateGolden  Regenerate the expected JSON in examples/ and tests/Golden/ after an
+                 intentional output change. Review the diff before committing.
 
     Default: Analyze, Test.
 
@@ -19,7 +21,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Parameters are used inside nested functions via script scope; PSSA does not track that.')]
 [CmdletBinding()]
 param(
-    [ValidateSet('Bootstrap', 'Analyze', 'Test', 'Package')]
+    [ValidateSet('Bootstrap', 'Analyze', 'Test', 'Package', 'UpdateGolden')]
     [string[]] $Task = @('Analyze', 'Test'),
 
     # Pester paths to run. Defaults to the whole tests folder.
@@ -104,6 +106,17 @@ function Invoke-Test {
     Invoke-Pester -Configuration $configuration
 }
 
+function Invoke-UpdateGolden {
+    # Golden files are the expected output beside each source file, so building a golden folder
+    # into itself regenerates them. Review the diff before committing.
+    Import-Module -Name (Join-Path $sourceRoot 'Bylaw.psd1') -Force -ErrorAction Stop
+    foreach ($relative in 'examples', 'tests/Golden') {
+        $root = Join-Path $repoRoot $relative
+        $results = @(Build-Bylaw -Path $root -OutputPath $root -PassThru)
+        Write-Information "${relative}: $($results.Count) golden file(s)." -InformationAction Continue
+    }
+}
+
 function Invoke-Package {
     $manifest = Import-PowerShellDataFile -Path (Join-Path $sourceRoot 'Bylaw.psd1')
     $packageRoot = Join-Path $outRoot 'Bylaw'
@@ -152,5 +165,6 @@ foreach ($name in $Task) {
         'Analyze' { Invoke-Analyze }
         'Test' { Invoke-Test }
         'Package' { Invoke-Package }
+        'UpdateGolden' { Invoke-UpdateGolden }
     }
 }
