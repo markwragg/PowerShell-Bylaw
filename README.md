@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml/badge.svg)](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml)
 
-Bylaw is a PowerShell module for writing Azure Policy in a Pester-style language. You describe what a *compliant* resource looks like, and Bylaw compiles that into Azure Policy definition JSON, in the [Enterprise Policy as Code (EPAC)](https://github.com/Azure/enterprise-azure-policy-as-code) format.
+Bylaw is a PowerShell module for writing Azure Policy in a Pester-style language. You describe what a *compliant* resource looks like, and Bylaw compiles that into Azure Policy definition JSON, in the [Enterprise Policy as Code (EPAC)](https://github.com/Azure/enterprise-azure-policy-as-code) format or as plain definitions for other tools.
 
 ```powershell
 Resource 'Microsoft.Storage/storageAccounts' {
@@ -17,7 +17,8 @@ What it gives you over writing the JSON by hand:
 - **Desired state, not violation logic.** You write what must be true. Bylaw works out the `if` condition that finds resources breaking it, including the negations and the handling of missing properties.
 - **Short field names, checked at compile time.** `minimumTlsVersion` becomes `Microsoft.Storage/storageAccounts/minimumTlsVersion`. A misspelled alias fails the build, rather than producing a policy that silently never matches.
 - **Simple array conditions.** `Each` replaces hand-written `count` and `where` expressions.
-- **Less boilerplate.** Effect parameters and their metadata are generated.
+- **Less boilerplate.** Effect parameters and their metadata are generated, and role names become role definition IDs.
+- **Remediation checked against the rule.** `Modify` operations sit beside the requirements they fix, and the build warns when an operation changes a field no requirement checks.
 - **Deterministic output.** The same input always produces byte-identical files, so diffs show only real changes.
 
 Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes policy definition files.
@@ -27,7 +28,7 @@ Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes p
 
 ## Status
 
-Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. This release (Milestone 1) has the compiler core: the language below, alias validation, and the EPAC output format. The effects are `Audit`, `Deny` and `Disabled`. `Modify`, tag helpers and a plain JSON format are planned next, then a decompiler that turns existing policy JSON into Bylaw files.
+Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. It has the compiler core (the language below, alias validation, EPAC output) and the Milestone 2 additions: `Modify`, `AnyOf` and `AllOf`, the tag helpers, value conditions, and plain JSON output. The effects are `Audit`, `Deny`, `Disabled` and `Modify`. Next is a decompiler that turns existing policy JSON into Bylaw files. `AuditIfNotExists` and `DeployIfNotExists` come later.
 
 ## Install
 
@@ -227,7 +228,7 @@ What the compiler did:
 - Short field names became full aliases. `kind` and `type` are standard fields, so they stay as written.
 - `When` narrows the resources the policy applies to. It is not inverted.
 
-[examples/](examples/README.md) has eight more policies, each with the JSON it compiles to, including one that uses a PowerShell loop to generate its requirements.
+[examples/](examples/README.md) has eleven more policies, each with the JSON it compiles to, including tag inheritance with `Modify` and one that uses a PowerShell loop to generate its requirements.
 
 ## Writing policies
 
@@ -248,8 +249,12 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `Element` | The element itself, inside `Each` over an array of plain values. |
 | `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter. |
 | `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
-| `Must` | An assertion about the `Field` or `Element` piped into it. See the operators below. |
+| `Must` | An assertion about the `Field`, `Tag` or `Element` piped into it. See the operators below. |
 | `Effect` | `Audit`, `Deny` or `Disabled`, or `(Param Effect)`. |
+| `Modify -Role ... { }` | The `modify` effect, in place of `Effect`: what to change on a non-compliant resource. See [Modify](#modify). |
+| `... \| AddOrReplace v` | Inside `Modify`: sets the piped field or tag to `v`. |
+| `... \| Add v` | Inside `Modify`: sets the piped field or tag to `v` only if it has no value. |
+| `... \| Remove` | Inside `Modify`: removes the piped tag. Only tags can be removed. |
 | `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
 | `Arm '[...]'` | A raw ARM template expression, for anything else. |
 
@@ -342,14 +347,94 @@ Bylaw adds these checks only where they change the result. An empty string count
 
 The behaviour of each operator on a missing field isn't documented by Microsoft. Bylaw's rules come from measurements in a real subscription, where missing tags and missing properties behaved the same. [ADR-0004](docs/adr/0004-strict-missing-field-behaviour.md) has the full table and the measurement script.
 
+## Modify
+
+`Modify` changes resources instead of denying them: when they're created or updated, and through remediation tasks for existing ones. It takes the place of `Effect`. The `Require` blocks say what a compliant resource looks like, and the operations say how to make one compliant.
+
+This keeps a tag in step with the resource group, as the built-in "Inherit a tag from the resource group" policy does:
+
+```powershell
+Policy 'tags-inherit-from-resource-group' {
+
+    Properties @{
+        DisplayName = 'Inherit a tag from the resource group'
+        Category    = 'Tags'
+        Version     = '1.0.0'
+        Mode        = 'Indexed'
+    }
+
+    Parameter TagName -Type String
+
+    Resource * {
+        When {
+            ResourceGroupTag (Param TagName) | Must -Not -Be ''
+        }
+        Require 'The tag matches the resource group' {
+            Tag (Param TagName) | Must -Be (ResourceGroupTag (Param TagName))
+        }
+    }
+
+    Modify -Role 'Tag Contributor' {
+        Tag (Param TagName) | AddOrReplace (ResourceGroupTag (Param TagName))
+    }
+}
+```
+
+Its rule and `details` block:
+
+```json
+"policyRule": {
+  "if": {
+    "allOf": [
+      {
+        "value": "[resourceGroup().tags[parameters('tagName')]]",
+        "notEquals": ""
+      },
+      {
+        "field": "[concat('tags[', parameters('tagName'), ']')]",
+        "notEquals": "[resourceGroup().tags[parameters('tagName')]]"
+      }
+    ]
+  },
+  "then": {
+    "effect": "[parameters('effect')]",
+    "details": {
+      "roleDefinitionIds": [
+        "/providers/Microsoft.Authorization/roleDefinitions/4a9ae827-6dc8-4573-8ac7-8239d42aa03f"
+      ],
+      "operations": [
+        {
+          "operation": "addOrReplace",
+          "field": "[concat('tags[', parameters('tagName'), ']')]",
+          "value": "[resourceGroup().tags[parameters('tagName')]]"
+        }
+      ]
+    }
+  }
+}
+```
+
+To add the tag only where it is missing, and keep any value a resource already has, require `Tag (Param TagName) | Must -Exist` and use `Add` instead of `AddOrReplace`. Both forms are in [examples/tags/](examples/tags/).
+
+- **`-Role`** names the roles the assignment's managed identity needs, as built-in role names, GUIDs or full role definition IDs. See [Roles](#roles).
+- **`-ConflictEffect`** is `Audit`, `Deny` (Azure's default) or `Disabled`. When `Modify` changes an alias rather than a tag, Azure recommends `Audit`, so that requests using an API version where the property can't be modified aren't denied. Bylaw warns otherwise.
+- **`-Effect (Param Effect)`** makes the effect a parameter you declare, allowing `Modify` and `Disabled`. Without it, EPAC output gets a generated `effect` parameter with those two values.
+- **`-Condition (Arm '[...]')`** on an operation applies it only when the expression is true, for example `[greaterOrEquals(requestContext().apiVersion, '2019-04-01')]`. `field()`, `resourceGroup()` and `subscription()` aren't supported there.
+- **What can be changed:** tags, `identity.type` on virtual machines and scale sets, and aliases marked Modifiable in the alias snapshot. Only tags can be removed, and array elements (`[*]`) can't be changed. Anything else fails the build.
+- **Remediation that works:** the build warns when an operation changes a field that no `Require` checks, because a remediated resource would still be non-compliant. It also warns about tag operations in a policy whose `Mode` isn't `Indexed`.
+
+> [!NOTE]
+> An assignment of a Modify policy needs a managed identity with the roles in `-Role`, even if the assignment sets the effect to something else. Bylaw only writes the definition: create the identity and its role assignments when you assign it.
+
 ## Building
 
 ```powershell
-Build-Bylaw [[-Path] <string[]>] [[-OutputPath] <string>] [-Format Epac] [-PassThru]
-            [-Settings <string>] [-AliasCachePath <string>] [-AllowUnknownAlias]
-            [-ThrottleLimit <int>] [-WhatIf]
+Build-Bylaw [[-Path] <string[]>] [[-OutputPath] <string>] [-Format <Epac|PlainJson>] [-PassThru]
+            [-Settings <string>] [-AliasCachePath <string>] [-RoleCachePath <string>]
+            [-AllowUnknownAlias] [-ThrottleLimit <int>] [-WhatIf]
 ```
 
+- **Formats:** `Epac`, the default, writes EPAC policy definition files with a `$schema`, and generates what EPAC requires: an `effect` parameter for a literal effect, and parameter display names. EPAC also needs `Category` and `Version` in `Properties`. `PlainJson` writes `{ "name", "properties" }`, the layout Azure publishes built-in definitions in, for `New-AzPolicyDefinition`, the Azure CLI, Bicep or Terraform. It emits the policy as written: a literal effect stays literal, nothing is generated, and `Category` and `Version` are optional. The policy rule is the same in both.
 - **Output layout:** one file per policy, named after the policy, in a folder structure that mirrors the sources. Files whose content hasn't changed aren't rewritten.
 - **All or nothing:** every file is compiled and every error reported. If anything fails, nothing is written.
 - **No deletion:** Bylaw never deletes output. It warns about JSON files in the output folder that the build didn't produce, so you can remove policies you've deleted.
@@ -404,7 +489,7 @@ An optional settings file. Bylaw looks for it from `-Path` upwards, stopping at 
 ./build/build.ps1 -Task UpdateGolden   # regenerate the expected JSON after an intended output change
 ```
 
-The tests include golden files: [examples/](examples/) and [tests/Golden/](tests/Golden/) hold each policy source next to the exact JSON it must compile to.
+The tests include golden files: [examples/](examples/), [tests/Golden/](tests/Golden/) and [tests/GoldenPlainJson/](tests/GoldenPlainJson/) hold each policy source next to the exact JSON it must compile to. [tests/Golden/GoldenRoots.psd1](tests/Golden/GoldenRoots.psd1) lists the folders and the format each is built in.
 
 Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), and the original specification is [docs/SPEC.md](docs/SPEC.md).
 

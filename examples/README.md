@@ -6,7 +6,7 @@ Each `*.bylaw.ps1` file has the EPAC policy definition it compiles to beside it.
 Build-Bylaw ./examples -OutputPath ./out
 ```
 
-The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tests.ps1` checks that the build reproduces them byte for byte, and that they validate against the EPAC schema.
+The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tests.ps1` checks that the build reproduces them byte for byte, and that they validate against the EPAC schema. To get plain definitions for other tools instead, add `-Format PlainJson`.
 
 | Example | Shows |
 |---|---|
@@ -19,8 +19,11 @@ The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tes
 | [compute/linux-vm-standards](compute/linux-vm-standards.bylaw.ps1) | `When` to narrow the resources, `-BeIn` with a parameter, `-BeLike` |
 | [general/allowed-locations](general/allowed-locations.bylaw.ps1) | `Resource *` for every resource type, with `location` |
 | [general/require-tag](general/require-tag.bylaw.ps1) | `Resource *` with `-ContainKey` and a parameter value |
+| [tags/inherit-tag](tags/inherit-tag.bylaw.ps1) | `Modify` with `AddOrReplace`: keep a tag in step with the resource group, as the built-in policy does |
+| [tags/inherit-tag-if-missing](tags/inherit-tag-if-missing.bylaw.ps1) | `Modify` with `Add`: add the resource group's tag only where it is missing |
+| [storage/minimum-tls-modify](storage/minimum-tls-modify.bylaw.ps1) | `Modify` on an alias, with `-ConflictEffect Audit`, `-Condition` and an effect parameter |
 
-`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, and values from parameters and ARM expressions.
+`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, and every `Modify` operation and option. `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
 
 After an intended change to the compiler's output, regenerate the golden files and review the diff:
 
