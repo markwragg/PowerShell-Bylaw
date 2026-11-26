@@ -1,0 +1,31 @@
+{
+  "name": "plain-append",
+  "properties": {
+    "displayName": "Plain: storage accounts use HTTPS",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "field": "Microsoft.Storage/storageAccounts/supportsHttpsTrafficOnly",
+            "notEquals": true
+          }
+        ]
+      },
+      "then": {
+        "effect": "Append",
+        "details": [
+          {
+            "field": "Microsoft.Storage/storageAccounts/supportsHttpsTrafficOnly",
+            "value": true
+          }
+        ]
+      }
+    }
+  }
+}

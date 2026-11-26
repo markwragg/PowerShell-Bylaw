@@ -18,7 +18,7 @@ function Tag {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Tag')
-    $frame = Test-BylawParent -Keyword 'Tag' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify' -Location $location
+    $frame = Test-BylawParent -Keyword 'Tag' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Where', 'Modify', 'Append' -Location $location
     if ($null -eq $frame) {
         return
     }
@@ -33,7 +33,7 @@ function Tag {
         return
     }
 
-    $displayName = if ($tagName -is [BylawParamRef]) { "tags[$tagName]" } else { "tags['$($tagName.Value)']" }
+    $displayName = if ($tagName -isnot [BylawLiteral]) { "tags[$tagName]" } else { "tags['$($tagName.Value)']" }
     $field = [BylawFieldRef]::new($displayName)
     $field.Kind = [BylawFieldKind]::Tag
     $field.TagName = $tagName
@@ -87,6 +87,16 @@ function ConvertTo-BylawTagName {
     )
 
     if ($Name -is [BylawParamRef]) {
+        return $Name
+    }
+    if ($Name -is [BylawCurrent]) {
+        # A tag name from the member a value count is at, as in Tag (Current tagName) (ADR-0032).
+        if ($Name.Count.IsFieldCount()) {
+            Add-BylawDiagnostic -Severity Error -Code 'BYL1023' -Location $Location -Message (
+                "$Keyword ($Name) needs the member of a value count, which holds a tag name. In a field count, Current is an array element."
+            )
+            return $null
+        }
         return $Name
     }
     if ($Name -isnot [string] -or [string]::IsNullOrWhiteSpace($Name)) {

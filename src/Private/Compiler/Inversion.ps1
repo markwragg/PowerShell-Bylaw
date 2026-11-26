@@ -22,6 +22,9 @@
 # A value condition (ResourceGroupTag, Param or Arm piped into Must) is inverted like a field
 # condition, but never guarded: an expression has no missing state (ADR-0025).
 #
+# Count (ADR-0032) is a value condition on a number: inverted like one and never guarded. Its
+# -Where statements select what to count and are emitted as written.
+#
 # Run the alias resolution pass first: conditions use FieldRef.Resolved.
 
 function ConvertTo-BylawPolicyRule {
@@ -65,11 +68,91 @@ function ConvertTo-BylawPolicyRule {
         $conditions.Add($anyViolation)
     }
 
+    if ($Policy.Effect -is [BylawIfNotExists]) {
+        $Policy.Effect.ExistenceCondition = ConvertTo-BylawExistenceCondition -Effect $Policy.Effect
+    }
+
     $if = [BylawGroup]::new([BylawGroupKind]::AllOf, $conditions.ToArray())
     $if.Location = $scope.Location
     $rule = [BylawPolicyRule]::new((Optimize-BylawCondition -Condition $if), $Policy.Effect)
     $rule.Location = $Policy.Location
     $rule
+}
+
+function ConvertTo-BylawExistenceCondition {
+    # The existence condition of AuditIfNotExists or DeployIfNotExists: the Require blocks in their
+    # compliant form, combined with AND (ADR-0030). $null when there are none.
+    param([Parameter(Mandatory)] [BylawIfNotExists] $Effect)
+
+    $compliant = [System.Collections.Generic.List[object]]::new()
+    foreach ($requirement in $Effect.Requirements) {
+        $children = foreach ($child in $requirement.Children) {
+            ConvertTo-BylawCompliance -Node $child
+        }
+        $group = [BylawGroup]::new([BylawGroupKind]::AllOf, [object[]] @($children))
+        $group.Location = $requirement.Location
+        $group.Origin = $requirement
+        $compliant.Add($group)
+    }
+    if ($compliant.Count -eq 0) {
+        return $null
+    }
+    $all = [BylawGroup]::new([BylawGroupKind]::AllOf, $compliant.ToArray())
+    $all.Location = $Effect.Location
+    Optimize-BylawCondition -Condition $all
+}
+
+function ConvertTo-BylawCompliance {
+    # The compliant form of a Require child, for an existence condition (ADR-0030). The same
+    # missing-field rules as the violation form (ADR-0004), applied to the compliant condition:
+    #
+    #   strict  (default):  allOf[ exists:true,  P ]  if P is true on a missing field
+    #   lenient (-IfPresent): anyOf[ exists:false, P ]  if P is false on a missing field
+    #
+    # Each path[*] { P } holds when no element violates P: count(where: violation(P)) equals 0.
+    param([Parameter(Mandatory)] [BylawNode] $Node)
+
+    if ($Node -is [BylawConditionGroup]) {
+        $children = foreach ($child in $Node.Children) {
+            ConvertTo-BylawCompliance -Node $child
+        }
+        $group = [BylawGroup]::new($Node.Kind, [object[]] @($children))
+        $group.Location = $Node.Location
+        $group.Origin = $Node
+        return $group
+    }
+
+    if ($Node -is [BylawEach]) {
+        $elementViolations = foreach ($child in $Node.Children) {
+            ConvertTo-BylawViolation -Node $child -InEach $true
+        }
+        $where = [BylawGroup]::new([BylawGroupKind]::AnyOf, [object[]] @($elementViolations))
+        $where.Location = $Node.Location
+        $count = [BylawCountCondition]::new($Node.Field, $where, 'equals', [BylawLiteral]::new(0))
+        $count.Location = $Node.Location
+        $count.Origin = $Node
+        return $count
+    }
+
+    $assertion = [BylawAssertion] $Node
+    $operator, $value = Get-BylawAssertedOperator -Assertion $assertion -Invert $false
+    $condition = New-BylawAssertionCondition -Assertion $assertion -Operator $operator -Value $value
+
+    # As for the violation form: expressions, exists conditions and Element need no guard.
+    if ($null -ne $assertion.Subject -or $operator -eq 'exists' -or $assertion.Field.Kind -eq [BylawFieldKind]::Element) {
+        return $condition
+    }
+
+    $strict = $assertion.MissingMode -ne [BylawMissingMode]::IfPresent
+    $falseOnMissing = Test-BylawFalseOnMissing -Operator $operator -Value $value
+
+    if ($strict -and -not $falseOnMissing) {
+        return New-BylawGuardedCondition -Kind AllOf -Exists $true -Condition $condition
+    }
+    if (-not $strict -and $falseOnMissing) {
+        return New-BylawGuardedCondition -Kind AnyOf -Exists $false -Condition $condition
+    }
+    $condition
 }
 
 function ConvertTo-BylawApplicabilityCondition {
@@ -102,7 +185,10 @@ function New-BylawAssertionCondition {
         [AllowNull()] [BylawValue] $Value
     )
 
-    $condition = if ($null -ne $Assertion.Subject) {
+    $condition = if ($Assertion.Subject -is [BylawCount]) {
+        New-BylawCountCondition -Count $Assertion.Subject -Operator $Operator -Value $Value
+    }
+    elseif ($null -ne $Assertion.Subject) {
         [BylawValueCondition]::new($Assertion.Subject, $Operator, $Value)
     }
     else {
@@ -110,6 +196,31 @@ function New-BylawAssertionCondition {
     }
     $condition.Location = $Assertion.Location
     $condition.Origin = $Assertion
+    $condition
+}
+
+function New-BylawCountCondition {
+    # count { field | value, name?, where? } <operator> <value> (ADR-0032). The -Where statements
+    # select what to count, so they are emitted as written, like When.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory IR node only.')]
+    param(
+        [Parameter(Mandatory)] [BylawCount] $Count,
+        [Parameter(Mandatory)] [string] $Operator,
+        [AllowNull()] [BylawValue] $Value
+    )
+
+    $where = $null
+    if ($Count.Children.Count -gt 0) {
+        $selections = foreach ($child in $Count.Children) {
+            ConvertTo-BylawApplicabilityCondition -Node $child
+        }
+        $where = [BylawGroup]::new([BylawGroupKind]::AllOf, [object[]] @($selections))
+        $where.Location = $Count.Location
+    }
+    $condition = [BylawCountCondition]::new($Count.Field, $where, $Operator, $Value)
+    $condition.ValueSource = $Count.ValueSource
+    $condition.Name = $Count.Name
+    $condition.Location = $Count.Location
     $condition
 }
 

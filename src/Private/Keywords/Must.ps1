@@ -55,7 +55,7 @@ function Must {
 
     begin {
         $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Must')
-        $frame = Test-BylawParent -Keyword 'Must' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf' -Location $location
+        $frame = Test-BylawParent -Keyword 'Must' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Where' -Location $location
         $received = $false
         $bound = $PSBoundParameters
     }
@@ -102,7 +102,8 @@ function New-BylawAssertion {
         )
         return $null
     }
-    if (-not $isSubject) {
+    $isCount = $InputObject -is [BylawCount]
+    if (-not $isSubject -or $isCount) {
         $null = $Frame.PendingFields.Remove($InputObject)
     }
 
@@ -125,7 +126,20 @@ function New-BylawAssertion {
     if (-not $context) {
         $context = $Frame.Keyword
     }
-    if ($isSubject) {
+    if ($isCount) {
+        # A count is a number, and never missing (ADR-0032).
+        $countError = if ($script:BylawCountOperators -notcontains $dslOperator) {
+            "A count is a number, so it is tested with -Be, -BeIn, -BeGreaterThan, -BeGreaterOrEqual, -BeLessThan or -BeLessOrEqual, not -$dslOperator."
+        }
+        elseif ($ifPresent -or $strict) {
+            "-IfPresent and -Strict don't apply to a count: a count is never missing."
+        }
+        if ($countError) {
+            Add-BylawDiagnostic -Severity Error -Code 'BYL1051' -Location $Location -Message $countError
+            return $null
+        }
+    }
+    elseif ($isSubject) {
         $subjectError = if ($context -eq 'Each') {
             "Testing an expression ($InputObject) isn't supported inside Each yet. Test it in a separate Require or in When, outside the Each."
         }
@@ -145,6 +159,9 @@ function New-BylawAssertion {
     }
     elseif (($ifPresent -or $strict) -and $context -eq 'When') {
         '-IfPresent and -Strict are not valid in When, which is not inverted (ADR-0004).'
+    }
+    elseif (($ifPresent -or $strict) -and $context -eq 'Where') {
+        '-IfPresent and -Strict are not valid in Count -Where, which selects what to count and is emitted as written (ADR-0032).'
     }
     elseif ($ifPresent -and $context -eq 'Each') {
         '-IfPresent is not needed inside Each: element fields are already lenient. Use -Strict to make a missing element field a violation.'

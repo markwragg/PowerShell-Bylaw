@@ -16,9 +16,10 @@ What it gives you over writing the JSON by hand:
 
 - **Desired state, not violation logic.** You write what must be true. Bylaw works out the `if` condition that finds resources breaking it, including the negations and the handling of missing properties.
 - **Short field names, checked at compile time.** `minimumTlsVersion` becomes `Microsoft.Storage/storageAccounts/minimumTlsVersion`. A misspelled alias fails the build, rather than producing a policy that silently never matches.
-- **Simple array conditions.** `Each` replaces hand-written `count` and `where` expressions.
+- **Simple array conditions.** `Each` replaces hand-written `count` and `where` expressions, and `Count` handles the rest.
+- **Related resources written the same way.** For `AuditIfNotExists` and `DeployIfNotExists`, you describe the related resource's compliant state with `Require`, and its field names are checked against its own type.
 - **Less boilerplate.** Effect parameters and their metadata are generated, and role names become role definition IDs.
-- **Remediation checked against the rule.** `Modify` operations sit beside the requirements they fix, and the build warns when an operation changes a field no requirement checks.
+- **Remediation checked against the rule.** `Modify` and `Append` operations sit beside the requirements they fix, and the build warns when an operation changes a field no requirement checks. Deployment templates are checked against the parameters passed to them.
 - **Deterministic output.** The same input always produces byte-identical files, so diffs show only real changes.
 
 Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes policy definition files.
@@ -28,7 +29,7 @@ Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes p
 
 ## Status
 
-Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. It has the compiler core (the language below, alias validation, EPAC output) and the Milestone 2 additions: `Modify`, `AnyOf` and `AllOf`, the tag helpers, value conditions, and plain JSON output. The effects are `Audit`, `Deny`, `Disabled` and `Modify`. Next is a decompiler that turns existing policy JSON into Bylaw files. `AuditIfNotExists` and `DeployIfNotExists` come later.
+Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. It has the compiler core (the language below, alias validation, EPAC and plain JSON output) and covers every Azure Policy effect: `Audit`, `Deny`, `Disabled`, `Modify`, `Append`, `DenyAction`, `Manual`, `AuditIfNotExists` and `DeployIfNotExists`, with `Count` for field and value counts. Next are initiatives, then a decompiler that turns existing policy JSON into Bylaw files.
 
 ## Install
 
@@ -228,7 +229,7 @@ What the compiler did:
 - Short field names became full aliases. `kind` and `type` are standard fields, so they stay as written.
 - `When` narrows the resources the policy applies to. It is not inverted.
 
-[examples/](examples/README.md) has eleven more policies, each with the JSON it compiles to, including tag inheritance with `Modify` and one that uses a PowerShell loop to generate its requirements.
+[examples/](examples/README.md) has eighteen more policies, each with the JSON it compiles to: tag inheritance with `Modify`, every other effect, counts, and one that uses a PowerShell loop to generate its requirements.
 
 ## Writing policies
 
@@ -236,7 +237,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 
 | Keyword | Purpose |
 |---|---|
-| `Policy 'name' { }` | One policy definition. The name becomes the definition's `name` and its file name. |
+| `Policy 'name' { }` | One policy definition. The name becomes the definition's `name` and its file name, so renaming it creates a new definition. Any name Azure accepts that is also a safe file name works, such as `Deny-Storage-minTLS` (ADR-0010); lowercase with hyphens is the suggested style for new policies. Names are unique across a build, ignoring case. |
 | `Properties @{ }` | `DisplayName`, `Description`, `Category`, `Version`, `Mode`, `Preview`, `Deprecated`, `Metadata`. EPAC output needs `Category` and `Version`. `Mode` is `All` (the default) or `Indexed`. Unknown keys fail the build. |
 | `Parameter Name` | A policy parameter, with `-Type`, `-AllowedValues`, `-Default`, `-DisplayName`, `-Description`. `AllowedLocations` is emitted as `allowedLocations`. |
 | `Resource 'type' { }` | The resource type the rule applies to, and the type short field names resolve against. `Resource *` applies to every type; use standard fields such as `location`, or full aliases. |
@@ -246,15 +247,23 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `AnyOf { }` | Alternatives: holds when any statement inside it holds. Works in `When`, `Require` and `Each`. |
 | `AllOf { }` | Inside `AnyOf`, one alternative made of several statements that must all hold. |
 | `Field name` | A field: a short name, a standard field (`name`, `type`, `location`, `tags`, ...), or a full alias. `-AllowUnknownAlias` accepts an alias missing from the snapshot. |
-| `Element` | The element itself, inside `Each` over an array of plain values. |
-| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter. |
+| `Element` | The element itself, inside `Each` over an array of plain values, or in a field count's `-Where`. |
+| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter, and `Tag (Current name)` from a value count. |
 | `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
-| `Must` | An assertion about the `Field`, `Tag` or `Element` piped into it. See the operators below. |
-| `Effect` | `Audit`, `Deny` or `Disabled`, or `(Param Effect)`. |
-| `Modify -Role ... { }` | The `modify` effect, in place of `Effect`: what to change on a non-compliant resource. See [Modify](#modify). |
+| `Count path[*]`, `Count -Value list` | The number of array elements, or list members, that match `-Where`, piped to `Must`. See [Counts](#counts). |
+| `Current [name]` | Inside `Count -Where`: the element or member being counted. |
+| `Must` | An assertion about the `Field`, `Tag`, `Element` or `Count` piped into it. See the operators below. |
+| `Effect` | `Audit`, `Deny` or `Disabled`, or `(Param Effect)`. The other effects have their own keywords, in place of `Effect`. |
+| `Modify -Role ... { }` | The `modify` effect: what to change on a non-compliant resource. See [Modify](#modify). |
 | `... \| AddOrReplace v` | Inside `Modify`: sets the piped field or tag to `v`. |
-| `... \| Add v` | Inside `Modify`: sets the piped field or tag to `v` only if it has no value. |
+| `... \| Add v` | Inside `Modify`: sets the piped field or tag to `v` only if it has no value. Inside `Append`: adds `v` to the request. |
 | `... \| Remove` | Inside `Modify`: removes the piped tag. Only tags can be removed. |
+| `Append { }` | The `append` effect: values to add to a create or update request. See [Append, DenyAction and Manual](#append-denyaction-and-manual). |
+| `DenyAction Delete` | The `denyAction` effect: blocks deleting matching resources. |
+| `Manual` | The `manual` effect: owners attest compliance. |
+| `AuditIfNotExists -Type ... { }` | The `auditIfNotExists` effect: audits a resource with no related resource in the compliant state. See [Related resources](#related-resources-auditifnotexists-and-deployifnotexists). |
+| `DeployIfNotExists -Type ... -Role ... { }` | The `deployIfNotExists` effect: the same, and deploys a template to fix it. |
+| `Deployment` | Inside `DeployIfNotExists`: the template to deploy, and the values passed to it. |
 | `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
 | `Arm '[...]'` | A raw ARM template expression, for anything else. |
 
@@ -315,7 +324,7 @@ Each `Must` takes one operator. The violation column is what Bylaw emits: the co
 
 `-Match` is case-insensitive, like PowerShell's. `-ContainText` tests text, unlike Pester's `-Contain`, which tests membership of a collection. Values can be literals, `(Param Name)`, `(ResourceGroupTag name)` or `(Arm '[...]')`.
 
-`Must` can also test an expression instead of a field: pipe `ResourceGroupTag`, `Param` or `Arm` into it. For example, `When { ResourceGroupTag CostCenter | Must -Not -Be '' }` applies a policy only to resource groups that have the tag. An expression is never missing, so `-IfPresent`, `-Strict` and `-Exist` don't apply to it, and it can't be used inside `Each` yet.
+`Must` can also test an expression instead of a field: pipe `ResourceGroupTag`, `Param` or `Arm` into it. For example, `When { ResourceGroupTag CostCenter | Must -Not -Be '' }` applies a policy only to resource groups that have the tag. An expression is never missing, so `-IfPresent`, `-Strict` and `-Exist` don't apply to it, and it can't be used inside `Each` yet (a `Count` can).
 
 ## Missing fields
 
@@ -326,7 +335,9 @@ A resource often doesn't set the property a requirement checks. Bylaw fails clos
 | `Require` | a violation | `Must -IfPresent` makes it compliant |
 | A field inside `Each` | compliant | `Must -Strict` makes it a violation |
 | `When` | not treated specially; operators are emitted as written | |
-| The array of an `Each` | compliant: a missing or empty array has no elements to break the condition | add `Field path \| Must -Exist` to require it |
+| The array of an `Each` | compliant: a missing or empty array has no elements to break the condition | add `Field path \| Must -Exist` to require it, or `Count path[*] \| Must -BeGreaterThan 0` |
+| An existence condition (`AuditIfNotExists`, `DeployIfNotExists`) | a related resource without the field doesn't count | `Must -IfPresent`, as in `Require` |
+| `Count -Where` | not treated specially; emitted as written, like `When` | |
 
 Some operators already give the right answer on a missing field, and others don't. `notEquals` finds a missing value, so `Must -Be 'Disabled'` needs nothing extra. `equals` doesn't, so for `Must -Not -Be 'X'` Bylaw adds an `exists` check:
 
@@ -346,6 +357,38 @@ Some operators already give the right answer on a missing field, and others don'
 Bylaw adds these checks only where they change the result. An empty string counts as present. To require a non-empty value, add `Must -Not -Be ''`.
 
 The behaviour of each operator on a missing field isn't documented by Microsoft. Bylaw's rules come from measurements in a real subscription, where missing tags and missing properties behaved the same. [ADR-0004](docs/adr/0004-strict-missing-field-behaviour.md) has the full table and the measurement script.
+
+## Counts
+
+`Each` says that every element of an array meets a condition. `Count` says how many do, and is tested with `Must` like any number: `-Be`, `-BeIn` and the four comparisons.
+
+```powershell
+Require 'At least one IP rule' {
+    Count networkAcls.ipRules[*] | Must -BeGreaterThan 0
+}
+
+Require 'Few rules allow inbound traffic' {
+    Count securityRules[*] -Where {
+        Field direction | Must -Be 'Inbound'
+        Field access | Must -Be 'Allow'
+    } | Must -BeLessOrEqual 5
+}
+```
+
+- **`-Where` selects what to count.** It is emitted as written, like `When`: it isn't inverted and gets no missing-field checks. Field names are relative to the element, `Element` is the element itself, and `AnyOf`, `AllOf` and nested counts work inside. Without `-Where`, every element is counted.
+- **A value count** counts the members of a list: a literal array, `Param` or `Arm`. `Current` is the member being counted, and `-Name` gives it a name, which nested counts need:
+
+  ```powershell
+  Require 'Every mandatory tag is set' {
+      Count -Value (Param MandatoryTags) -Name tagName -Where {
+          Tag (Current tagName) | Must -Exist
+      } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+  }
+  ```
+
+- **In `Require`**, the comparison is inverted like any other: `-BeGreaterThan 0` emits `lessOrEquals 0`. A count is never missing, so it gets no guard.
+- **`Each path[*] { P }`** is the same as `Count path[*] -Where { <violation of P> } | Must -Be 0`, and stays the simple way to say "every element".
+- Azure allows at most 5 field counts per array, 10 value counts per rule, and 100 iterations over literal lists. The build checks all three.
 
 ## Modify
 
@@ -426,6 +469,73 @@ To add the tag only where it is missing, and keep any value a resource already h
 > [!NOTE]
 > An assignment of a Modify policy needs a managed identity with the roles in `-Role`, even if the assignment sets the effect to `Audit`. Bylaw only writes the definition: create the identity and its role assignments when you assign it.
 
+## Append, DenyAction and Manual
+
+Each of these takes the place of `Effect`, and takes `-Effect (Param Effect)` to make the effect a parameter that may also allow `Disabled`.
+
+```powershell
+# Adds values to a create or update request. With a [*] field, it adds an array element.
+Append {
+    Field supportsHttpsTrafficOnly | Add $true
+    Field 'networkAcls.ipRules[*]' | Add ([ordered]@{ value = '40.40.40.0/24'; action = 'Allow' })
+}
+
+# Blocks deleting the resources that match Resource and When. -CascadeBehavior Deny also blocks
+# deleting their resource group, and needs Mode = 'Indexed'.
+DenyAction Delete -CascadeBehavior Deny
+
+# Resource owners attest compliance. -DefaultState is Unknown (the default), Compliant or NonCompliant.
+Manual -DefaultState NonCompliant
+```
+
+- **`Append`** warns when it adds a tag (Azure recommends `Modify` for tags), and when it adds a field that no `Require` checks. Its `details` are an array, as Azure requires, which the EPAC schema doesn't allow, so EPAC output warns (BYL4010). EPAC deploys it.
+- **`DenyAction` and `Manual`** usually have only `When` conditions: they apply to every resource that matches. A `Resource` type DenyAction never applies to, such as locks, is a warning.
+
+## Related resources: AuditIfNotExists and DeployIfNotExists
+
+These effects check a *related* resource: a virtual machine's extensions, or a key vault's diagnostic settings. `-Type` is the related resource's type, and the `Require` blocks inside describe it: what a related resource must look like for the evaluated resource to be compliant. Their field names resolve against `-Type`.
+
+```powershell
+Resource 'Microsoft.Compute/virtualMachines' {
+    When {
+        Field storageProfile.osDisk.osType | Must -Be 'Windows'
+    }
+}
+
+AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
+    Require 'The antimalware extension is installed' {
+        Field publisher | Must -Be 'Microsoft.Azure.Security'
+        Field 'Microsoft.Compute/virtualMachines/extensions/type' | Must -Be 'IaaSAntimalware'
+    }
+}
+```
+
+- **The existence condition is emitted as written,** because Azure expects the compliant form there, not the violation. You don't need to think about it: `Require` describes the compliant state everywhere.
+- **Missing fields still fail.** A related resource without the field doesn't count, so `Must -Not -Be 'x'` emits `allOf[exists: true, notEquals 'x']`. `-IfPresent` lets a missing field pass.
+- **Reserved names** such as `name` and `type` are the related resource's own. A property with the same name as a reserved field, like an extension's `type`, needs its full alias, as above.
+- **`-Name`, `-ResourceGroupName`, `-ExistenceScope` and `-EvaluationDelay`** narrow which related resources are checked, and when. When `-Type` is the `Resource` type, `-Name` must be `(Arm "[field('name')]")`.
+- `Require` blocks in `Resource` still work, and are inverted as usual: a resource that meets them is compliant whatever its related resources are.
+
+`DeployIfNotExists` also deploys an ARM template to fix a non-compliant resource. It needs `-Role`, like `Modify`, and a `Deployment`:
+
+```powershell
+DeployIfNotExists -Type 'Microsoft.Insights/diagnosticSettings' -Role 'Contributor' -Effect (Param Effect) {
+    Require 'A diagnostic setting sends logs to the workspace' {
+        Field workspaceId | Must -Be (Param WorkspaceId)
+    }
+
+    Deployment -TemplateFile ./templates/diagnostic-settings.json -Parameters ([ordered]@{
+            vaultName   = Arm "[field('name')]"
+            workspaceId = Param WorkspaceId
+        })
+}
+```
+
+- **`-TemplateFile`** is an ARM template JSON file, relative to the `.bylaw.ps1` file. `-Template` takes the template as a hashtable instead. Bicep isn't supported yet: build it to JSON first.
+- **`-Parameters` is checked against the template:** every name must be a template parameter, and every template parameter without a default must be given. A misspelled parameter fails the build, not the remediation task.
+- **`-Scope Subscription`** deploys at subscription scope, and needs `-Location`. The deployment mode is always incremental.
+- The effect parameter may allow `DeployIfNotExists`, `AuditIfNotExists` and `Disabled`. Without `-Effect`, EPAC output gets a generated parameter allowing `DeployIfNotExists` and `Disabled`.
+
 ## Building
 
 ```powershell
@@ -437,13 +547,13 @@ Build-Bylaw [[-Path] <string[]>] [[-OutputPath] <string>] [-Format <Epac|PlainJs
 - **Formats:** `Epac`, the default, writes EPAC policy definition files with a `$schema`, and generates what EPAC requires: an `effect` parameter for a literal effect, and parameter display names. EPAC also needs `Category` and `Version` in `Properties`. `PlainJson` writes `{ "name", "properties" }`, the layout Azure publishes built-in definitions in, for `New-AzPolicyDefinition`, the Azure CLI, Bicep or Terraform. It emits the policy as written: a literal effect stays literal, nothing is generated, and `Category` and `Version` are optional. The policy rule is the same in both.
 - **Output layout:** one file per policy, named after the policy, in a folder structure that mirrors the sources. Files whose content hasn't changed aren't rewritten.
 - **All or nothing:** every file is compiled and every error reported. If anything fails, nothing is written.
-- **No deletion:** Bylaw never deletes output. It warns about JSON files in the output folder that the build didn't produce, so you can remove policies you've deleted.
+- **No deletion:** Bylaw never deletes output. It warns about JSON files in the output folder that the build didn't produce, so you can remove policies you've deleted. Deployment template files are inputs, so they're never reported.
 - **Isolation:** each file is compiled in a fresh runspace, so variables and functions can't leak between files. Several files compile at once; `-ThrottleLimit` sets how many, and `-ThrottleLimit 1` compiles one at a time. Files that change environment variables or other process-wide state should be built with `-ThrottleLimit 1`.
 - **Unique names:** policy names must be unique across a build, ignoring case.
 
 ### Aliases
 
-Bylaw checks field names against an alias snapshot, offline. The bundled snapshot only covers the resource types used by the tests and examples (storage accounts, key vaults, virtual machines and network security groups). For anything else, refresh the snapshot from Azure. This needs `Az.Resources` and a signed-in account, and only reads alias metadata:
+Bylaw checks field names against an alias snapshot, offline. The bundled snapshot only covers the resource types used by the tests and examples (storage accounts, key vaults, virtual machines and their extensions, network security groups, and diagnostic settings). For anything else, refresh the snapshot from Azure. This needs `Az.Resources` and a signed-in account, and only reads alias metadata:
 
 ```powershell
 Connect-AzAccount
@@ -456,7 +566,7 @@ The snapshot used is the first of: `-AliasCachePath`, `aliasCache` in `bylaw.jso
 
 ### Roles
 
-`Modify -Role` takes built-in role names, which Bylaw turns into role definition IDs using a role map, offline. The bundled map only has a starter set of common roles: Owner, Contributor, Reader, Tag Contributor, and the Storage Account, Network, Virtual Machine and Key Vault Contributor roles. For the full list of built-in roles, refresh it from Azure, which only reads role definitions:
+`Modify -Role` and `DeployIfNotExists -Role` take built-in role names, which Bylaw turns into role definition IDs using a role map, offline. The bundled map only has a starter set of common roles: Owner, Contributor, Reader, Tag Contributor, and the Storage Account, Network, Virtual Machine and Key Vault Contributor roles. For the full list of built-in roles, refresh it from Azure, which only reads role definitions:
 
 ```powershell
 Update-BylawRoleCache

@@ -70,3 +70,85 @@ Policy 'plain-modify' {
         Tag CostCenter | AddOrReplace (ResourceGroupTag CostCenter)
     }
 }
+
+# DenyAction and Manual keep their literal effects.
+Policy 'plain-denyaction' {
+
+    Properties @{
+        DisplayName = 'Plain: protected storage accounts cannot be deleted'
+        Mode        = 'Indexed'
+    }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        When {
+            Tag protected | Must -Be 'true'
+        }
+    }
+
+    DenyAction Delete -CascadeBehavior Allow
+}
+
+Policy 'plain-manual' {
+
+    Properties @{ DisplayName = 'Plain: storage accounts are reviewed by hand' }
+
+    Resource 'Microsoft.Storage/storageAccounts' { }
+
+    Manual
+}
+
+Policy 'plain-append' {
+
+    Properties @{ DisplayName = 'Plain: storage accounts use HTTPS'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        Require 'HTTPS only' {
+            Field supportsHttpsTrafficOnly | Must -Be $true
+        }
+    }
+
+    Append {
+        Field supportsHttpsTrafficOnly | Add $true
+    }
+}
+
+Policy 'plain-auditifnotexists' {
+
+    Properties @{ DisplayName = 'Plain: virtual machines have an extension from Microsoft'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Compute/virtualMachines' { }
+
+    AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
+        Require 'The publisher is Microsoft' {
+            Field publisher | Must -BeLike 'Microsoft.*'
+        }
+    }
+}
+
+Policy 'plain-deployifnotexists' {
+
+    Properties @{ DisplayName = 'Plain: virtual machines get an extension'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Compute/virtualMachines' { }
+
+    DeployIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' -Role 'Virtual Machine Contributor' {
+        Deployment -Template ([ordered]@{
+                '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'
+                contentVersion = '1.0.0.0'
+                resources      = @()
+            })
+    }
+}
+
+Policy 'plain-count' {
+
+    Properties @{ DisplayName = 'Plain: storage firewalls have at least one IP rule'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        Require 'At least one IP rule' {
+            Count networkAcls.ipRules[*] | Must -BeGreaterThan 0
+        }
+    }
+
+    Effect Audit
+}

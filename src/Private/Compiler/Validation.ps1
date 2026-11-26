@@ -5,11 +5,43 @@
 
 $script:BylawLaterEffects = [ordered]@{
     Modify            = "Modify has its own block, which takes the place of Effect: Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' } (ADR-0024)."
-    Append            = 'Append is not planned; use Modify (Milestone 2), which Azure recommends over Append.'
-    AuditIfNotExists  = 'AuditIfNotExists is planned for a later milestone.'
-    DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
-    DenyAction        = 'DenyAction is not supported in language version 1.0.'
-    Manual            = 'Manual is not supported in language version 1.0.'
+    Append            = 'Append has its own block, which takes the place of Effect: Append { Field supportsHttpsTrafficOnly | Add $true } (ADR-0029).'
+    AuditIfNotExists  = "AuditIfNotExists has its own block, which takes the place of Effect: AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' { Require ... } (ADR-0030)."
+    DeployIfNotExists = "DeployIfNotExists has its own block, which takes the place of Effect: DeployIfNotExists -Type '...' -Role 'Contributor' { Require ...; Deployment -TemplateFile ./template.json } (ADR-0030, ADR-0031)."
+    DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0028).'
+    Manual            = 'Manual has its own keyword, which takes the place of Effect: Manual -DefaultState Unknown (ADR-0028).'
+}
+
+# Azure Resource Manager rejects these in a definition name; '"' and '|' aren't safe in file names.
+$script:BylawNameInvalidCharacters = [char[]] '<>*%&:\?.+/"|'
+$script:BylawReservedFileNames = @('CON', 'PRN', 'AUX', 'NUL') + @(1..9 | ForEach-Object { "COM$_"; "LPT$_" })
+
+function Get-BylawNameProblem {
+    # Returns why a definition name is invalid (ADR-0010), or $null when it is valid.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name
+    )
+
+    if ($Name.Length -lt 1 -or $Name.Length -gt 64) {
+        return "is $($Name.Length) characters; names must be 1 to 64 characters"
+    }
+    $invalid = @($Name.ToCharArray() | Where-Object { $script:BylawNameInvalidCharacters -contains $_ } | Select-Object -Unique)
+    if ($invalid.Count -gt 0) {
+        $list = ($invalid | ForEach-Object { "'$_'" }) -join ', '
+        return "contains $list. Names can't contain any of < > * % & : \ ? . + / "" |"
+    }
+    if ($Name -match '[\x00-\x1F\x7F]') {
+        return 'contains a control character'
+    }
+    if ($Name -ne $Name.Trim(' ')) {
+        return 'starts or ends with a space'
+    }
+    if ($script:BylawReservedFileNames -contains $Name) {
+        return 'is a reserved file name on Windows'
+    }
+    return $null
 }
 
 function Invoke-BylawValidation {
@@ -28,9 +60,9 @@ function Invoke-BylawValidation {
     }
 
     # Name (ADR-0010).
-    $name = $Policy.Name
-    if ($name.Length -lt 3 -or $name.Length -gt 64 -or $name -cnotmatch '^[a-z0-9]+(-[a-z0-9]+)*$') {
-        & $add 'BYL3001' "Policy name '$name' must be 3 to 64 characters of lowercase letters, digits and single hyphens, e.g. 'storage-deny-public-network-access' (ADR-0010)." $Policy.Location
+    $nameProblem = Get-BylawNameProblem -Name $Policy.Name
+    if ($nameProblem) {
+        & $add 'BYL3001' "Policy name '$($Policy.Name)' $nameProblem (ADR-0010)." $Policy.Location
     }
 
     Test-BylawPolicyProperty -Policy $Policy -Add $add
@@ -39,7 +71,9 @@ function Invoke-BylawValidation {
 
     $scope = $Policy.Resource
     $assertions = if ($null -ne $scope) { @(Get-BylawAssertion -Scope $scope) } else { @() }
-    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions $assertions
+    # Assertions in an existence condition describe the related resource (ADR-0030).
+    $relatedAssertions = if ($Policy.Effect -is [BylawIfNotExists]) { @(Get-BylawAssertion -Requirements $Policy.Effect.Requirements) } else { @() }
+    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions (@($assertions) + @($relatedAssertions))
     foreach ($parameter in $Policy.Parameters) {
         if (-not $used.Contains($parameter.Name)) {
             & $add 'BYL3029' "Parameter '$($parameter.Name)' is declared but never used." $parameter.Location ([BylawSeverity]::Warning)
@@ -47,27 +81,40 @@ function Invoke-BylawValidation {
     }
 
     if ($null -ne $scope) {
-        foreach ($assertion in $assertions) {
+        foreach ($assertion in @($assertions) + @($relatedAssertions)) {
             Test-BylawAssertionValue -Assertion $assertion -Policy $Policy -Add $add
             Test-BylawTagParameter -Assertion $assertion -Policy $Policy -Add $add
+        }
+        if ($Policy.Effect -is [BylawIfNotExists]) {
+            Test-BylawIfNotExistsEffect -Effect $Policy.Effect -Policy $Policy -Add $add
         }
         if ($Policy.Effect -is [BylawModify]) {
             Test-BylawModify -Modify $Policy.Effect -Policy $Policy -Snapshot $Snapshot -Add $add
         }
+        if ($Policy.Effect -is [BylawAppend]) {
+            Test-BylawAppend -Append $Policy.Effect -Policy $Policy -Add $add
+        }
+        if ($Policy.Effect -is [BylawDenyAction]) {
+            Test-BylawDenyAction -DenyAction $Policy.Effect -Policy $Policy -Add $add
+        }
 
-        if ($scope.Requirements.Count -eq 0) {
+        # DenyAction and Manual apply to every resource that matches the type and When: those are
+        # the resources that can't be deleted, or whose compliance is attested (ADR-0028). For
+        # AuditIfNotExists and DeployIfNotExists, the existence condition decides (ADR-0030).
+        $selectsOnly = $Policy.Effect -is [BylawDenyAction] -or $Policy.Effect -is [BylawManual] -or $Policy.Effect -is [BylawIfNotExists]
+        if ($scope.Requirements.Count -eq 0 -and -not $selectsOnly) {
             $message = if ($scope.IsAnyType() -and $scope.When.Count -eq 0) {
                 $null
             }
             else {
-                "Policy '$name' has no Require block, so every resource that matches the type and When conditions is non-compliant."
+                "Policy '$($Policy.Name)' has no Require block, so every resource that matches the type and When conditions is non-compliant."
             }
             if ($message) {
                 & $add 'BYL3041' $message $scope.Location ([BylawSeverity]::Warning)
             }
         }
         if ($scope.IsAnyType() -and $scope.When.Count -eq 0 -and $scope.Requirements.Count -eq 0) {
-            & $add 'BYL3042' "Policy '$name' has no conditions at all: Resource * with no When or Require would match every resource." $scope.Location
+            & $add 'BYL3042' "Policy '$($Policy.Name)' has no conditions at all: Resource * with no When or Require would match every resource." $scope.Location
         }
 
         $mode = if ($Policy.Properties -and $Policy.Properties.Mode) { $Policy.Properties.Mode } else { 'All' }
@@ -174,10 +221,10 @@ function Test-BylawEffect {
         return
     }
     $value = $effect.Value
-    $isModify = $effect -is [BylawModify]
+    $keyword = Get-BylawEffectKeyword -Effect $effect
     if ($value -is [BylawLiteral]) {
-        # A Modify block's literal effect is always Modify.
-        if (-not $isModify) {
+        # The literal effect of a keyword in place of Effect is always the keyword's own.
+        if ($keyword -eq 'Effect') {
             Test-BylawEffectName -Name ([string] $value.Value) -Location $effect.Location -Add $Add
         }
         return
@@ -186,7 +233,11 @@ function Test-BylawEffect {
         # An Arm expression: can't be checked at compile time.
         return
     }
-    $example = if ($isModify) { 'Modify, Audit, Disabled -Default Modify' } else { 'Audit, Deny, Disabled -Default Deny' }
+    $allowedEffects = Get-BylawAllowedEffect -Effect $effect
+    $example = "$($allowedEffects -join ', ') -Default $($allowedEffects[0])"
+    if ($keyword -eq 'Effect') {
+        $example = 'Audit, Deny, Disabled -Default Deny'
+    }
     $parameter = $Policy.FindParameter($value.Name)
     if ($null -eq $parameter) {
         & $Add 'BYL3020' "Effect uses parameter '$($value.Name)', which is not declared. Add: Parameter $($value.Name) -AllowedValues $example." $value.Location
@@ -200,31 +251,62 @@ function Test-BylawEffect {
         return
     }
     foreach ($allowed in $parameter.AllowedValues) {
-        if ($isModify) {
-            Test-BylawModifyEffectName -Name ([string] $allowed) -Parameter $parameter -Add $Add
+        if ($keyword -eq 'Effect') {
+            Test-BylawEffectName -Name ([string] $allowed) -Location $parameter.Location -Add $Add -Code 'BYL3033' -Context "Allowed value of effect parameter '$($parameter.Name)'"
         }
         else {
-            Test-BylawEffectName -Name ([string] $allowed) -Location $parameter.Location -Add $Add -Code 'BYL3033' -Context "Allowed value of effect parameter '$($parameter.Name)'"
+            Test-BylawKeywordEffectName -Name ([string] $allowed) -Keyword $keyword -Allowed $allowedEffects -Parameter $parameter -Add $Add
         }
     }
 }
 
-function Test-BylawModifyEffectName {
-    # An allowed value of a Modify block's effect parameter: Modify, Audit or Disabled (ADR-0024).
+# Learn: DenyAction never applies to these resource types.
+$script:BylawDenyActionExemptTypes = @(
+    'Microsoft.Authorization/policyAssignments'
+    'Microsoft.Authorization/denyAssignments'
+    'Microsoft.Blueprint/blueprintAssignments'
+    'Microsoft.Resources/deploymentStacks'
+    'Microsoft.Resources/subscriptions'
+    'Microsoft.Authorization/locks'
+)
+
+function Test-BylawDenyAction {
+    # -CascadeBehavior needs Mode Indexed (BYL3073); exempt resource types (BYL3074) (ADR-0028).
+    param(
+        [Parameter(Mandatory)] [BylawDenyAction] $DenyAction,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $mode = if ($Policy.Properties -and $Policy.Properties.Mode) { $Policy.Properties.Mode } else { 'All' }
+    if ($DenyAction.CascadeBehavior -and $mode -ne 'Indexed') {
+        & $Add 'BYL3073' "DenyAction -CascadeBehavior is only supported with Mode = 'Indexed' (Mode is $mode). Add Mode = 'Indexed' to Properties, or remove -CascadeBehavior." $DenyAction.Location
+    }
+    $type = $Policy.Resource.Type
+    if ($script:BylawDenyActionExemptTypes -contains $type) {
+        & $Add 'BYL3074' "DenyAction never applies to $type, so this policy has no effect." $Policy.Resource.Location ([BylawSeverity]::Warning)
+    }
+}
+
+function Test-BylawKeywordEffectName {
+    # An allowed value of the effect parameter of a keyword in place of Effect: Modify, Audit or
+    # Disabled for Modify (ADR-0024, BYL3062); the keyword's effect or Disabled for DenyAction and
+    # Manual (ADR-0028, BYL3072).
     param(
         [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name,
+        [Parameter(Mandatory)] [string] $Keyword,
+        [Parameter(Mandatory)] [string[]] $Allowed,
         [Parameter(Mandatory)] [BylawParameter] $Parameter,
         [Parameter(Mandatory)] [scriptblock] $Add
     )
 
-    if (Get-BylawCanonicalEffect -Effect $Name -Supported $script:BylawModifyEffects) {
+    if (Get-BylawCanonicalEffect -Effect $Name -Supported $Allowed) {
         return
     }
-    $reason = switch ($Name) {
-        'Deny' { 'A Modify policy changes the request, so it never denies it.' }
-        default { '' }
-    }
-    & $Add 'BYL3062' ("Effect parameter '$($Parameter.Name)' of a Modify block allows '$Name'. Allowed values: $($script:BylawModifyEffects -join ', '). $reason").TrimEnd() $Parameter.Location
+    $reason = if ($Keyword -eq 'Modify' -and $Name -eq 'Deny') { 'A Modify policy changes the request, so it never denies it.' } else { '' }
+    $code = if ($Keyword -eq 'Modify') { 'BYL3062' } else { 'BYL3072' }
+    $article = if ($Keyword -match '^[AEIOU]') { 'an' } else { 'a' }
+    & $Add $code ("Effect parameter '$($Parameter.Name)' of $article $Keyword policy allows '$Name'. Allowed values: $($Allowed -join ', '). $reason").TrimEnd() $Parameter.Location
 }
 
 function Test-BylawEffectName {
@@ -244,6 +326,56 @@ function Test-BylawEffectName {
     & $Add $Code "$Context '$Name' is not supported in language version 1.0. Supported effects: $($script:BylawSupportedEffects -join ', ').$reason" $Location
 }
 
+function Test-BylawCountAssertion {
+    # A count is compared with whole numbers (BYL3100), and a value count's list parameter must be
+    # declared and an Array (BYL3020, BYL3101) (ADR-0032).
+    param(
+        [Parameter(Mandatory)] [BylawAssertion] $Assertion,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $count = [BylawCount] $Assertion.Subject
+    $source = $count.ValueSource
+    if ($source -is [BylawParamRef]) {
+        $parameter = $Policy.FindParameter($source.Name)
+        if ($null -eq $parameter) {
+            & $Add 'BYL3020' "Parameter '$($source.Name)' is counted but not declared. Add: Parameter $($source.Name) -Type Array." $source.Location
+        }
+        elseif ($parameter.Type -ne 'Array') {
+            & $Add 'BYL3101' "Count -Value (Param $($parameter.Name)) needs an Array parameter to count the members of (it is $($parameter.Type))." $source.Location
+        }
+    }
+
+    $value = $Assertion.Value
+    $operatorName = '-' + $Assertion.DslOperator
+    if ($value -is [BylawParamRef]) {
+        $parameter = $Policy.FindParameter($value.Name)
+        if ($null -eq $parameter) {
+            & $Add 'BYL3020' "Parameter '$($value.Name)' is used but not declared. Add a Parameter $($value.Name) declaration." $value.Location
+            return
+        }
+        $expected = if ($Assertion.DslOperator -eq 'BeIn') { 'Array' } else { 'Integer' }
+        if ($parameter.Type -ne $expected) {
+            & $Add 'BYL3100' "$count is a whole number, so $operatorName needs an $expected parameter (Parameter '$($parameter.Name)' is $($parameter.Type))." $value.Location
+        }
+        return
+    }
+    if ($value -isnot [BylawLiteral]) {
+        # Arm, ResourceGroupTag or Current: only known when the policy is evaluated.
+        return
+    }
+    $items = if ($Assertion.DslOperator -eq 'BeIn') { @($value.Value) } else { , $value.Value }
+    foreach ($item in $items) {
+        $isWholeNumber = ($item -is [int] -or $item -is [long]) -and $item -ge 0
+        if (-not $isWholeNumber) {
+            $what = if ($Assertion.DslOperator -eq 'BeIn') { 'a list of whole numbers' } else { 'a whole number' }
+            & $Add 'BYL3100' "$count is a whole number, so $operatorName needs $what, e.g. $count | Must -BeGreaterThan 0." $Assertion.Location
+            return
+        }
+    }
+}
+
 function Test-BylawAssertionValue {
     # Per-operator value rules (ADR-0015) and parameter references.
     param(
@@ -256,6 +388,10 @@ function Test-BylawAssertionValue {
     $location = $Assertion.Location
     $operatorName = '-' + $Assertion.DslOperator
 
+    if ($Assertion.Subject -is [BylawCount]) {
+        Test-BylawCountAssertion -Assertion $Assertion -Policy $Policy -Add $Add
+        return
+    }
     if ($value -is [BylawParamRef]) {
         $parameter = $Policy.FindParameter($value.Name)
         if ($null -eq $parameter) {
@@ -415,6 +551,9 @@ function Get-BylawUsedParameterName {
                 $values.Add($value)
             }
         }
+        if ($assertion.Subject -is [BylawCount] -and $null -ne $assertion.Subject.ValueSource) {
+            $values.Add($assertion.Subject.ValueSource)
+        }
         if ($null -ne $assertion.Field -and $null -ne $assertion.Field.TagName) {
             $values.Add($assertion.Field.TagName)
         }
@@ -422,7 +561,23 @@ function Get-BylawUsedParameterName {
     if ($null -ne $Policy.Effect -and $null -ne $Policy.Effect.Value) {
         $values.Add($Policy.Effect.Value)
     }
-    if ($Policy.Effect -is [BylawModify]) {
+    if ($Policy.Effect -is [BylawIfNotExists]) {
+        foreach ($value in $Policy.Effect.Name, $Policy.Effect.ResourceGroupName) {
+            if ($null -ne $value) {
+                $values.Add($value)
+            }
+        }
+    }
+    if ($Policy.Effect -is [BylawDeployIfNotExists] -and $null -ne $Policy.Effect.Deployment) {
+        # Values passed to the template, and its location (ADR-0031).
+        $deployment = $Policy.Effect.Deployment
+        foreach ($value in @($deployment.Parameters.Values) + @($deployment.DeploymentLocation)) {
+            if ($null -ne $value) {
+                $values.Add($value)
+            }
+        }
+    }
+    if ($Policy.Effect -is [BylawModify] -or $Policy.Effect -is [BylawAppend]) {
         foreach ($operation in $Policy.Effect.Operations) {
             foreach ($value in $operation.Value, $operation.Condition, $operation.Field.TagName) {
                 if ($null -ne $value) {
@@ -456,14 +611,21 @@ function Get-BylawUsedParameterName {
 }
 
 function Get-BylawAssertion {
-    # Every assertion in a resource scope, in source order, including inside Each and groups.
-    param([Parameter(Mandatory)] [BylawResourceScope] $Scope)
+    # Every assertion in a resource scope, or in a list of Require blocks, in source order,
+    # including inside Each and groups.
+    param(
+        [Parameter(Mandatory, ParameterSetName = 'Scope')] [BylawResourceScope] $Scope,
+        [Parameter(Mandatory, ParameterSetName = 'Requirements')] [AllowEmptyCollection()] [object[]] $Requirements
+    )
 
     $queue = [System.Collections.Generic.List[object]]::new()
-    foreach ($applicability in $Scope.When) {
-        $queue.AddRange($applicability.Children)
+    if ($PSCmdlet.ParameterSetName -eq 'Scope') {
+        foreach ($applicability in $Scope.When) {
+            $queue.AddRange($applicability.Children)
+        }
+        $Requirements = @($Scope.Requirements)
     }
-    foreach ($requirement in $Scope.Requirements) {
+    foreach ($requirement in $Requirements) {
         $queue.AddRange($requirement.Children)
     }
     $index = 0
@@ -475,6 +637,10 @@ function Get-BylawAssertion {
         }
         elseif ($node -is [BylawAssertion]) {
             $node
+            # The statements in a Count -Where (ADR-0032).
+            if ($node.Subject -is [BylawCount]) {
+                $queue.InsertRange($index, $node.Subject.Children)
+            }
         }
     }
 }
@@ -504,11 +670,25 @@ function Test-BylawRuleLimit {
     if ($null -eq $Policy.Rule -or $null -eq $Policy.Rule.If) {
         return
     }
-    $stats = @{ Conditions = 0; Counts = @{} }
+    $stats = @{ Conditions = 0; Counts = @{}; ValueCounts = 0; Iterations = $null }
     Measure-BylawCondition -Condition $Policy.Rule.If -Stats $stats
+    # Counts in the existence condition of AuditIfNotExists and DeployIfNotExists are part of the
+    # rule too. Its conditions aren't in 'if', so they don't count towards BYL3051.
+    if ($Policy.Effect -is [BylawIfNotExists] -and $null -ne $Policy.Effect.ExistenceCondition) {
+        $ifConditions = $stats.Conditions
+        Measure-BylawCondition -Condition $Policy.Effect.ExistenceCondition -Stats $stats
+        $stats.Conditions = $ifConditions
+    }
 
     if ($stats.Conditions -gt 4096) {
         [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3051', "The compiled rule has $($stats.Conditions) condition expressions in 'if'; Azure allows at most 4096.", $Policy.Location)
+    }
+    # Learn: at most 10 value counts per rule, and 100 iterations, nested counts included (ADR-0032).
+    if ($stats.ValueCounts -gt 10) {
+        [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3052', "The compiled rule has $($stats.ValueCounts) value counts (Count -Value); Azure allows at most 10 per rule.", $Policy.Location)
+    }
+    if ($null -ne $stats.Iterations) {
+        [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3053', "This value count iterates $($stats.Iterations.Count) times, nested counts included; Azure allows at most 100. Count a shorter list, or a parameter.", $stats.Iterations.Location)
     }
     foreach ($entry in $stats.Counts.GetEnumerator()) {
         if ($entry.Value.Count -gt 5) {
@@ -518,16 +698,18 @@ function Test-BylawRuleLimit {
 }
 
 function Measure-BylawCondition {
-    param([Parameter(Mandatory)] [BylawCondition] $Condition, [Parameter(Mandatory)] [hashtable] $Stats)
+    # Counts conditions, field counts per array and value counts. Iterations is how many times the
+    # enclosing value counts over literal lists run, multiplied; the first count over 100 is kept.
+    param([Parameter(Mandatory)] [BylawCondition] $Condition, [Parameter(Mandatory)] [hashtable] $Stats, [int] $Iterations = 1)
 
     $Stats.Conditions++
     if ($Condition -is [BylawGroup]) {
         foreach ($child in $Condition.Children) {
-            Measure-BylawCondition -Condition $child -Stats $Stats
+            Measure-BylawCondition -Condition $child -Stats $Stats -Iterations $Iterations
         }
     }
     elseif ($Condition -is [BylawNot]) {
-        Measure-BylawCondition -Condition $Condition.Child -Stats $Stats
+        Measure-BylawCondition -Condition $Condition.Child -Stats $Stats -Iterations $Iterations
     }
     elseif ($Condition -is [BylawCountCondition]) {
         if ($null -ne $Condition.Field) {
@@ -537,8 +719,17 @@ function Measure-BylawCondition {
             }
             $Stats.Counts[$key].Count++
         }
+        elseif ($null -ne $Condition.ValueSource) {
+            $Stats.ValueCounts++
+            if ($Condition.ValueSource -is [BylawLiteral]) {
+                $Iterations *= @($Condition.ValueSource.Value).Count
+                if ($Iterations -gt 100 -and $null -eq $Stats.Iterations) {
+                    $Stats.Iterations = @{ Count = $Iterations; Location = $Condition.Location }
+                }
+            }
+        }
         if ($null -ne $Condition.Where) {
-            Measure-BylawCondition -Condition $Condition.Where -Stats $Stats
+            Measure-BylawCondition -Condition $Condition.Where -Stats $Stats -Iterations $Iterations
         }
     }
 }

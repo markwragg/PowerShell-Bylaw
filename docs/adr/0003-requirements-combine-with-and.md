@@ -23,13 +23,13 @@ Chosen option: "AND at both levels", because a compliant resource must meet *eve
 * `Require A { m1; m2 }` and `Require B { m3 }` mean compliant = `m1 AND m2 AND m3`.
 * After inversion (ADR-0002), the violation is `anyOf[NOT m1, NOT m2, NOT m3]`, flattened into a single `anyOf`.
 * The same rule applies to `Must` statements inside `Each`.
-* Language version 1.0 has no OR keyword inside `Require`. An alternative such as "A or B is acceptable" needs either two policies or a future `AnyOf { }` keyword. The IR already supports `AnyOf` groups, so adding one later is additive.
+* An alternative such as "A or B is acceptable" is written with an `AnyOf { }` group inside the `Require` or `Each` block ([ADR-0026](0026-anyof-and-allof-groups.md)). AND stays the default everywhere, so `AllOf { }` is only needed inside `AnyOf`.
 
 ### Consequences
 
 * Good, because the semantics are simple and predictable.
 * Good, because each `Require` description gives a named, documented reason for compliance.
-* Bad, because "either/or" requirements cannot be expressed in 1.0 without the `Arm` escape hatch.
+* Neutral, because "either/or" requirements need an explicit `AnyOf` group.
 
 ### Confirmation
 

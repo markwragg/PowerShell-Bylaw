@@ -54,7 +54,7 @@ Chosen option: "The EPAC definition file format as the default".
 
 ### Emitter design
 
-Emitters implement a common contract: `Name`, `FileExtension`, and `Emit(PolicyNode) -> ordered document`. The canonical writer turns the document into bytes. `Epac` ships in Milestone 1, `PlainJson` (the definition object without `$schema`) in Milestone 2, and Bicep later. A Bicep emitter that writes text can implement the same contract but bypass the JSON writer.
+Emitters implement a common contract: `Name`, `FileExtension`, and `Emit(PolicyNode) -> ordered document`. The canonical writer turns the document into bytes. The emitters are `Epac` and `PlainJson` (ADR-0027). Bicep may follow later. A Bicep emitter that writes text can implement the same contract but bypass the JSON writer.
 
 ### Consequences
 

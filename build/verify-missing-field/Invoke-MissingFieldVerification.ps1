@@ -6,17 +6,19 @@
     Measures Azure Policy behaviour that Microsoft Learn doesn't document, for Bylaw's ADRs.
 
 .DESCRIPTION
-    Developer-only script that supports ADR-0004, ADR-0024 and ADR-0025. It is not part of the
-    Bylaw module.
+    Developer-only script that supports ADR-0004, ADR-0024, ADR-0025 and ADR-0030. It is not part
+    of the Bylaw module.
 
-    It measures three things:
+    It measures four things:
       Fields:      how each operator evaluates against present, empty and missing fields (ADR-0004).
       Expressions: how a missing or empty resource group tag compares in a value condition (ADR-0025).
+      Existence:   how an AuditIfNotExists existence condition evaluates on a related resource that
+                   lacks the field, raw and with Bylaw's guards (ADR-0030).
       Modify:      whether Audit is accepted as the effect of a definition with a modify details
                    block, and whether it then reports compliance (ADR-0024).
 
-    Deploy:  creates a resource group (tagged) with one route table (free) carrying known tags,
-             one Audit-effect policy definition per field and expression case, an initiative
+    Deploy:  creates a resource group (tagged) with one route table (free) carrying known tags and
+             one route, one policy definition per field, expression and existence case, an initiative
              containing them and an assignment of it to the resource group. Also creates one
              Modify definition and assigns it separately, with its effect set to Audit.
     Collect: triggers an on-demand compliance scan and records, for each case, whether the
@@ -26,6 +28,8 @@
 
     Each rule is: type equals routeTables AND name equals <route table> AND <case condition>.
     So NonCompliant means "<case condition> evaluated true" and Compliant means "false".
+    An existence case is the same rule without a case condition, with effect auditIfNotExists on
+    the route table's routes. There Compliant means "the existence condition held for the route".
 
     Run Deploy, wait 15-30 minutes for the assignments to take effect, then run Collect
     (re-run Collect if cases are still missing), then Remove.
@@ -141,6 +145,29 @@ $expressions = [ordered]@{
     rgTagEmpty   = "[resourceGroup().tags['bylawEmpty']]"
     rgTagMissing = "[resourceGroup().tags['bylawMissing']]"
 }
+# Existence conditions under test (ADR-0030), on the route table's one route. Its nextHopType is
+# Internet, so it has no nextHopIpAddress: that field is missing. The raw cases show what Azure does
+# with the operator alone; the guarded cases are the forms Bylaw emits.
+$routeName = 'bylaw-route'
+$routeField = 'Microsoft.Network/routeTables/routes'
+$existenceCases = [ordered]@{
+    presentEquals    = [ordered]@{ field = "$routeField/nextHopType"; equals = 'Internet' }
+    presentNotEquals = [ordered]@{ field = "$routeField/nextHopType"; equals = 'VirtualAppliance' }
+    missingEquals    = [ordered]@{ field = "$routeField/nextHopIpAddress"; equals = '10.9.9.9' }
+    missingNotEquals = [ordered]@{ field = "$routeField/nextHopIpAddress"; notEquals = '10.9.9.9' }
+    missingNotIn     = [ordered]@{ field = "$routeField/nextHopIpAddress"; notIn = @('10.9.9.9') }
+    missingNotLike   = [ordered]@{ field = "$routeField/nextHopIpAddress"; notLike = '10.*' }
+    guardedNotEquals = [ordered]@{ allOf = @([ordered]@{ field = "$routeField/nextHopIpAddress"; exists = $true }, [ordered]@{ field = "$routeField/nextHopIpAddress"; notEquals = '10.9.9.9' }) }
+    ifPresentEquals  = [ordered]@{ anyOf = @([ordered]@{ field = "$routeField/nextHopIpAddress"; exists = $false }, [ordered]@{ field = "$routeField/nextHopIpAddress"; equals = '10.9.9.9' }) }
+}
+# What Bylaw's ADR-0004 rules need: true = the condition must hold for the route.
+$existenceExpected = @{
+    presentEquals    = 'true'
+    presentNotEquals = 'false'
+    guardedNotEquals = 'false'
+    ifPresentEquals  = 'true'
+}
+
 $expressionOperators = @(
     @{ Id = 'equalsValue'; Operator = 'equals'; Value = 'abc' }
     @{ Id = 'equalsEmpty'; Operator = 'equals'; Value = '' }
@@ -183,6 +210,20 @@ function Get-VerificationCase {
             }
         }
     }
+    foreach ($existenceKey in $existenceCases.Keys) {
+        $index++
+        [pscustomobject]@{
+            Number         = $index
+            DefinitionName = '{0}-{1:d3}' -f $prefix, $index
+            ReferenceId    = "existence-$existenceKey"
+            Kind           = 'existence'
+            SubjectKey     = $existenceKey
+            Subject        = $existenceCases[$existenceKey]
+            OperatorId     = $existenceKey
+            Operator       = 'existenceCondition'
+            Value          = $null
+        }
+    }
 }
 
 function Get-RouteTableCondition {
@@ -194,6 +235,20 @@ function Get-RouteTableCondition {
 
 function ConvertTo-CaseRuleJson {
     param([Parameter(Mandatory)] $Case)
+
+    if ($Case.Kind -eq 'existence') {
+        $rule = [ordered]@{
+            if   = [ordered]@{ allOf = @(Get-RouteTableCondition) }
+            then = [ordered]@{
+                effect  = 'auditIfNotExists'
+                details = [ordered]@{
+                    type               = $routeField
+                    existenceCondition = $Case.Subject
+                }
+            }
+        }
+        return $rule | ConvertTo-Json -Depth 20 -Compress
+    }
 
     $condition = [ordered]@{}
     $condition[$Case.Kind] = $Case.Subject
@@ -238,7 +293,12 @@ function Invoke-Deploy {
             ResourceType      = 'Microsoft.Network/routeTables'
             ResourceName      = $routeTableName
             Location          = $Location
-            Properties        = @{}
+            # One route with no next hop address, for the existence cases.
+            Properties        = @{
+                routes = @(
+                    @{ name = $routeName; properties = @{ addressPrefix = '10.0.0.0/24'; nextHopType = 'Internet' } }
+                )
+            }
             Tag               = $tags
             ApiVersion        = '2023-09-01'
             Force             = $true
@@ -257,7 +317,7 @@ function Invoke-Deploy {
             Name           = $case.DefinitionName
             SubscriptionId = $SubscriptionId
             DisplayName    = "Bylaw verify: $($case.ReferenceId)"
-            Description    = "$($case.Kind) $($case.Subject), operator $($case.Operator)."
+            Description    = if ($case.Kind -eq 'existence') { "Existence condition $($case.SubjectKey) on the route." } else { "$($case.Kind) $($case.Subject), operator $($case.Operator)." }
             Mode           = 'All'
             Metadata       = '{"category":"Bylaw verification"}'
             Policy         = ConvertTo-CaseRuleJson -Case $case
@@ -360,11 +420,13 @@ function Invoke-Deploy {
 }
 
 function ConvertTo-ConditionResult {
-    param([string] $ComplianceState)
+    # Whether the case's condition evaluated true. For an existence case, Compliant means the
+    # existence condition held for the route, so the states map the other way round.
+    param([string] $ComplianceState, [switch] $Existence)
 
     switch ($ComplianceState) {
-        'NonCompliant' { 'true' }
-        'Compliant' { 'false' }
+        'NonCompliant' { if ($Existence) { 'false' } else { 'true' } }
+        'Compliant' { if ($Existence) { 'true' } else { 'false' } }
         '' { 'missing' }
         default { $ComplianceState }
     }
@@ -439,7 +501,7 @@ function Invoke-Collect {
                 'rejected'
             }
             else {
-                ConvertTo-ConditionResult -ComplianceState ([string] $byReference[$case.ReferenceId])
+                ConvertTo-ConditionResult -ComplianceState ([string] $byReference[$case.ReferenceId]) -Existence:($case.Kind -eq 'existence')
             }
             [pscustomobject]@{
                 Kind       = $case.Kind
@@ -486,6 +548,19 @@ function Invoke-Collect {
     }
     $lines.Add('')
     Add-ResultTable -Lines $lines -Results @($results | Where-Object Kind -EQ 'value') -Subjects $expressions -Operators $expressionOperators
+    $lines.Add('')
+    $lines.Add('## AuditIfNotExists existence conditions on a route without nextHopIpAddress')
+    $lines.Add('')
+    $lines.Add('Cell = whether the existence condition held for the route (the route table was Compliant). "Bylaw needs" = the result ADR-0004 requires.')
+    $lines.Add('')
+    $lines.Add('| Case | Existence condition | Result | Bylaw needs |')
+    $lines.Add('|---|---|---|---|')
+    foreach ($key in $existenceCases.Keys) {
+        $result = ($results | Where-Object { $_.Kind -eq 'existence' -and $_.SubjectKey -eq $key }).Result
+        $condition = ConvertTo-Json -InputObject $existenceCases[$key] -Depth 10 -Compress
+        $needed = if ($existenceExpected.ContainsKey($key)) { $existenceExpected[$key] } else { '' }
+        $lines.Add("| $key | ``$condition`` | $result | $needed |")
+    }
     $lines.Add('')
     $lines.Add('## Modify definition assigned with effect Audit')
     $lines.Add('')

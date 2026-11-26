@@ -39,6 +39,8 @@ Chosen option: "Strict by default, with `-IfPresent`", with these scoping rules:
 | Inside `Each` (element fields) | **Lenient**: a missing element field is compliant | `Must -Strict`: a missing element field is a violation |
 | `When` | Not inverted, so no guards. Operators are emitted as written. | `-IfPresent` and `-Strict` are compile errors in `When` |
 | The `Each` array itself | A missing or empty array is **compliant** (no element violates). This is Azure's native behaviour: `count` is 0. | Add `Field path | Must -Exist` in a `Require` if the array must exist |
+| An existence condition (`AuditIfNotExists`, `DeployIfNotExists`) | **Strict**, as in `Require`: a related resource without the field doesn't satisfy the requirement. The condition isn't inverted, so the guards are applied to the compliant form ([ADR-0030](0030-if-not-exists-effects.md)). | `Must -IfPresent`, and `Must -Strict` inside `Each`, as in `Require` |
+| A `Count -Where` selection | Written as is, like `When`, so no guards ([ADR-0032](0032-count-expressions.md)) | `-IfPresent` and `-Strict` are compile errors in `-Where` |
 
 Using `-IfPresent` inside `Each`, or `-Strict` outside it, is a compile error, because the switch would be redundant and may indicate a misunderstanding.
 

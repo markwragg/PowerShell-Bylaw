@@ -14,7 +14,7 @@ function Field {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Field')
-    $frame = Test-BylawParent -Keyword 'Field' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Modify' -Location $location
+    $frame = Test-BylawParent -Keyword 'Field' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Where', 'Modify', 'Append' -Location $location
     if ($null -eq $frame) {
         return
     }
@@ -35,11 +35,19 @@ function Element {
     param()
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Element')
-    $frame = Test-BylawParent -Keyword 'Element' -Allowed 'Each', 'AnyOf', 'AllOf' -Location $location
+    $frame = Test-BylawParent -Keyword 'Element' -Allowed 'Each', 'AnyOf', 'AllOf', 'Where' -Location $location
     if ($null -eq $frame) {
         return
     }
-    if (-not (Test-BylawConditionContext -Keyword 'Element' -Allowed 'Each' -Location $location)) {
+    if (-not (Test-BylawConditionContext -Keyword 'Element' -Allowed 'Each', 'Where' -Location $location)) {
+        return
+    }
+    # In Count -Where, Element is the element of a field count; a value count has members, which
+    # are Current (ADR-0032).
+    if ((Get-BylawConditionContext) -eq 'Where' -and -not (@(Get-BylawEnclosingCount -WhereOnly)[0]).IsFieldCount()) {
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1002' -Location $location -Message (
+            "'Element' is the element of an array, so it only applies in a field count. In a value count, use Current for the member being counted."
+        )
         return
     }
 

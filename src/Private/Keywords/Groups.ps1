@@ -18,7 +18,7 @@ function AnyOf {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'AnyOf')
-    $parent = Test-BylawParent -Keyword 'AnyOf' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf' -Location $location
+    $parent = Test-BylawParent -Keyword 'AnyOf' -Allowed 'When', 'Require', 'Each', 'AnyOf', 'AllOf', 'Where' -Location $location
     if ($null -eq $parent) {
         return
     }

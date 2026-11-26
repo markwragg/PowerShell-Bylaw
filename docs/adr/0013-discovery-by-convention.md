@@ -26,17 +26,19 @@ Chosen option: "Recursive discovery of `*.bylaw.ps1`".
 * Names must be unique across the whole build, ignoring case. A duplicate is an error that gives both locations (file and line).
 * `Build-Bylaw` compiles every file and reports **all** errors before failing, not just the first. It writes no output at all if any file fails, so a broken build never leaves partial output.
 
-### `Build-Bylaw` parameters for Milestone 1
+### `Build-Bylaw` parameters
 
 | Parameter | Purpose |
 |---|---|
 | `-Path` | Source files or folders. Defaults to the current folder. |
 | `-OutputPath` | Output folder. Required unless `-PassThru` is used alone. |
-| `-Format` | `Epac` (the default). `PlainJson` arrives in Milestone 2. |
+| `-Format` | `Epac` (the default, ADR-0011) or `PlainJson` (ADR-0027). |
 | `-PassThru` | Returns one result object per policy: `Name`, `SourceFile`, `SourceLine`, `OutputFile`, `Json`, `Warnings`. |
 | `-Settings` | An explicit path to `bylaw.json` (ADR-0012). |
 | `-AliasCachePath` | Alias snapshot override (ADR-0008). |
+| `-RoleCachePath` | Role map override for `-Role` (ADR-0022). |
 | `-AllowUnknownAlias` | Allows unknown aliases for the whole build (ADR-0008). |
+| `-ThrottleLimit` | How many files to compile at once, each in its own runspace (ADR-0014). Output is the same either way. |
 
 `-PassThru` without `-OutputPath` compiles in memory and writes nothing, which is useful in Pester tests.
 

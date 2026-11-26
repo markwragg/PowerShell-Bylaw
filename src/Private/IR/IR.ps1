@@ -138,7 +138,7 @@ class BylawResourceGroupTag : BylawValue {
     }
 
     [string] ToString() {
-        if ($this.TagName -is [BylawParamRef]) {
+        if ($this.TagName -isnot [BylawLiteral]) {
             return 'ResourceGroupTag ({0})' -f $this.TagName
         }
         return 'ResourceGroupTag {0}' -f $this.TagName
@@ -156,7 +156,7 @@ class BylawFieldRef : BylawNode {
     # Full alias or reserved field name, set by the alias resolution pass.
     [string] $Resolved
     [bool] $AllowUnknownAlias
-    # For Kind Tag: the tag name as a BylawLiteral string, or a BylawParamRef.
+    # For Kind Tag: the tag name as a BylawLiteral string, a BylawParamRef, or a BylawCurrent.
     [BylawValue] $TagName
 
     BylawFieldRef() {}
@@ -169,13 +169,52 @@ class BylawFieldRef : BylawNode {
         if ($this.Kind -eq [BylawFieldKind]::Element) {
             return 'Element'
         }
-        if ($this.Kind -eq [BylawFieldKind]::Tag -and $this.TagName -is [BylawParamRef]) {
+        if ($this.Kind -eq [BylawFieldKind]::Tag -and $null -ne $this.TagName -and $this.TagName -isnot [BylawLiteral]) {
             return 'Tag ({0})' -f $this.TagName
         }
         if ($this.Resolved) {
             return $this.Resolved
         }
         return $this.Name
+    }
+}
+
+class BylawCount : BylawValue {
+    # Count path[*] or Count -Value ... [-Name] [-Where { }] (ADR-0032), piped to Must as the
+    # subject of an assertion. A field count has Field; a value count has ValueSource.
+    [BylawFieldRef] $Field
+    [BylawValue] $ValueSource
+    [string] $Name
+    # The -Where statements, emitted as written: assertions and groups, in source order.
+    [System.Collections.Generic.List[object]] $Children = [System.Collections.Generic.List[object]]::new()
+
+    BylawCount() {}
+
+    [bool] IsFieldCount() {
+        return $null -ne $this.Field
+    }
+
+    [string] ToString() {
+        if ($this.IsFieldCount()) {
+            return 'Count {0}' -f $this.Field.Name
+        }
+        return 'Count -Value {0}' -f $this.ValueSource
+    }
+}
+
+class BylawCurrent : BylawValue {
+    # Current [name] (ADR-0032): the member a count is at. Count is the count it refers to; Name is
+    # the value count's -Name as written, or $null for the innermost count.
+    [string] $Name
+    [BylawCount] $Count
+
+    BylawCurrent() {}
+
+    [string] ToString() {
+        if ($this.Name) {
+            return 'Current {0}' -f $this.Name
+        }
+        return 'Current'
     }
 }
 
@@ -365,6 +404,104 @@ class BylawModify : BylawEffect {
     BylawModify() {}
 
     BylawModify([BylawValue] $value) : base($value) {}
+}
+
+class BylawAppend : BylawEffect {
+    # Append { Field x | Add v } (ADR-0029). Value is the literal 'Append', or the -Effect parameter
+    # or expression. Operations are BylawModifyOperation objects with Operation 'add' and no
+    # Condition, in the order written.
+    [System.Collections.Generic.List[object]] $Operations = [System.Collections.Generic.List[object]]::new()
+
+    BylawAppend() {}
+
+    BylawAppend([BylawValue] $value) : base($value) {}
+}
+
+class BylawIfNotExists : BylawEffect {
+    # Shared by AuditIfNotExists and DeployIfNotExists (ADR-0030): the related resource, and the
+    # Require blocks that describe its compliant state.
+    # -Type as written, and in the alias snapshot's casing (set by alias resolution).
+    [string] $Type
+    [string] $ResolvedType
+    # -Name and -ResourceGroupName: literals, Param or Arm, or $null when not set.
+    [BylawValue] $Name
+    [BylawValue] $ResourceGroupName
+    # 'ResourceGroup' or 'Subscription' as emitted, or $null when not set.
+    [string] $ExistenceScope
+    # As written, e.g. 'AfterProvisioning' or 'PT30M', or $null when not set.
+    [string] $EvaluationDelay
+    # BylawRequirement nodes, in source order. Fields resolve against Type.
+    [System.Collections.Generic.List[object]] $Requirements = [System.Collections.Generic.List[object]]::new()
+    # The compliant existence condition, set by the inversion pass. $null without Require blocks.
+    [BylawCondition] $ExistenceCondition
+
+    BylawIfNotExists() {}
+
+    BylawIfNotExists([BylawValue] $value) : base($value) {}
+}
+
+class BylawAuditIfNotExists : BylawIfNotExists {
+    # AuditIfNotExists -Type ... { Require ... } (ADR-0030). Value is the literal
+    # 'AuditIfNotExists', or the -Effect parameter or expression.
+
+    BylawAuditIfNotExists() {}
+
+    BylawAuditIfNotExists([BylawValue] $value) : base($value) {}
+}
+
+class BylawDeployment : BylawNode {
+    # Deployment -TemplateFile ... | -Template @{ } [-Parameters @{ }] [-Scope] [-Location]
+    # (ADR-0031). The mode is always incremental.
+    # The template as ordered dictionaries, arrays and primitives, in its own key order.
+    [object] $Template
+    # The template file's full path, or $null for -Template.
+    [string] $TemplateFile
+    # Template parameter name -> BylawValue, in the order written.
+    [System.Collections.Specialized.OrderedDictionary] $Parameters = [System.Collections.Specialized.OrderedDictionary]::new()
+    # 'ResourceGroup' or 'Subscription' as emitted, or $null when not set.
+    [string] $Scope
+    # A literal, Param or Arm, or $null when not set.
+    [BylawValue] $DeploymentLocation
+
+    BylawDeployment() {}
+}
+
+class BylawDeployIfNotExists : BylawIfNotExists {
+    # DeployIfNotExists -Type ... -Role ... { Require ...; Deployment ... } (ADR-0030, ADR-0031).
+    # Value is the literal 'DeployIfNotExists', or the -Effect parameter or expression.
+    # -Role values as written (ADR-0022).
+    [string[]] $Roles = @()
+    # Full role definition IDs, in the order written, set by the validation pass.
+    [string[]] $RoleDefinitionIds = @()
+    [BylawDeployment] $Deployment
+
+    BylawDeployIfNotExists() {}
+
+    BylawDeployIfNotExists([BylawValue] $value) : base($value) {}
+}
+
+class BylawDenyAction : BylawEffect {
+    # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0028). Value is the literal 'DenyAction',
+    # or the -Effect parameter or expression.
+    # Action names as emitted: 'delete'.
+    [string[]] $ActionNames = @()
+    # 'deny' or 'allow' as emitted, or $null when not set.
+    [string] $CascadeBehavior
+
+    BylawDenyAction() {}
+
+    BylawDenyAction([BylawValue] $value) : base($value) {}
+}
+
+class BylawManual : BylawEffect {
+    # Manual [-DefaultState Unknown|Compliant|NonCompliant] (ADR-0028). Value is the literal
+    # 'Manual', or the -Effect parameter or expression.
+    # 'Unknown', 'Compliant' or 'Non-compliant' as emitted, or $null when not set.
+    [string] $DefaultState
+
+    BylawManual() {}
+
+    BylawManual([BylawValue] $value) : base($value) {}
 }
 
 class BylawPolicyRule : BylawNode {

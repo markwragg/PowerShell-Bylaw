@@ -141,6 +141,9 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 | `Must` | Assertion, takes a field reference from the pipeline. |
 | `Effect value` | The `then` block for simple effects. |
 | `Modify -Role ... { }` | Modify effect, in place of `Effect`. Operations take their field from the pipeline: `Tag x \| AddOrReplace 'v'`, `Tag x \| Add 'v'`, `Tag x \| Remove` (ADR-0024). |
+| `DenyAction`, `Manual`, `Append { }` | Effects with a `details` block, in place of `Effect` (Milestone 3, ADR-0028, ADR-0029). |
+| `AuditIfNotExists -Type ... { }`, `DeployIfNotExists -Type ... { }` | Effects on a related resource, in place of `Effect`. The block describes the related resource's compliant state (Milestone 3, ADR-0030, ADR-0031). |
+| `Count path[*]`, `Count -Value ...` | A field or value count, piped to `Must` (Milestone 3, ADR-0032). |
 | `Param Name` | Reference a parameter (emits `[parameters('name')]`). |
 | `Arm '[...]'` | Raw ARM template expression escape hatch. |
 
@@ -182,7 +185,7 @@ Use `Must` rather than `Should` to avoid clashing with Pester, which users will 
 6. **Compile only.** No deployment to Azure.
 7. **Bundled alias snapshot.** Compilation works offline using `Data/aliases.json`. `Update-BylawAliasCache` refreshes it via Az. Unknown aliases fail the build unless overridden per field or with `-AllowUnknownAlias`.
 8. **Deterministic output.** Stable key ordering, stable formatting, UTF-8 without BOM, LF line endings. Recompiling unchanged input produces byte-identical files.
-9. **Name stability.** The definition `name` comes only from `Policy 'name'`. Enforce a naming rule (propose one in the ADR).
+9. **Name stability.** The definition `name` comes only from `Policy 'name'`. Enforce a naming rule (propose one in the ADR). Milestone 3 relaxed the rule in ADR-0010: any name Azure accepts that is also a safe file name.
 10. **Default output is EPAC schema**, one file per policy, with plain definition JSON as a second emitter. Design emitters so Bicep can be added later.
 11. **Language versioning.** Support a language version via a project settings file (`bylaw.json`), defaulting to `1.0`.
 12. **Discovery by convention.** `Build-Bylaw -Path` finds `*.bylaw.ps1` recursively. Multiple policies per file are allowed. Names must be unique across the build.
@@ -219,16 +222,34 @@ Use `Must` rather than `Should` to avoid clashing with Pester, which users will 
 - Value conditions: `ResourceGroupTag`, `Param` and `Arm` piped into `Must` (ADR-0025)
 - From Milestone 1's gaps: `AnyOf` and `AllOf` groups (ADR-0026), and repeated `exists` guards emitted once (ADR-0004)
 
-### Milestone 3: decompiler and ALZ round-trip
+### Milestone 3: language coverage
 
-- `ConvertFrom-PolicyJson`: JSON definition to `.bylaw.ps1`
+Every effect Azure Policy supports, and the conditions Bylaw can't yet express, so the decompiler (Milestone 5) can target the whole language. In the Azure Landing Zones Library, 82 of 149 custom policy definitions use effects that language version 1.0 lacked, and 11 of the remaining 67 use conditions it couldn't express (a field count without `where`, a value count, or a `[*]` field outside a count).
+
+- Policy names: accept existing definition names, such as mixed case (ADR-0010)
+- `DenyAction` and `Manual` (ADR-0028)
+- `Append` (ADR-0029)
+- `AuditIfNotExists`, with the related resource and its existence condition (ADR-0030)
+- `DeployIfNotExists`, with roles and the deployment template (ADR-0030, ADR-0031)
+- `Count` for field and value counts, with `Current` (ADR-0032)
+- Golden tests, examples and README for all of the above
+
+### Milestone 4: initiatives
+
+- An initiative keyword: member policies from the same build or built-in policies by ID, parameters passed to members, policy groups
+- Cross-file checks after every file has compiled: references exist, passed parameters match
+- EPAC policy set definition output, and plain JSON
+
+### Milestone 5: decompiler and ALZ round-trip
+
+- `ConvertFrom-PolicyJson`: JSON definition (and initiative) to `.bylaw.ps1`
+- An escape hatch for raw conditions the language can't express
 - Round-trip test harness: decompile, recompile, compare semantically (not textually)
 - Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed). Do not commit ALZ content to the repo without checking with me about licensing and attribution first.
 
 ### Later (do not build yet, but don't design them out)
 
-- `AuditIfNotExists` and `DeployIfNotExists` keywords
-- Policy sets / initiatives
+- Resource provider modes, such as `Microsoft.Kubernetes.Data`
 - Bicep emitter
 - `Test-PolicyRule` local evaluator against sample resource JSON
 - VS Code syntax support and argument completers for `Field` driven by the enclosing `Resource` type

@@ -11,8 +11,12 @@
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
-    'Modify', 'AddOrReplace', 'Add', 'Remove'
+    'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append', 'AuditIfNotExists',
+    'DeployIfNotExists', 'Deployment', 'Count', 'Current'
 )
+
+# Keywords that set the effect. A policy has exactly one (ADR-0017).
+$script:BylawEffectKeywordNames = @('Effect', 'Modify', 'Append', 'DenyAction', 'Manual', 'AuditIfNotExists', 'DeployIfNotExists')
 
 # Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
 $script:BylawGroupKeywords = @('AnyOf', 'AllOf')
@@ -91,8 +95,14 @@ function Exit-BylawFrame {
         $script:BylawFrames.RemoveRange($index, $script:BylawFrames.Count - $index)
     }
     foreach ($field in $Frame.PendingFields) {
-        $message = if ($Frame.Keyword -eq 'Modify') {
+        $message = if ($field -is [BylawCount]) {
+            "'{0}' is not piped to Must. A count is a number to test, e.g. {0} | Must -BeGreaterThan 0" -f $field
+        }
+        elseif ($Frame.Keyword -eq 'Modify') {
             "Field '{0}' is not piped to an operation. Write: {0} | AddOrReplace ..., | Add ... or | Remove" -f $field
+        }
+        elseif ($Frame.Keyword -eq 'Append') {
+            "Field '{0}' is not piped to Add. Write: {0} | Add ..." -f $field
         }
         else {
             "Field '{0}' is not piped to Must. Write: Field {0} | Must ..." -f $field
@@ -105,7 +115,8 @@ function Remove-BylawPendingField {
     # Forgets a field reference that was used, so Exit-BylawFrame doesn't also report it as
     # "not piped to Must".
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes in-memory front-end state only.')]
-    param([Parameter(Mandatory)] [BylawFieldRef] $Field)
+    # A Field, Tag, Element, or a Count (ADR-0032).
+    param([Parameter(Mandatory)] [object] $Field)
 
     foreach ($frame in $script:BylawFrames) {
         $null = $frame.PendingFields.Remove($Field)
@@ -187,6 +198,28 @@ function Test-BylawSingleton {
     }
     $Frame.Singletons[$Keyword] = $Location
     $true
+}
+
+function Test-BylawEffectKeyword {
+    # Records a diagnostic and returns $false when the policy already has an effect from another
+    # keyword (BYL1026) or from this one (BYL1004).
+    param(
+        [Parameter(Mandatory)] [BylawFrame] $Frame,
+        [Parameter(Mandatory)] [string] $Keyword,
+        [BylawSourceLocation] $Location
+    )
+    foreach ($other in $script:BylawEffectKeywordNames) {
+        if ($other -eq $Keyword -or -not $Frame.Singletons.ContainsKey($other)) {
+            continue
+        }
+        $setter = if ($Keyword -eq 'Effect') { $other } elseif ($other -eq 'Effect') { $Keyword } else { $null }
+        $hint = if ($setter) { " $setter sets the effect itself; use $setter -Effect (Param Effect) to make it a parameter." } else { '' }
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1026' -Location $Location -Message (
+            "A policy has one effect, set by one of $($script:BylawEffectKeywordNames -join ', '). $other already sets it at line $($Frame.Singletons[$other].Line).$hint"
+        )
+        return $false
+    }
+    Test-BylawSingleton -Frame $Frame -Keyword $Keyword -Location $Location
 }
 
 function Get-BylawKeywordDefinition {

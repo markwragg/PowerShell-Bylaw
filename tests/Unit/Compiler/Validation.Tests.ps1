@@ -6,6 +6,14 @@ BeforeDiscovery {
 BeforeAll {
     Import-Module -Name (Join-Path $PSScriptRoot '../../../src/Bylaw.psd1') -Force
     . (Join-Path $PSScriptRoot '../../Helpers/BylawTestHelpers.ps1')
+
+    function Get-BylawNameProblemForTest {
+        param([AllowEmptyString()] [string] $Name)
+        InModuleScope Bylaw -Parameters @{ Name = $Name } {
+            param($Name)
+            Get-BylawNameProblem -Name $Name
+        }
+    }
 }
 
 AfterAll {
@@ -20,8 +28,6 @@ Describe 'Validation pass' {
     }
 
     It 'reports <Code> for <Case>' -ForEach @(
-        @{ Code = 'BYL3001'; Case = 'an invalid name'; Script = (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy 'Test_Policy'") }
-        @{ Code = 'BYL3001'; Case = 'a name over 64 characters'; Script = (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy '$('a' * 65)'") }
         @{ Code = 'BYL3002'; Case = 'no Properties'; Script = (Format-BylawTestPolicy).Replace("Properties @{ DisplayName = 'Test policy' }", '') }
         @{ Code = 'BYL3002'; Case = 'a DisplayName over 128 characters'; Script = (Format-BylawTestPolicy).Replace("DisplayName = 'Test policy'", "DisplayName = '$('d' * 129)'") }
         @{ Code = 'BYL3003'; Case = 'a Description over 512 characters'; Script = (Format-BylawTestPolicy).Replace("DisplayName = 'Test policy'", "DisplayName = 'x'; Description = '$('d' * 513)'") }
@@ -91,22 +97,71 @@ Describe 'Validation pass' {
         $result.Diagnostics | Should -BeNullOrEmpty
     }
 
-    It 'explains when an effect arrives in a later milestone' {
-        $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace('Effect Deny', 'Effect DeployIfNotExists')
-        ($result.Diagnostics | Where-Object Code -EQ 'BYL3030').Message | Should -BeLike '*planned for a later milestone*'
-    }
-
     It 'points Effect Modify to the Modify block' {
         $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace('Effect Deny', 'Effect Modify')
         ($result.Diagnostics | Where-Object Code -EQ 'BYL3030').Message | Should -BeLike '*Modify has its own block*'
     }
 
     It 'reports alias and validation errors from one run together' {
-        $script = (Format-BylawTestPolicy -Requirements "Require 'r' { Field publicNetworkAcess | Must -BeLike '*a*' }").Replace("Policy 'test-policy'", "Policy 'Bad Name'")
+        $script = (Format-BylawTestPolicy -Requirements "Require 'r' { Field publicNetworkAcess | Must -BeLike '*a*' }").Replace("Policy 'test-policy'", "Policy 'Bad/Name'")
         $result = Invoke-BylawTestCompile -Script $script
         $result.Errors | Should -Contain 'BYL2001'
         $result.Errors | Should -Contain 'BYL3001'
         $result.Errors | Should -Contain 'BYL3011'
+    }
+}
+
+Describe 'Policy names (ADR-0010)' {
+    It 'accepts <Name>' -ForEach @(
+        @{ Name = 'Deny-Storage-minTLS' }
+        @{ Name = 'storage-deny-public-network-access' }
+        @{ Name = 'Audit_VM Backup (prod)' }
+        @{ Name = 'a' }
+        @{ Name = ('a' * 64) }
+        @{ Name = '0f8e1b6a-2c3d-4e5f-8a9b-0c1d2e3f4a5b' }
+        @{ Name = 'CONSOLE' }
+        @{ Name = 'COM0' }
+    ) {
+        $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy '$Name'")
+        $result.Diagnostics | Should -BeNullOrEmpty
+        $result.Policy.Name | Should -BeExactly $Name
+    }
+
+    It 'rejects a name containing <Character>' -ForEach @(
+        '<', '>', '*', '%', '&', ':', '\', '?', '.', '+', '/', '"', '|' | ForEach-Object { @{ Character = $_ } }
+    ) {
+        $name = "Deny$($Character)Storage"
+        $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy '$($name.Replace("'", "''"))'")
+        $diagnostic = $result.Diagnostics | Where-Object Code -EQ 'BYL3001'
+        $diagnostic.Message | Should -BeLike "*contains '$([WildcardPattern]::Escape($Character))'*"
+        $diagnostic.Message | Should -BeLike '*ADR-0010*'
+    }
+
+    It 'lists each invalid character once' {
+        Get-BylawNameProblemForTest 'a.b.c/d' | Should -BeLike "contains '.', '/'.*"
+    }
+
+    It 'rejects <Case>' -ForEach @(
+        @{ Case = 'an empty name'; Name = ''; Message = 'is 0 characters*' }
+        @{ Case = 'a name over 64 characters'; Name = ('a' * 65); Message = 'is 65 characters*' }
+        @{ Case = 'a tab'; Name = "Deny`tStorage"; Message = 'contains a control character' }
+        @{ Case = 'a newline'; Name = "Deny`nStorage"; Message = 'contains a control character' }
+        @{ Case = 'DEL'; Name = "Deny$([char] 0x7F)Storage"; Message = 'contains a control character' }
+        @{ Case = 'a leading space'; Name = ' Deny-Storage'; Message = 'starts or ends with a space' }
+        @{ Case = 'a trailing space'; Name = 'Deny-Storage '; Message = 'starts or ends with a space' }
+        @{ Case = 'CON'; Name = 'CON'; Message = 'is a reserved file name on Windows' }
+        @{ Case = 'nul in lowercase'; Name = 'nul'; Message = 'is a reserved file name on Windows' }
+        @{ Case = 'COM1'; Name = 'COM1'; Message = 'is a reserved file name on Windows' }
+        @{ Case = 'Lpt9'; Name = 'Lpt9'; Message = 'is a reserved file name on Windows' }
+    ) {
+        Get-BylawNameProblemForTest $Name | Should -BeLike $Message
+    }
+
+    It 'reports BYL3001 at the Policy for an invalid name' {
+        $result = Invoke-BylawTestCompile -Script (Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy 'Deny-Storage '")
+        $diagnostic = $result.Diagnostics | Where-Object Code -EQ 'BYL3001'
+        $diagnostic.Message | Should -Be "Policy name 'Deny-Storage ' starts or ends with a space (ADR-0010)."
+        $diagnostic.Location.Keyword | Should -Be 'Policy'
     }
 }
 

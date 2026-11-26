@@ -51,7 +51,7 @@ Chosen option: "A bundled snapshot plus an optional refreshed cache, with lookup
 * The snapshot is written with the canonical writer (ADR-0009), with types and aliases sorted by ordinal comparison, so refreshing it gives minimal diffs.
 * It is read with `System.Text.Json`, not `ConvertFrom-Json`, which would turn `generatedAt` into a `DateTime`.
 * The loader parses the file once per runspace, and indexes only the resource types the build references.
-* The bundled `src/Data/aliases.json` currently holds only the types the tests and examples use (storage accounts, virtual machines, network security groups, key vaults). The maintainers will generate the full snapshot.
+* The bundled `src/Data/aliases.json` currently holds only the types the tests and examples use (storage accounts, virtual machines and their extensions, network security groups, key vaults, and diagnostic settings). The maintainers will generate the full snapshot.
 
 ### Where the snapshot is loaded from (first match wins)
 

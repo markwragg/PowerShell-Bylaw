@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "tags-require-mandatory-tags",
+  "properties": {
+    "displayName": "Resources have every mandatory tag",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Tags"
+    },
+    "parameters": {
+      "mandatoryTags": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Mandatory tags",
+          "description": "Tags every resource must have."
+        },
+        "defaultValue": [
+          "CostCenter",
+          "Owner"
+        ]
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "count": {
+          "value": "[parameters('mandatoryTags')]",
+          "name": "tagName",
+          "where": {
+            "field": "[concat('tags[', current('tagName'), ']')]",
+            "exists": true
+          }
+        },
+        "notEquals": "[length(parameters('mandatoryTags'))]"
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

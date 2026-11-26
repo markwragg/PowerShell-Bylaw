@@ -7,13 +7,16 @@ function Policy {
         The only top-level Bylaw DSL command. The scriptblock describes the compliant state of a
         resource using the inner keywords (Properties, Parameter, Resource, When, Require, Each,
         AnyOf, AllOf, Field, Element, Tag, ResourceGroupTag, Must, Effect, Modify, AddOrReplace,
-        Add, Remove, Param, Arm), which exist only while the block runs.
+        Add, Remove, Append, DenyAction, Manual, AuditIfNotExists, DeployIfNotExists, Deployment,
+        Count, Current, Param, Arm), which exist only while the block runs.
 
         Errors inside the block are recorded as diagnostics with file, line and keyword, and are
         reported together by Build-Bylaw.
 
     .PARAMETER Name
-        The definition name. It is the definition's identity and output file name (ADR-0010).
+        The definition name. It is the definition's identity and output file name, so renaming it
+        creates a new definition. 1 to 64 characters, without < > * % & : \ ? . + / " | or control
+        characters, and not starting or ending with a space (ADR-0010).
 
     .PARAMETER Body
         The policy description.
@@ -69,9 +72,9 @@ function Policy {
             "Policy '$Name' has no Resource block. Use Resource '<type>' { ... } or Resource * { ... }."
         )
     }
-    if (-not $frame.Singletons.ContainsKey('Effect') -and -not $frame.Singletons.ContainsKey('Modify')) {
+    if (-not ($script:BylawEffectKeywordNames | Where-Object { $frame.Singletons.ContainsKey($_) })) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1006' -Location $location -Message (
-            "Policy '$Name' has no Effect. Add for example: Effect Deny, Effect (Param Effect), or a Modify block."
+            "Policy '$Name' has no Effect. Add for example: Effect Deny, Effect (Param Effect), a Modify or Append block, DenyAction Delete, Manual, or AuditIfNotExists or DeployIfNotExists -Type ... { }."
         )
     }
 

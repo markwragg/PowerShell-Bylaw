@@ -6,6 +6,14 @@ function ConvertTo-BylawValue {
         [AllowNull()] [object] $Value,
         [BylawSourceLocation] $Location
     )
+    if ($Value -is [BylawCount]) {
+        # A count is tested, not compared with (ADR-0032).
+        Remove-BylawPendingField -Field $Value
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1052' -Location $Location -Message (
+            "A count ($Value) can't be used as a value. Pipe it to Must instead, e.g. $Value | Must -BeGreaterThan 0."
+        )
+        return $null
+    }
     if ($Value -is [BylawValue]) {
         return $Value
     }
@@ -25,11 +33,47 @@ function ConvertTo-BylawValue {
             )
             return $null
         }
+        if (Test-BylawNestedValue -Value $items) {
+            Add-BylawDiagnostic -Severity Error -Code 'BYL1020' -Location $Location -Message (
+                'A hashtable value cannot contain Param or Arm. Use a parameter of type Object or Array for the whole value instead, e.g. (Param IpRules).'
+            )
+            return $null
+        }
         $literal = [BylawLiteral]::new([object[]] $items)
         $literal.Location = $Location
         return $literal
     }
+    if ($Value -is [System.Collections.IDictionary] -and (Test-BylawNestedValue -Value $Value)) {
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1020' -Location $Location -Message (
+            'A hashtable value cannot contain Param or Arm. Use a parameter of type Object for the whole value instead, e.g. (Param IpRule).'
+        )
+        return $null
+    }
     $literal = [BylawLiteral]::new($Value)
     $literal.Location = $Location
     $literal
+}
+
+function Test-BylawNestedValue {
+    # True when a hashtable or array literal contains a Param, Arm or other IR value at any depth.
+    param([AllowNull()] [object] $Value)
+
+    if ($Value -is [BylawValue] -or $Value -is [BylawFieldRef]) {
+        return $true
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        foreach ($item in $Value.Values) {
+            if (Test-BylawNestedValue -Value $item) {
+                return $true
+            }
+        }
+    }
+    elseif ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+        foreach ($item in $Value) {
+            if (Test-BylawNestedValue -Value $item) {
+                return $true
+            }
+        }
+    }
+    $false
 }

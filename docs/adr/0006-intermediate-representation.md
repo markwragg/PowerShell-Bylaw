@@ -14,7 +14,7 @@ Keywords could write JSON fragments directly, but then it would be hard to add i
 
 * Each compiler concern should be testable on its own.
 * Several emitters (EPAC, plain JSON, later Bicep).
-* Decompiling (JSON to DSL) in Milestone 3 needs an IR that can represent any supported policy JSON.
+* Decompiling (JSON to DSL) in Milestone 5 needs an IR that can represent any supported policy JSON.
 * Precise error locations during later compiler passes, not just in the keywords.
 
 ## Considered Options

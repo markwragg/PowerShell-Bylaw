@@ -10,7 +10,9 @@
 #   5. Under Resource *, only reserved fields and full aliases are allowed.
 #   6. [*] in a field outside Each is an error: negating it by swapping operators would be wrong.
 #   7. Tag name is tags['name']; Tag (Param X) is [concat('tags[', parameters('x'), ']')] (ADR-0020).
-#   8. Fields in Modify operations resolve as top-level fields (ADR-0024).
+#   8. Fields in Modify operations resolve as top-level fields (ADR-0024). So do Append fields,
+#      which may also end in [*] (ADR-0029).
+#   9. Fields in an existence condition resolve against the related resource's -Type (ADR-0030).
 #   Value conditions (ADR-0025) test an expression and have no field to resolve.
 
 $script:BylawReservedFields = @(
@@ -83,8 +85,77 @@ function Invoke-BylawAliasResolution {
             Resolve-BylawFieldAlias -Field $operation.Field -Context $context -ArrayAlias $null
         }
     }
+    # Append fields resolve the same way, and may end in [*] to add an array element. A [*]
+    # anywhere else is left to validation (ADR-0029).
+    if ($Policy.Effect -is [BylawAppend]) {
+        foreach ($operation in $Policy.Effect.Operations) {
+            $field = $operation.Field
+            $isArray = $field.Kind -eq [BylawFieldKind]::Field -and $field.Name.EndsWith('[*]')
+            $inner = if ($isArray) { $field.Name.Substring(0, $field.Name.Length - 3) } else { $field.Name }
+            if ($field.Kind -eq [BylawFieldKind]::Field -and $inner.Contains('[*]')) {
+                continue
+            }
+            Resolve-BylawFieldAlias -Field $field -Context $context -ArrayAlias $null -IsArrayPath:$isArray
+        }
+    }
+    # The existence condition of AuditIfNotExists and DeployIfNotExists describes the related
+    # resource, so its fields resolve against -Type (ADR-0030).
+    if ($Policy.Effect -is [BylawIfNotExists] -and $Policy.Effect.Type) {
+        $effect = $Policy.Effect
+        $related = [pscustomobject]@{
+            Policy            = $Policy
+            Snapshot          = $Snapshot
+            Type              = $effect.Type
+            TypeKnown         = $false
+            AnyType           = $false
+            AllowUnknownAlias = $context.AllowUnknownAlias
+            Diagnostics       = $context.Diagnostics
+        }
+        $canonicalType = $Snapshot.GetTypeName($effect.Type)
+        if ($canonicalType) {
+            $effect.ResolvedType = $canonicalType
+            $related.Type = $canonicalType
+            $related.TypeKnown = $true
+        }
+        else {
+            $effect.ResolvedType = $effect.Type
+            $severity = if ($context.AllowUnknownAlias) { [BylawSeverity]::Warning } else { [BylawSeverity]::Error }
+            $context.Diagnostics.Add([BylawDiagnostic]::new($severity, 'BYL2003', (
+                        "Related resource type '$($effect.Type)' is not in the alias snapshot ($($Snapshot.Path)). " +
+                        'Check the spelling, refresh the snapshot with Update-BylawAliasCache, or use -AllowUnknownAlias.'
+                    ), $effect.Location))
+        }
+        foreach ($requirement in $effect.Requirements) {
+            foreach ($child in $requirement.Children) {
+                Resolve-BylawNodeAlias -Node $child -Context $related -ArrayAlias $null
+            }
+        }
+    }
 
     $context.Diagnostics
+}
+
+function Resolve-BylawCountAlias {
+    # A field count's path resolves like an Each path: relative to the element inside Each, and its
+    # -Where fields relative to its own element. A value count's -Where fields resolve as they would
+    # around it (ADR-0032).
+    param(
+        [Parameter(Mandatory)] [BylawCount] $Count,
+        [Parameter(Mandatory)] [pscustomobject] $Context,
+        [AllowNull()] [string] $ArrayAlias
+    )
+
+    $whereAlias = $ArrayAlias
+    if ($Count.IsFieldCount()) {
+        $whereAlias = Resolve-BylawFieldAlias -Field $Count.Field -Context $Context -ArrayAlias $ArrayAlias -IsArrayPath -PassThru
+        if (-not $whereAlias) {
+            # The array itself didn't resolve; its -Where would only repeat the error.
+            return
+        }
+    }
+    foreach ($child in $Count.Children) {
+        Resolve-BylawNodeAlias -Node $child -Context $Context -ArrayAlias $whereAlias
+    }
 }
 
 function Resolve-BylawNodeAlias {
@@ -98,6 +169,9 @@ function Resolve-BylawNodeAlias {
         # A value condition tests an expression, so it has no field to resolve (ADR-0025).
         if ($null -ne $Node.Field) {
             Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias
+        }
+        elseif ($Node.Subject -is [BylawCount]) {
+            Resolve-BylawCountAlias -Count $Node.Subject -Context $Context -ArrayAlias $ArrayAlias
         }
         return
     }
@@ -160,11 +234,13 @@ function Get-BylawResolvedAlias {
     $name = $Field.Name
     $withoutOwnArray = if ($IsArrayPath) { $name.Substring(0, $name.Length - 3) } else { $name }
     if ($withoutOwnArray.Contains('[*]')) {
+        $arrayPath = $name.Substring(0, $name.IndexOf('[*]') + 3)
+        $elementField = $name.Substring($name.IndexOf('[*]') + 3).TrimStart('.')
         $hint = if ($IsArrayPath) {
-            'Nest one Each per array level instead.'
+            'Nest one Each (or Count -Where) per array level instead.'
         }
         else {
-            "Wrap it in Each, e.g. Each $($name.Substring(0, $name.IndexOf('[*]') + 3)) { Field $($name.Substring($name.IndexOf('[*]') + 3).TrimStart('.')) | Must ... }."
+            "Wrap it in Each, e.g. Each $arrayPath { Field $elementField | Must ... }, or count the elements: Count $arrayPath -Where { Field $elementField | Must ... } | Must -BeGreaterThan 0 (ADR-0032)."
         }
         Add-BylawResolutionDiagnostic -Context $Context -Code 'BYL2005' -Location $location -Message (
             "Field '$name' uses [*] outside Each. Azure evaluates a [*] field condition for every element, so it can't be inverted safely. $hint"
@@ -281,6 +357,11 @@ function Get-BylawTagFieldName {
     # gives '', and validation reports it.
     param([Parameter(Mandatory)] [BylawFieldRef] $Field, [Parameter(Mandatory)] [BylawPolicy] $Policy)
 
+    if ($Field.TagName -is [BylawCurrent]) {
+        # The member a value count is at (ADR-0032), as ALZ's tag policies write it.
+        $current = Get-BylawCurrentExpression -Current $Field.TagName
+        return "[concat('tags[', $current, ']')]"
+    }
     if ($Field.TagName -isnot [BylawParamRef]) {
         return "tags['$($Field.TagName.Value)']"
     }

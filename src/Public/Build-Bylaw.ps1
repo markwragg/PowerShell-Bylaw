@@ -197,6 +197,12 @@ function Build-Bylaw {
 
         if ($outputRoot) {
             $produced = [System.Collections.Generic.HashSet[string]]::new([string[]] @($compiled.OutputFile), [System.StringComparer]::OrdinalIgnoreCase)
+            # Files a policy reads, such as a deployment template (ADR-0031), are inputs, not stale output.
+            foreach ($inputFile in @($compiled | ForEach-Object { $_.Policy.Inputs })) {
+                if ($inputFile) {
+                    $null = $produced.Add([System.IO.Path]::GetFullPath($inputFile))
+                }
+            }
             if ([System.IO.Directory]::Exists($outputRoot)) {
                 $existing = [System.IO.Directory]::GetFiles($outputRoot, '*' + $emitter.FileExtension, [System.IO.SearchOption]::AllDirectories)
                 foreach ($stale in ($existing | Sort-Object -Culture ([cultureinfo]::InvariantCulture))) {

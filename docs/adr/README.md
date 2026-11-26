@@ -13,7 +13,7 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0007](0007-compile-only.md) | Bylaw compiles policy definitions and never deploys them | Accepted |
 | [0008](0008-bundled-alias-snapshot.md) | Resolve and validate aliases offline against a bundled snapshot | Accepted |
 | [0009](0009-deterministic-output.md) | Byte-identical output from a canonical JSON writer | Accepted |
-| [0010](0010-definition-name-stability.md) | The definition name comes only from Policy 'name' and follows a strict naming rule | Accepted |
+| [0010](0010-definition-name-stability.md) | The definition name comes only from Policy 'name', and can be any name Azure accepts that is also a safe file name | Accepted |
 | [0011](0011-epac-default-output.md) | EPAC policy definition files are the default output, one file per policy | Accepted |
 | [0012](0012-language-versioning.md) | The language version is set in a bylaw.json project settings file, defaulting to 1.0 | Accepted |
 | [0013](0013-discovery-by-convention.md) | Build-Bylaw discovers *.bylaw.ps1 files recursively; names are unique across a build | Accepted |
@@ -31,3 +31,8 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0025](0025-value-conditions.md) | Must can test an expression as well as a field, emitting a value condition | Accepted |
 | [0026](0026-anyof-and-allof-groups.md) | AnyOf and AllOf groups let a requirement have alternatives | Accepted |
 | [0027](0027-plain-json-output.md) | Plain JSON output is a policy definition with name and properties, emitted as written | Accepted |
+| [0028](0028-denyaction-and-manual.md) | DenyAction and Manual are keywords that take the place of Effect | Accepted |
+| [0029](0029-append-effect.md) | Append is a block of Add operations, like Modify | Accepted |
+| [0030](0030-if-not-exists-effects.md) | AuditIfNotExists and DeployIfNotExists describe the related resource's compliant state | Accepted |
+| [0031](0031-deployment-templates.md) | DeployIfNotExists takes its template from a JSON file or a hashtable, with checked parameters | Accepted |
+| [0032](0032-count-expressions.md) | Count is piped to Must, for field counts and value counts | Accepted |
