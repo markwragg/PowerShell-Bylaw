@@ -384,7 +384,8 @@ function Get-AssignmentState {
 
 function Add-ResultTable {
     param(
-        [Parameter(Mandatory)] [System.Collections.Generic.List[string]] $Lines,
+        # The report contains blank lines, which a mandatory string collection would refuse.
+        [Parameter(Mandatory)] [AllowEmptyString()] [System.Collections.Generic.List[string]] $Lines,
         [Parameter(Mandatory)] [object[]] $Results,
         [Parameter(Mandatory)] [System.Collections.IDictionary] $Subjects,
         [Parameter(Mandatory)] [object[]] $Operators
