@@ -443,7 +443,7 @@ Build-Bylaw [[-Path] <string[]>] [[-OutputPath] <string>] [-Format <Epac|PlainJs
 
 ### Aliases
 
-Bylaw checks field names against an alias snapshot, offline. The bundled snapshot only covers the resource types used by the tests and examples (storage accounts, key vaults, virtual machines and network security groups). For anything else, refresh the snapshot from Azure. This needs `Az.Resources` and a signed-in account, and only reads alias metadata:
+Bylaw checks field names against an alias snapshot, offline. The bundled snapshot only covers the resource types used by the tests and examples (storage accounts, key vaults, virtual machines and their extensions, network security groups, and diagnostic settings). For anything else, refresh the snapshot from Azure. This needs `Az.Resources` and a signed-in account, and only reads alias metadata:
 
 ```powershell
 Connect-AzAccount
