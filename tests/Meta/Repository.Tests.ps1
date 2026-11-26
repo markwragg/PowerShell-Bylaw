@@ -40,6 +40,29 @@ Describe 'Repository text files' {
     }
 }
 
+Describe 'README' {
+    BeforeAll {
+        $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+        $readme = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'README.md'))
+        $script:readmePowerShell = @([regex]::Matches($readme, '(?ms)^```powershell\n(.*?)^```') | ForEach-Object { $_.Groups[1].Value })
+        $script:readmeJson = @([regex]::Matches($readme, '(?ms)^```json\n(.*?)^```') | ForEach-Object { $_.Groups[1].Value })
+        $script:storageSource = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'examples/storage/public-network-access.bylaw.ps1'))
+        $script:storageGolden = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'examples/storage/storage-deny-public-network-access.json'))
+    }
+
+    It 'shows the storage example exactly as it is in examples/' {
+        $block = @($readmePowerShell | Where-Object { $_ -match "^Policy 'storage-deny-public-network-access'" })
+        $block.Count | Should -Be 1
+        $storageSource.Contains($block[0]) | Should -BeTrue -Because 'the before and after in README.md must match examples/storage/public-network-access.bylaw.ps1'
+    }
+
+    It 'shows the storage output exactly as the golden file' {
+        $block = @($readmeJson | Where-Object { $_ -match '"name": "storage-deny-public-network-access"' })
+        $block.Count | Should -Be 1
+        $block[0] | Should -BeExactly $storageGolden -Because 'the before and after in README.md must match the golden file'
+    }
+}
+
 Describe 'No backtick line continuation' {
     It '<Path> has no line continuations' -ForEach $powerShellFiles {
         $tokens = $null
