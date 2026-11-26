@@ -378,6 +378,38 @@ class BylawAppend : BylawEffect {
     BylawAppend([BylawValue] $value) : base($value) {}
 }
 
+class BylawIfNotExists : BylawEffect {
+    # Shared by AuditIfNotExists and DeployIfNotExists (ADR-0030): the related resource, and the
+    # Require blocks that describe its compliant state.
+    # -Type as written, and in the alias snapshot's casing (set by alias resolution).
+    [string] $Type
+    [string] $ResolvedType
+    # -Name and -ResourceGroupName: literals, Param or Arm, or $null when not set.
+    [BylawValue] $Name
+    [BylawValue] $ResourceGroupName
+    # 'ResourceGroup' or 'Subscription' as emitted, or $null when not set.
+    [string] $ExistenceScope
+    # As written, e.g. 'AfterProvisioning' or 'PT30M', or $null when not set.
+    [string] $EvaluationDelay
+    # BylawRequirement nodes, in source order. Fields resolve against Type.
+    [System.Collections.Generic.List[object]] $Requirements = [System.Collections.Generic.List[object]]::new()
+    # The compliant existence condition, set by the inversion pass. $null without Require blocks.
+    [BylawCondition] $ExistenceCondition
+
+    BylawIfNotExists() {}
+
+    BylawIfNotExists([BylawValue] $value) : base($value) {}
+}
+
+class BylawAuditIfNotExists : BylawIfNotExists {
+    # AuditIfNotExists -Type ... { Require ... } (ADR-0030). Value is the literal
+    # 'AuditIfNotExists', or the -Effect parameter or expression.
+
+    BylawAuditIfNotExists() {}
+
+    BylawAuditIfNotExists([BylawValue] $value) : base($value) {}
+}
+
 class BylawDenyAction : BylawEffect {
     # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0028). Value is the literal 'DenyAction',
     # or the -Effect parameter or expression.

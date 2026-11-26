@@ -111,3 +111,16 @@ Policy 'plain-append' {
         Field supportsHttpsTrafficOnly | Add $true
     }
 }
+
+Policy 'plain-auditifnotexists' {
+
+    Properties @{ DisplayName = 'Plain: virtual machines have an extension from Microsoft'; Mode = 'Indexed' }
+
+    Resource 'Microsoft.Compute/virtualMachines' { }
+
+    AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
+        Require 'The publisher is Microsoft' {
+            Field publisher | Must -BeLike 'Microsoft.*'
+        }
+    }
+}

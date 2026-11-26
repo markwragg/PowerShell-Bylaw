@@ -14,6 +14,7 @@ $script:BylawModifyGeneratedEffects = @('Modify', 'Disabled')
 $script:BylawEffectKeywords = [ordered]@{
     Modify     = @{ Allowed = $script:BylawModifyEffects; Generated = $script:BylawModifyGeneratedEffects; Example = "Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' }" }
     Append     = @{ Allowed = @('Append', 'Disabled'); Generated = @('Append', 'Disabled'); Example = 'Append { Field supportsHttpsTrafficOnly | Add $true }' }
+    AuditIfNotExists = @{ Allowed = @('AuditIfNotExists', 'Disabled'); Generated = @('AuditIfNotExists', 'Disabled'); Example = "AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' { Require ... }" }
     DenyAction = @{ Allowed = @('DenyAction', 'Disabled'); Generated = @('DenyAction', 'Disabled'); Example = 'DenyAction Delete' }
     Manual     = @{ Allowed = @('Manual', 'Disabled'); Generated = @('Manual', 'Disabled'); Example = 'Manual -DefaultState Unknown' }
 }
@@ -25,6 +26,7 @@ function Get-BylawEffectKeyword {
 
     if ($Effect -is [BylawModify]) { return 'Modify' }
     if ($Effect -is [BylawAppend]) { return 'Append' }
+    if ($Effect -is [BylawAuditIfNotExists]) { return 'AuditIfNotExists' }
     if ($Effect -is [BylawDenyAction]) { return 'DenyAction' }
     if ($Effect -is [BylawManual]) { return 'Manual' }
     'Effect'
@@ -178,6 +180,9 @@ function ConvertTo-BylawPolicyRuleObject {
         }
         $thenObject['details'] = [object[]] @($operations)
     }
+    elseif ($then -is [BylawIfNotExists]) {
+        $thenObject['details'] = ConvertTo-BylawIfNotExistsDetailsObject -Effect $then -Policy $Policy
+    }
     elseif ($then -is [BylawDenyAction]) {
         # { actionNames, cascadeBehaviors? }, in Learn's order (ADR-0028).
         $details = [ordered]@{ actionNames = [object[]] @($then.ActionNames) }
@@ -193,6 +198,31 @@ function ConvertTo-BylawPolicyRuleObject {
         if   = ConvertTo-BylawConditionObject -Condition $Policy.Rule.If -Policy $Policy
         then = $thenObject
     }
+}
+
+function ConvertTo-BylawIfNotExistsDetailsObject {
+    # { type, name?, resourceGroupName?, existenceScope?, evaluationDelay?, existenceCondition? },
+    # in the order Learn documents them (ADR-0030).
+    param([Parameter(Mandatory)] [BylawIfNotExists] $Effect, [Parameter(Mandatory)] [BylawPolicy] $Policy)
+
+    $type = if ($Effect.ResolvedType) { $Effect.ResolvedType } else { $Effect.Type }
+    $details = [ordered]@{ type = $type }
+    if ($null -ne $Effect.Name) {
+        $details['name'] = ConvertTo-BylawValueObject -Value $Effect.Name -Policy $Policy
+    }
+    if ($null -ne $Effect.ResourceGroupName) {
+        $details['resourceGroupName'] = ConvertTo-BylawValueObject -Value $Effect.ResourceGroupName -Policy $Policy
+    }
+    if ($Effect.ExistenceScope) {
+        $details['existenceScope'] = $Effect.ExistenceScope
+    }
+    if ($Effect.EvaluationDelay) {
+        $details['evaluationDelay'] = $Effect.EvaluationDelay
+    }
+    if ($null -ne $Effect.ExistenceCondition) {
+        $details['existenceCondition'] = ConvertTo-BylawConditionObject -Condition $Effect.ExistenceCondition -Policy $Policy
+    }
+    $details
 }
 
 function ConvertTo-BylawModifyDetailsObject {

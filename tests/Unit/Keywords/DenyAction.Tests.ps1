@@ -247,6 +247,6 @@ Describe 'Effect with a keyword effect name' {
 
     It 'reports no effect when the policy has none' {
         $result = Invoke-BylawTestScript -Script (Format-EffectPolicy -Effect '')
-        Get-Message $result 'BYL1006' | Should -BeLike '*DenyAction Delete or Manual*'
+        Get-Message $result 'BYL1006' | Should -BeLike '*DenyAction Delete, Manual*'
     }
 }

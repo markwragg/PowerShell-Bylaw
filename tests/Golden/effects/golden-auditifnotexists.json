@@ -1,0 +1,80 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-auditifnotexists",
+  "properties": {
+    "displayName": "Golden: Windows virtual machines have the antimalware extension",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Compute"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "AuditIfNotExists"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Compute/virtualMachines"
+          },
+          {
+            "field": "Microsoft.Compute/virtualMachines/storageProfile.osDisk.osType",
+            "equals": "Windows"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "evaluationDelay": "AfterProvisioning",
+          "existenceCondition": {
+            "allOf": [
+              {
+                "field": "Microsoft.Compute/virtualMachines/extensions/publisher",
+                "equals": "Microsoft.Azure.Security"
+              },
+              {
+                "field": "Microsoft.Compute/virtualMachines/extensions/type",
+                "equals": "IaaSAntimalware"
+              },
+              {
+                "field": "Microsoft.Compute/virtualMachines/extensions/typeHandlerVersion",
+                "exists": true
+              },
+              {
+                "field": "Microsoft.Compute/virtualMachines/extensions/typeHandlerVersion",
+                "notLike": "1.0*"
+              },
+              {
+                "anyOf": [
+                  {
+                    "field": "Microsoft.Compute/virtualMachines/extensions/autoUpgradeMinorVersion",
+                    "exists": false
+                  },
+                  {
+                    "field": "Microsoft.Compute/virtualMachines/extensions/autoUpgradeMinorVersion",
+                    "equals": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -6,7 +6,7 @@
 $script:BylawLaterEffects = [ordered]@{
     Modify            = "Modify has its own block, which takes the place of Effect: Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' } (ADR-0024)."
     Append            = 'Append has its own block, which takes the place of Effect: Append { Field supportsHttpsTrafficOnly | Add $true } (ADR-0029).'
-    AuditIfNotExists  = 'AuditIfNotExists is planned for a later milestone.'
+    AuditIfNotExists  = "AuditIfNotExists has its own block, which takes the place of Effect: AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' { Require ... } (ADR-0030)."
     DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
     DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0028).'
     Manual            = 'Manual has its own keyword, which takes the place of Effect: Manual -DefaultState Unknown (ADR-0028).'
@@ -71,7 +71,9 @@ function Invoke-BylawValidation {
 
     $scope = $Policy.Resource
     $assertions = if ($null -ne $scope) { @(Get-BylawAssertion -Scope $scope) } else { @() }
-    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions $assertions
+    # Assertions in an existence condition describe the related resource (ADR-0030).
+    $relatedAssertions = if ($Policy.Effect -is [BylawIfNotExists]) { @(Get-BylawAssertion -Requirements $Policy.Effect.Requirements) } else { @() }
+    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions (@($assertions) + @($relatedAssertions))
     foreach ($parameter in $Policy.Parameters) {
         if (-not $used.Contains($parameter.Name)) {
             & $add 'BYL3029' "Parameter '$($parameter.Name)' is declared but never used." $parameter.Location ([BylawSeverity]::Warning)
@@ -79,9 +81,12 @@ function Invoke-BylawValidation {
     }
 
     if ($null -ne $scope) {
-        foreach ($assertion in $assertions) {
+        foreach ($assertion in @($assertions) + @($relatedAssertions)) {
             Test-BylawAssertionValue -Assertion $assertion -Policy $Policy -Add $add
             Test-BylawTagParameter -Assertion $assertion -Policy $Policy -Add $add
+        }
+        if ($Policy.Effect -is [BylawIfNotExists]) {
+            Test-BylawIfNotExistsEffect -Effect $Policy.Effect -Policy $Policy -Add $add
         }
         if ($Policy.Effect -is [BylawModify]) {
             Test-BylawModify -Modify $Policy.Effect -Policy $Policy -Snapshot $Snapshot -Add $add
@@ -94,8 +99,9 @@ function Invoke-BylawValidation {
         }
 
         # DenyAction and Manual apply to every resource that matches the type and When: those are
-        # the resources that can't be deleted, or whose compliance is attested (ADR-0028).
-        $selectsOnly = $Policy.Effect -is [BylawDenyAction] -or $Policy.Effect -is [BylawManual]
+        # the resources that can't be deleted, or whose compliance is attested (ADR-0028). For
+        # AuditIfNotExists and DeployIfNotExists, the existence condition decides (ADR-0030).
+        $selectsOnly = $Policy.Effect -is [BylawDenyAction] -or $Policy.Effect -is [BylawManual] -or $Policy.Effect -is [BylawIfNotExists]
         if ($scope.Requirements.Count -eq 0 -and -not $selectsOnly) {
             $message = if ($scope.IsAnyType() -and $scope.When.Count -eq 0) {
                 $null
@@ -498,6 +504,13 @@ function Get-BylawUsedParameterName {
     if ($null -ne $Policy.Effect -and $null -ne $Policy.Effect.Value) {
         $values.Add($Policy.Effect.Value)
     }
+    if ($Policy.Effect -is [BylawIfNotExists]) {
+        foreach ($value in $Policy.Effect.Name, $Policy.Effect.ResourceGroupName) {
+            if ($null -ne $value) {
+                $values.Add($value)
+            }
+        }
+    }
     if ($Policy.Effect -is [BylawModify] -or $Policy.Effect -is [BylawAppend]) {
         foreach ($operation in $Policy.Effect.Operations) {
             foreach ($value in $operation.Value, $operation.Condition, $operation.Field.TagName) {
@@ -532,14 +545,21 @@ function Get-BylawUsedParameterName {
 }
 
 function Get-BylawAssertion {
-    # Every assertion in a resource scope, in source order, including inside Each and groups.
-    param([Parameter(Mandatory)] [BylawResourceScope] $Scope)
+    # Every assertion in a resource scope, or in a list of Require blocks, in source order,
+    # including inside Each and groups.
+    param(
+        [Parameter(Mandatory, ParameterSetName = 'Scope')] [BylawResourceScope] $Scope,
+        [Parameter(Mandatory, ParameterSetName = 'Requirements')] [AllowEmptyCollection()] [object[]] $Requirements
+    )
 
     $queue = [System.Collections.Generic.List[object]]::new()
-    foreach ($applicability in $Scope.When) {
-        $queue.AddRange($applicability.Children)
+    if ($PSCmdlet.ParameterSetName -eq 'Scope') {
+        foreach ($applicability in $Scope.When) {
+            $queue.AddRange($applicability.Children)
+        }
+        $Requirements = @($Scope.Requirements)
     }
-    foreach ($requirement in $Scope.Requirements) {
+    foreach ($requirement in $Requirements) {
         $queue.AddRange($requirement.Children)
     }
     $index = 0

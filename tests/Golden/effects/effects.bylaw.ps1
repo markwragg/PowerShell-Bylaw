@@ -77,3 +77,58 @@ Policy 'golden-append' {
         Field 'networkAcls.ipRules[*]' | Add ([ordered]@{ value = '40.40.40.0/24'; action = 'Allow' })
     }
 }
+
+# AuditIfNotExists (ADR-0030): the existence condition describes the related resource's compliant
+# state and is emitted as written. The negated check gets an exists guard, so an extension without
+# typeHandlerVersion doesn't count; -IfPresent makes autoUpgradeMinorVersion optional.
+Policy 'golden-auditifnotexists' {
+
+    Properties @{
+        DisplayName = 'Golden: Windows virtual machines have the antimalware extension'
+        Category    = 'Compute'
+        Version     = '1.0.0'
+        Mode        = 'Indexed'
+    }
+
+    Resource 'Microsoft.Compute/virtualMachines' {
+        When {
+            Field storageProfile.osDisk.osType | Must -Be 'Windows'
+        }
+    }
+
+    AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' -EvaluationDelay AfterProvisioning {
+        Require 'The antimalware extension is installed' {
+            Field publisher | Must -Be 'Microsoft.Azure.Security'
+            Field 'Microsoft.Compute/virtualMachines/extensions/type' | Must -Be 'IaaSAntimalware'
+            Field typeHandlerVersion | Must -Not -BeLike '1.0*'
+        }
+        Require 'Minor versions upgrade automatically' {
+            Field autoUpgradeMinorVersion | Must -Be $true -IfPresent
+        }
+    }
+}
+
+# A related resource outside the evaluated one: diagnostic settings, by name from a parameter.
+Policy 'golden-auditifnotexists-diagnostics' {
+
+    Properties @{
+        DisplayName = 'Golden: key vaults send logs to a Log Analytics workspace'
+        Category    = 'Monitoring'
+        Version     = '1.0.0'
+        Mode        = 'Indexed'
+    }
+
+    Parameter Effect -AllowedValues AuditIfNotExists, Disabled -Default AuditIfNotExists
+    Parameter WorkspaceId -Type String -Description 'The Log Analytics workspace resource ID.'
+
+    Resource 'Microsoft.KeyVault/vaults' { }
+
+    AuditIfNotExists -Type 'Microsoft.Insights/diagnosticSettings' -Effect (Param Effect) {
+        Require 'Logs go to the workspace' {
+            Field workspaceId | Must -Be (Param WorkspaceId)
+            Each logs[*] {
+                Field enabled | Must -Be $true -Strict
+            }
+        }
+    }
+}

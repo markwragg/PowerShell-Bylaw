@@ -68,6 +68,12 @@ AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
 * `DeployIfNotExists` emits the effect `DeployIfNotExists`, and also takes `-Role` (ADR-0022) and a deployment (ADR-0031). `-Effect (Param Effect)` may allow `DeployIfNotExists`, `AuditIfNotExists` and `Disabled`. Two ALZ policies allow all three.
 * A literal effect gets a generated EPAC parameter: `AuditIfNotExists` and `Disabled`, or `DeployIfNotExists` and `Disabled`. These are the values built-in and ALZ policies use: 70 of the 74 ALZ DeployIfNotExists policies allow exactly those two.
 
+### Diagnostics
+
+* Front end: BYL1038 (no `-Type`, or one that is not a resource type), BYL1039 (a `-Name` or `-ResourceGroupName` that is not a name, `Param` or `Arm`), BYL1040 (an invalid `-ExistenceScope`), BYL1041 (an invalid `-EvaluationDelay`). As for the other effect keywords, BYL1030 is a literal `-Effect` and BYL1026 a second effect keyword. `When`, or a `Field` outside `Require`, in the block is BYL1002.
+* Validation: BYL2003 (a related type that is not in the alias snapshot), BYL3090 (`-Type` is the `Resource` type, and `-Name` is not `[field('name')]` or `[field('fullName')]`), BYL3072 (an effect parameter that allows values the keyword doesn't). Warnings: BYL3091 (`AuditIfNotExists` on the resource itself, where Learn suggests `Audit`), BYL3092 (`-ResourceGroupName` or `-ExistenceScope` on a child type).
+* Field names in the existence condition resolve against `-Type`, so reserved names such as `type` and `name` are the related resource's. A property that shares a reserved name, such as an extension's `type`, needs its full alias: `Microsoft.Compute/virtualMachines/extensions/type`.
+
 ### Consequences
 
 * Good, because the existence condition reads like any other requirement, and its field names are checked against the right type.

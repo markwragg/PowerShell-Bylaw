@@ -12,6 +12,7 @@
 #   7. Tag name is tags['name']; Tag (Param X) is [concat('tags[', parameters('x'), ']')] (ADR-0020).
 #   8. Fields in Modify operations resolve as top-level fields (ADR-0024). So do Append fields,
 #      which may also end in [*] (ADR-0029).
+#   9. Fields in an existence condition resolve against the related resource's -Type (ADR-0030).
 #   Value conditions (ADR-0025) test an expression and have no field to resolve.
 
 $script:BylawReservedFields = @(
@@ -95,6 +96,39 @@ function Invoke-BylawAliasResolution {
                 continue
             }
             Resolve-BylawFieldAlias -Field $field -Context $context -ArrayAlias $null -IsArrayPath:$isArray
+        }
+    }
+    # The existence condition of AuditIfNotExists and DeployIfNotExists describes the related
+    # resource, so its fields resolve against -Type (ADR-0030).
+    if ($Policy.Effect -is [BylawIfNotExists] -and $Policy.Effect.Type) {
+        $effect = $Policy.Effect
+        $related = [pscustomobject]@{
+            Policy            = $Policy
+            Snapshot          = $Snapshot
+            Type              = $effect.Type
+            TypeKnown         = $false
+            AnyType           = $false
+            AllowUnknownAlias = $context.AllowUnknownAlias
+            Diagnostics       = $context.Diagnostics
+        }
+        $canonicalType = $Snapshot.GetTypeName($effect.Type)
+        if ($canonicalType) {
+            $effect.ResolvedType = $canonicalType
+            $related.Type = $canonicalType
+            $related.TypeKnown = $true
+        }
+        else {
+            $effect.ResolvedType = $effect.Type
+            $severity = if ($context.AllowUnknownAlias) { [BylawSeverity]::Warning } else { [BylawSeverity]::Error }
+            $context.Diagnostics.Add([BylawDiagnostic]::new($severity, 'BYL2003', (
+                        "Related resource type '$($effect.Type)' is not in the alias snapshot ($($Snapshot.Path)). " +
+                        'Check the spelling, refresh the snapshot with Update-BylawAliasCache, or use -AllowUnknownAlias.'
+                    ), $effect.Location))
+        }
+        foreach ($requirement in $effect.Requirements) {
+            foreach ($child in $requirement.Children) {
+                Resolve-BylawNodeAlias -Node $child -Context $related -ArrayAlias $null
+            }
         }
     }
 
