@@ -67,6 +67,15 @@ Describe 'Build-Bylaw output' {
         @(Get-ChildItem -LiteralPath $Out -Recurse -File).Count | Should -Be 2
     }
 
+    It 'keeps the case and spaces of a name in the definition and the file name (ADR-0028)' {
+        $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText -Name 'Deny-Storage minTLS' }
+        $out = Join-Path $project 'out'
+        $result = Build-Bylaw -Path $project -OutputPath $out -PassThru
+        $result.Json | Should -BeLike '*"name": "Deny-Storage minTLS"*'
+        [System.IO.Path]::GetFileName($result.OutputFile) | Should -BeExactly 'Deny-Storage minTLS.json'
+        Test-Path -LiteralPath $result.OutputFile | Should -BeTrue
+    }
+
     It 'ignores .ps1 files that are not *.bylaw.ps1' {
         $Results.Name | Should -Not -Contain 'helper'
     }
@@ -210,7 +219,7 @@ Describe 'Build-Bylaw errors' {
         $project = New-TestProject @{
             'a-good.bylaw.ps1' = Get-TestPolicyText -Name 'good-policy'
             'b-bad.bylaw.ps1'  = Get-TestPolicyText -Name 'bad-policy' -Body "Require 'r' { Field publicNetworkAcess | Must -Be 'Disabled' }"
-            'c-bad.bylaw.ps1'  = Get-TestPolicyText -Name 'Bad_Name'
+            'c-bad.bylaw.ps1'  = Get-TestPolicyText -Name 'Bad:Name'
         }
         $out = Join-Path $project 'out'
         $record = Get-BuildError { Build-Bylaw -Path $project -OutputPath $out }
@@ -230,6 +239,14 @@ Describe 'Build-Bylaw errors' {
         $diagnostic = $record.Exception.Diagnostics | Where-Object Code -EQ 'BYL5020'
         $diagnostic.Location.File | Should -BeLike '*b.bylaw.ps1'
         $diagnostic.Message | Should -BeLike '*a.bylaw.ps1:2*'
+    }
+
+    It 'reports names that differ only in case within one file' {
+        $project = New-TestProject @{
+            'a.bylaw.ps1' = (Get-TestPolicyText -Name 'Deny-Storage-minTLS') + (Get-TestPolicyText -Name 'deny-storage-mintls')
+        }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
+        @($record.Exception.Diagnostics.Code) | Should -Be @('BYL5020')
     }
 
     It 'reports an error thrown outside Policy with its line' {

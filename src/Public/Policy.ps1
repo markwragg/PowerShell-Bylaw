@@ -13,7 +13,9 @@ function Policy {
         reported together by Build-Bylaw.
 
     .PARAMETER Name
-        The definition name. It is the definition's identity and output file name (ADR-0010).
+        The definition name. It is the definition's identity and output file name, so renaming it
+        creates a new definition. 1 to 64 characters, without < > * % & : \ ? . + / " | or control
+        characters, and not starting or ending with a space (ADR-0028).
 
     .PARAMETER Body
         The policy description.

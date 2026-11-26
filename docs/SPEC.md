@@ -185,7 +185,7 @@ Use `Must` rather than `Should` to avoid clashing with Pester, which users will 
 6. **Compile only.** No deployment to Azure.
 7. **Bundled alias snapshot.** Compilation works offline using `Data/aliases.json`. `Update-BylawAliasCache` refreshes it via Az. Unknown aliases fail the build unless overridden per field or with `-AllowUnknownAlias`.
 8. **Deterministic output.** Stable key ordering, stable formatting, UTF-8 without BOM, LF line endings. Recompiling unchanged input produces byte-identical files.
-9. **Name stability.** The definition `name` comes only from `Policy 'name'`. Enforce a naming rule (propose one in the ADR).
+9. **Name stability.** The definition `name` comes only from `Policy 'name'`. Enforce a naming rule (propose one in the ADR). Milestone 3 replaced the rule with ADR-0028: any name Azure accepts that is also a safe file name.
 10. **Default output is EPAC schema**, one file per policy, with plain definition JSON as a second emitter. Design emitters so Bicep can be added later.
 11. **Language versioning.** Support a language version via a project settings file (`bylaw.json`), defaulting to `1.0`.
 12. **Discovery by convention.** `Build-Bylaw -Path` finds `*.bylaw.ps1` recursively. Multiple policies per file are allowed. Names must be unique across the build.

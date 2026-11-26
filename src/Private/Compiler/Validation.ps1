@@ -1,4 +1,4 @@
-# Validation pass (ADR-0010, ADR-0015, ADR-0016, ADR-0017, plus Azure limits).
+# Validation pass (ADR-0028, ADR-0015, ADR-0016, ADR-0017, plus Azure limits).
 #
 # Invoke-BylawValidation checks the DSL layer after alias resolution. Test-BylawRuleLimit checks
 # the compiled rule against the limits Azure enforces when a definition is created.
@@ -10,6 +10,38 @@ $script:BylawLaterEffects = [ordered]@{
     DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
     DenyAction        = 'DenyAction is not supported in language version 1.0.'
     Manual            = 'Manual is not supported in language version 1.0.'
+}
+
+# Azure Resource Manager rejects these in a definition name; '"' and '|' aren't safe in file names.
+$script:BylawNameInvalidCharacters = [char[]] '<>*%&:\?.+/"|'
+$script:BylawReservedFileNames = @('CON', 'PRN', 'AUX', 'NUL') + @(1..9 | ForEach-Object { "COM$_"; "LPT$_" })
+
+function Get-BylawNameProblem {
+    # Returns why a definition name is invalid (ADR-0028), or $null when it is valid.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name
+    )
+
+    if ($Name.Length -lt 1 -or $Name.Length -gt 64) {
+        return "is $($Name.Length) characters; names must be 1 to 64 characters"
+    }
+    $invalid = @($Name.ToCharArray() | Where-Object { $script:BylawNameInvalidCharacters -contains $_ } | Select-Object -Unique)
+    if ($invalid.Count -gt 0) {
+        $list = ($invalid | ForEach-Object { "'$_'" }) -join ', '
+        return "contains $list. Names can't contain any of < > * % & : \ ? . + / "" |"
+    }
+    if ($Name -match '[\x00-\x1F\x7F]') {
+        return 'contains a control character'
+    }
+    if ($Name -ne $Name.Trim(' ')) {
+        return 'starts or ends with a space'
+    }
+    if ($script:BylawReservedFileNames -contains $Name) {
+        return 'is a reserved file name on Windows'
+    }
+    return $null
 }
 
 function Invoke-BylawValidation {
@@ -27,10 +59,10 @@ function Invoke-BylawValidation {
         $diagnostics.Add([BylawDiagnostic]::new($Severity, $Code, $Message, $Location))
     }
 
-    # Name (ADR-0010).
-    $name = $Policy.Name
-    if ($name.Length -lt 3 -or $name.Length -gt 64 -or $name -cnotmatch '^[a-z0-9]+(-[a-z0-9]+)*$') {
-        & $add 'BYL3001' "Policy name '$name' must be 3 to 64 characters of lowercase letters, digits and single hyphens, e.g. 'storage-deny-public-network-access' (ADR-0010)." $Policy.Location
+    # Name (ADR-0028).
+    $nameProblem = Get-BylawNameProblem -Name $Policy.Name
+    if ($nameProblem) {
+        & $add 'BYL3001' "Policy name '$($Policy.Name)' $nameProblem (ADR-0028)." $Policy.Location
     }
 
     Test-BylawPolicyProperty -Policy $Policy -Add $add
@@ -60,14 +92,14 @@ function Invoke-BylawValidation {
                 $null
             }
             else {
-                "Policy '$name' has no Require block, so every resource that matches the type and When conditions is non-compliant."
+                "Policy '$($Policy.Name)' has no Require block, so every resource that matches the type and When conditions is non-compliant."
             }
             if ($message) {
                 & $add 'BYL3041' $message $scope.Location ([BylawSeverity]::Warning)
             }
         }
         if ($scope.IsAnyType() -and $scope.When.Count -eq 0 -and $scope.Requirements.Count -eq 0) {
-            & $add 'BYL3042' "Policy '$name' has no conditions at all: Resource * with no When or Require would match every resource." $scope.Location
+            & $add 'BYL3042' "Policy '$($Policy.Name)' has no conditions at all: Resource * with no When or Require would match every resource." $scope.Location
         }
 
         $mode = if ($Policy.Properties -and $Policy.Properties.Mode) { $Policy.Properties.Mode } else { 'All' }

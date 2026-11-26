@@ -158,7 +158,7 @@ Describe 'Build-Bylaw -Format PlainJson' {
         $result.Name | Should -Be 'test-policy'
         Get-TopLevelKey -Json ([System.IO.File]::ReadAllText((Join-Path $out 'test-policy.json'))) | Should -Be @('name', 'properties')
 
-        Set-Content -LiteralPath (Join-Path $source 'p.bylaw.ps1') -Value ((Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy 'Bad Name'")) -Encoding utf8NoBOM
+        Set-Content -LiteralPath (Join-Path $source 'p.bylaw.ps1') -Value ((Format-BylawTestPolicy).Replace("Policy 'test-policy'", "Policy 'Bad:Name'")) -Encoding utf8NoBOM
         { Build-Bylaw -Path $source -Format PlainJson -PassThru -ErrorAction Stop } | Should -Throw '*BYL3001*'
     }
 }
