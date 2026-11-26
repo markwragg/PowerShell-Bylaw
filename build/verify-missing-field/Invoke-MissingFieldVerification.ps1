@@ -263,7 +263,8 @@ function Invoke-Deploy {
             Policy         = ConvertTo-CaseRuleJson -Case $case
         }
         try {
-            $null = New-AzPolicyDefinition @definition
+            # Az reports a refused request as a non-terminating error, which catch wouldn't see.
+            $null = New-AzPolicyDefinition @definition -ErrorAction Stop
             $members.Add([ordered]@{
                     policyDefinitionId          = "/subscriptions/$SubscriptionId/providers/Microsoft.Authorization/policyDefinitions/$($case.DefinitionName)"
                     policyDefinitionReferenceId = $case.ReferenceId
@@ -320,22 +321,27 @@ function Invoke-Deploy {
             Policy         = ConvertTo-ModifyRuleJson
         }
         try {
-            $modifyDefinition = New-AzPolicyDefinition @definition
+            $modifyDefinition = New-AzPolicyDefinition @definition -ErrorAction Stop
         }
         catch {
             $rejected.Add([pscustomobject]@{ ReferenceId = 'modifyAudit-definition'; Error = $_.Exception.Message })
             Write-Warning "The Modify definition was rejected: $($_.Exception.Message)"
         }
         if ($modifyDefinition) {
+            # Azure requires a managed identity on any assignment of a Modify definition, even with
+            # effect Audit (measured 2026-11-26: ResourceIdentityRequired). The identity gets no
+            # role assignment, because Audit changes nothing.
             $assignment = @{
                 Name                  = $modifyAssignmentName
                 Scope                 = $scope
                 DisplayName           = 'Bylaw verify: Modify definition with effect Audit'
                 PolicyDefinition      = $modifyDefinition
                 PolicyParameterObject = @{ effect = 'Audit' }
+                IdentityType          = 'SystemAssigned'
+                Location              = $Location
             }
             try {
-                $null = New-AzPolicyAssignment @assignment
+                $null = New-AzPolicyAssignment @assignment -ErrorAction Stop
             }
             catch {
                 $rejected.Add([pscustomobject]@{ ReferenceId = 'modifyAudit-assignment'; Error = $_.Exception.Message })
