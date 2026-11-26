@@ -1,0 +1,17 @@
+{
+  "name": "plain-manual",
+  "properties": {
+    "displayName": "Plain: storage accounts are reviewed by hand",
+    "policyType": "Custom",
+    "mode": "All",
+    "policyRule": {
+      "if": {
+        "field": "type",
+        "equals": "Microsoft.Storage/storageAccounts"
+      },
+      "then": {
+        "effect": "Manual"
+      }
+    }
+  }
+}

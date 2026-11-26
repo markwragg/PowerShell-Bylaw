@@ -49,6 +49,12 @@ Manual -DefaultState Unknown
 * `-Effect (Param Effect)` makes the effect a parameter. Its allowed values may be the keyword's effect and `Disabled`, and nothing else. A literal effect gets a generated EPAC effect parameter with those two values (ADR-0023).
 * `Effect DenyAction` and `Effect Manual` are compile errors that point to the keywords.
 * A policy has exactly one of `Effect`, `Modify`, `DenyAction`, `Manual`, `Append`, `AuditIfNotExists` or `DeployIfNotExists`.
+* Both effects apply to every resource that matches `Resource` and `When`: those are the resources that can't be deleted, or whose compliance is attested. So they are usually written with `When` and no `Require`, and BYL3041 ("no Require block") isn't reported for them.
+
+### Diagnostics
+
+* Front end: BYL1033 (an action other than `Delete`, or none), BYL1034 (an invalid `-CascadeBehavior`), BYL1035 (an invalid `-DefaultState`). As for `Modify`, BYL1030 is a literal `-Effect`, and BYL1026 is a second effect keyword.
+* Validation: BYL3072 (an effect parameter that allows a value other than the keyword's effect and `Disabled`), BYL3073 (`-CascadeBehavior` without `Mode = 'Indexed'`), and the warning BYL3074 (a `Resource` type DenyAction never applies to).
 
 ### Consequences
 

@@ -8,8 +8,8 @@ $script:BylawLaterEffects = [ordered]@{
     Append            = 'Append is not planned; use Modify (Milestone 2), which Azure recommends over Append.'
     AuditIfNotExists  = 'AuditIfNotExists is planned for a later milestone.'
     DeployIfNotExists = 'DeployIfNotExists is planned for a later milestone.'
-    DenyAction        = 'DenyAction is not supported in language version 1.0.'
-    Manual            = 'Manual is not supported in language version 1.0.'
+    DenyAction        = 'DenyAction has its own keyword, which takes the place of Effect: DenyAction Delete (ADR-0029).'
+    Manual            = 'Manual has its own keyword, which takes the place of Effect: Manual -DefaultState Unknown (ADR-0029).'
 }
 
 # Azure Resource Manager rejects these in a definition name; '"' and '|' aren't safe in file names.
@@ -86,8 +86,14 @@ function Invoke-BylawValidation {
         if ($Policy.Effect -is [BylawModify]) {
             Test-BylawModify -Modify $Policy.Effect -Policy $Policy -Snapshot $Snapshot -Add $add
         }
+        if ($Policy.Effect -is [BylawDenyAction]) {
+            Test-BylawDenyAction -DenyAction $Policy.Effect -Policy $Policy -Add $add
+        }
 
-        if ($scope.Requirements.Count -eq 0) {
+        # DenyAction and Manual apply to every resource that matches the type and When: those are
+        # the resources that can't be deleted, or whose compliance is attested (ADR-0029).
+        $selectsOnly = $Policy.Effect -is [BylawDenyAction] -or $Policy.Effect -is [BylawManual]
+        if ($scope.Requirements.Count -eq 0 -and -not $selectsOnly) {
             $message = if ($scope.IsAnyType() -and $scope.When.Count -eq 0) {
                 $null
             }
@@ -206,10 +212,10 @@ function Test-BylawEffect {
         return
     }
     $value = $effect.Value
-    $isModify = $effect -is [BylawModify]
+    $keyword = Get-BylawEffectKeyword -Effect $effect
     if ($value -is [BylawLiteral]) {
-        # A Modify block's literal effect is always Modify.
-        if (-not $isModify) {
+        # The literal effect of a keyword in place of Effect is always the keyword's own.
+        if ($keyword -eq 'Effect') {
             Test-BylawEffectName -Name ([string] $value.Value) -Location $effect.Location -Add $Add
         }
         return
@@ -218,7 +224,11 @@ function Test-BylawEffect {
         # An Arm expression: can't be checked at compile time.
         return
     }
-    $example = if ($isModify) { 'Modify, Audit, Disabled -Default Modify' } else { 'Audit, Deny, Disabled -Default Deny' }
+    $allowedEffects = Get-BylawAllowedEffect -Effect $effect
+    $example = "$($allowedEffects -join ', ') -Default $($allowedEffects[0])"
+    if ($keyword -eq 'Effect') {
+        $example = 'Audit, Deny, Disabled -Default Deny'
+    }
     $parameter = $Policy.FindParameter($value.Name)
     if ($null -eq $parameter) {
         & $Add 'BYL3020' "Effect uses parameter '$($value.Name)', which is not declared. Add: Parameter $($value.Name) -AllowedValues $example." $value.Location
@@ -232,31 +242,62 @@ function Test-BylawEffect {
         return
     }
     foreach ($allowed in $parameter.AllowedValues) {
-        if ($isModify) {
-            Test-BylawModifyEffectName -Name ([string] $allowed) -Parameter $parameter -Add $Add
+        if ($keyword -eq 'Effect') {
+            Test-BylawEffectName -Name ([string] $allowed) -Location $parameter.Location -Add $Add -Code 'BYL3033' -Context "Allowed value of effect parameter '$($parameter.Name)'"
         }
         else {
-            Test-BylawEffectName -Name ([string] $allowed) -Location $parameter.Location -Add $Add -Code 'BYL3033' -Context "Allowed value of effect parameter '$($parameter.Name)'"
+            Test-BylawKeywordEffectName -Name ([string] $allowed) -Keyword $keyword -Allowed $allowedEffects -Parameter $parameter -Add $Add
         }
     }
 }
 
-function Test-BylawModifyEffectName {
-    # An allowed value of a Modify block's effect parameter: Modify, Audit or Disabled (ADR-0024).
+# Learn: DenyAction never applies to these resource types.
+$script:BylawDenyActionExemptTypes = @(
+    'Microsoft.Authorization/policyAssignments'
+    'Microsoft.Authorization/denyAssignments'
+    'Microsoft.Blueprint/blueprintAssignments'
+    'Microsoft.Resources/deploymentStacks'
+    'Microsoft.Resources/subscriptions'
+    'Microsoft.Authorization/locks'
+)
+
+function Test-BylawDenyAction {
+    # -CascadeBehavior needs Mode Indexed (BYL3073); exempt resource types (BYL3074) (ADR-0029).
+    param(
+        [Parameter(Mandatory)] [BylawDenyAction] $DenyAction,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $mode = if ($Policy.Properties -and $Policy.Properties.Mode) { $Policy.Properties.Mode } else { 'All' }
+    if ($DenyAction.CascadeBehavior -and $mode -ne 'Indexed') {
+        & $Add 'BYL3073' "DenyAction -CascadeBehavior is only supported with Mode = 'Indexed' (Mode is $mode). Add Mode = 'Indexed' to Properties, or remove -CascadeBehavior." $DenyAction.Location
+    }
+    $type = $Policy.Resource.Type
+    if ($script:BylawDenyActionExemptTypes -contains $type) {
+        & $Add 'BYL3074' "DenyAction never applies to $type, so this policy has no effect." $Policy.Resource.Location ([BylawSeverity]::Warning)
+    }
+}
+
+function Test-BylawKeywordEffectName {
+    # An allowed value of the effect parameter of a keyword in place of Effect: Modify, Audit or
+    # Disabled for Modify (ADR-0024, BYL3062); the keyword's effect or Disabled for DenyAction and
+    # Manual (ADR-0029, BYL3072).
     param(
         [Parameter(Mandatory)] [AllowEmptyString()] [string] $Name,
+        [Parameter(Mandatory)] [string] $Keyword,
+        [Parameter(Mandatory)] [string[]] $Allowed,
         [Parameter(Mandatory)] [BylawParameter] $Parameter,
         [Parameter(Mandatory)] [scriptblock] $Add
     )
 
-    if (Get-BylawCanonicalEffect -Effect $Name -Supported $script:BylawModifyEffects) {
+    if (Get-BylawCanonicalEffect -Effect $Name -Supported $Allowed) {
         return
     }
-    $reason = switch ($Name) {
-        'Deny' { 'A Modify policy changes the request, so it never denies it.' }
-        default { '' }
-    }
-    & $Add 'BYL3062' ("Effect parameter '$($Parameter.Name)' of a Modify block allows '$Name'. Allowed values: $($script:BylawModifyEffects -join ', '). $reason").TrimEnd() $Parameter.Location
+    $reason = if ($Keyword -eq 'Modify' -and $Name -eq 'Deny') { 'A Modify policy changes the request, so it never denies it.' } else { '' }
+    $code = if ($Keyword -eq 'Modify') { 'BYL3062' } else { 'BYL3072' }
+    $article = if ($Keyword -match '^[AEIOU]') { 'an' } else { 'a' }
+    & $Add $code ("Effect parameter '$($Parameter.Name)' of $article $Keyword policy allows '$Name'. Allowed values: $($Allowed -join ', '). $reason").TrimEnd() $Parameter.Location
 }
 
 function Test-BylawEffectName {

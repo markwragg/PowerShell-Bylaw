@@ -8,6 +8,40 @@ $script:BylawModifyEffects = @('Modify', 'Audit', 'Disabled')
 # policies use.
 $script:BylawModifyGeneratedEffects = @('Modify', 'Disabled')
 
+# Keywords that take the place of Effect (ADR-0017). Allowed: the values the keyword's effect
+# parameter may allow. Generated: the allowed values of the EPAC effect parameter generated for a
+# literal effect, which is the keyword's own effect.
+$script:BylawEffectKeywords = [ordered]@{
+    Modify     = @{ Allowed = $script:BylawModifyEffects; Generated = $script:BylawModifyGeneratedEffects; Example = "Modify -Role 'Tag Contributor' { Tag Environment | AddOrReplace 'Production' }" }
+    DenyAction = @{ Allowed = @('DenyAction', 'Disabled'); Generated = @('DenyAction', 'Disabled'); Example = 'DenyAction Delete' }
+    Manual     = @{ Allowed = @('Manual', 'Disabled'); Generated = @('Manual', 'Disabled'); Example = 'Manual -DefaultState Unknown' }
+}
+
+function Get-BylawEffectKeyword {
+    # The keyword that set an effect: Effect, Modify, DenyAction or Manual.
+    [OutputType([string])]
+    param([Parameter(Mandatory)] [BylawEffect] $Effect)
+
+    if ($Effect -is [BylawModify]) { return 'Modify' }
+    if ($Effect -is [BylawDenyAction]) { return 'DenyAction' }
+    if ($Effect -is [BylawManual]) { return 'Manual' }
+    'Effect'
+}
+
+function Get-BylawAllowedEffect {
+    # The effects an effect may take, by the keyword that set it. -Generated gives the allowed values
+    # of a generated EPAC effect parameter instead.
+    [OutputType([string[]])]
+    param([Parameter(Mandatory)] [BylawEffect] $Effect, [switch] $Generated)
+
+    $keyword = Get-BylawEffectKeyword -Effect $Effect
+    if ($keyword -eq 'Effect') {
+        return $script:BylawSupportedEffects
+    }
+    $entry = $script:BylawEffectKeywords[$keyword]
+    if ($Generated) { $entry.Generated } else { $entry.Allowed }
+}
+
 function Get-BylawParameterJsonName {
     # Emitted parameter name (ADR-0018): JsonName if set, else the DSL name with its
     # first character lower-cased (Effect -> effect, AllowedLocations -> allowedLocations).
@@ -119,7 +153,7 @@ function ConvertTo-BylawPolicyRuleObject {
     param([Parameter(Mandatory)] [BylawPolicy] $Policy)
 
     $then = $Policy.Rule.Then
-    $supported = if ($then -is [BylawModify]) { $script:BylawModifyEffects } else { $script:BylawSupportedEffects }
+    $supported = Get-BylawAllowedEffect -Effect $then
     $effectValue = $then.Value
     $effect = if ($effectValue -is [BylawLiteral]) {
         $canonical = Get-BylawCanonicalEffect -Effect ([string] $effectValue.Value) -Supported $supported
@@ -131,6 +165,17 @@ function ConvertTo-BylawPolicyRuleObject {
     $thenObject = [ordered]@{ effect = $effect }
     if ($then -is [BylawModify]) {
         $thenObject['details'] = ConvertTo-BylawModifyDetailsObject -Modify $then -Policy $Policy
+    }
+    elseif ($then -is [BylawDenyAction]) {
+        # { actionNames, cascadeBehaviors? }, in Learn's order (ADR-0029).
+        $details = [ordered]@{ actionNames = [object[]] @($then.ActionNames) }
+        if ($then.CascadeBehavior) {
+            $details['cascadeBehaviors'] = [ordered]@{ resourceGroup = $then.CascadeBehavior }
+        }
+        $thenObject['details'] = $details
+    }
+    elseif ($then -is [BylawManual] -and $then.DefaultState) {
+        $thenObject['details'] = [ordered]@{ defaultState = $then.DefaultState }
     }
     [ordered]@{
         if   = ConvertTo-BylawConditionObject -Condition $Policy.Rule.If -Policy $Policy

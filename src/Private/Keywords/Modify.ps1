@@ -39,13 +39,7 @@ function Modify {
     if ($null -eq $frame) {
         return
     }
-    if ($frame.Singletons.ContainsKey('Effect')) {
-        Add-BylawDiagnostic -Severity Error -Code 'BYL1026' -Location $location -Message (
-            "A policy has either Effect or Modify, not both (Effect is at line $($frame.Singletons['Effect'].Line)). Modify sets the effect itself; use -Effect (Param Effect) to make it a parameter."
-        )
-        return
-    }
-    if (-not (Test-BylawSingleton -Frame $frame -Keyword 'Modify' -Location $location)) {
+    if (-not (Test-BylawEffectKeyword -Frame $frame -Keyword 'Modify' -Location $location)) {
         return
     }
 

@@ -1,0 +1,33 @@
+{
+  "name": "plain-denyaction",
+  "properties": {
+    "displayName": "Plain: protected storage accounts cannot be deleted",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Storage/storageAccounts"
+          },
+          {
+            "field": "tags['protected']",
+            "equals": "true"
+          }
+        ]
+      },
+      "then": {
+        "effect": "DenyAction",
+        "details": {
+          "actionNames": [
+            "delete"
+          ],
+          "cascadeBehaviors": {
+            "resourceGroup": "allow"
+          }
+        }
+      }
+    }
+  }
+}

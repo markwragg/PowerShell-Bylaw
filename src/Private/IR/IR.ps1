@@ -367,6 +367,30 @@ class BylawModify : BylawEffect {
     BylawModify([BylawValue] $value) : base($value) {}
 }
 
+class BylawDenyAction : BylawEffect {
+    # DenyAction Delete [-CascadeBehavior Deny|Allow] (ADR-0029). Value is the literal 'DenyAction',
+    # or the -Effect parameter or expression.
+    # Action names as emitted: 'delete'.
+    [string[]] $ActionNames = @()
+    # 'deny' or 'allow' as emitted, or $null when not set.
+    [string] $CascadeBehavior
+
+    BylawDenyAction() {}
+
+    BylawDenyAction([BylawValue] $value) : base($value) {}
+}
+
+class BylawManual : BylawEffect {
+    # Manual [-DefaultState Unknown|Compliant|NonCompliant] (ADR-0029). Value is the literal
+    # 'Manual', or the -Effect parameter or expression.
+    # 'Unknown', 'Compliant' or 'Non-compliant' as emitted, or $null when not set.
+    [string] $DefaultState
+
+    BylawManual() {}
+
+    BylawManual([BylawValue] $value) : base($value) {}
+}
+
 class BylawPolicyRule : BylawNode {
     [BylawCondition] $If
     [BylawEffect] $Then

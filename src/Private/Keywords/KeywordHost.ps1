@@ -11,8 +11,11 @@
 $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
-    'Modify', 'AddOrReplace', 'Add', 'Remove'
+    'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual'
 )
+
+# Keywords that set the effect. A policy has exactly one (ADR-0017).
+$script:BylawEffectKeywordNames = @('Effect', 'Modify', 'DenyAction', 'Manual')
 
 # Group keywords (ADR-0026). Keywords inside a group follow the rules of the block the group is in.
 $script:BylawGroupKeywords = @('AnyOf', 'AllOf')
@@ -187,6 +190,28 @@ function Test-BylawSingleton {
     }
     $Frame.Singletons[$Keyword] = $Location
     $true
+}
+
+function Test-BylawEffectKeyword {
+    # Records a diagnostic and returns $false when the policy already has an effect from another
+    # keyword (BYL1026) or from this one (BYL1004).
+    param(
+        [Parameter(Mandatory)] [BylawFrame] $Frame,
+        [Parameter(Mandatory)] [string] $Keyword,
+        [BylawSourceLocation] $Location
+    )
+    foreach ($other in $script:BylawEffectKeywordNames) {
+        if ($other -eq $Keyword -or -not $Frame.Singletons.ContainsKey($other)) {
+            continue
+        }
+        $setter = if ($Keyword -eq 'Effect') { $other } elseif ($other -eq 'Effect') { $Keyword } else { $null }
+        $hint = if ($setter) { " $setter sets the effect itself; use $setter -Effect (Param Effect) to make it a parameter." } else { '' }
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1026' -Location $Location -Message (
+            "A policy has one effect, set by one of $($script:BylawEffectKeywordNames -join ', '). $other already sets it at line $($Frame.Singletons[$other].Line).$hint"
+        )
+        return $false
+    }
+    Test-BylawSingleton -Frame $Frame -Keyword $Keyword -Location $Location
 }
 
 function Get-BylawKeywordDefinition {

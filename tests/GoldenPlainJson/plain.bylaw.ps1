@@ -70,3 +70,29 @@ Policy 'plain-modify' {
         Tag CostCenter | AddOrReplace (ResourceGroupTag CostCenter)
     }
 }
+
+# DenyAction and Manual keep their literal effects.
+Policy 'plain-denyaction' {
+
+    Properties @{
+        DisplayName = 'Plain: protected storage accounts cannot be deleted'
+        Mode        = 'Indexed'
+    }
+
+    Resource 'Microsoft.Storage/storageAccounts' {
+        When {
+            Tag protected | Must -Be 'true'
+        }
+    }
+
+    DenyAction Delete -CascadeBehavior Allow
+}
+
+Policy 'plain-manual' {
+
+    Properties @{ DisplayName = 'Plain: storage accounts are reviewed by hand' }
+
+    Resource 'Microsoft.Storage/storageAccounts' { }
+
+    Manual
+}
