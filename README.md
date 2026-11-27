@@ -35,13 +35,19 @@ Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes p
 
 ## Status
 
-Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. It has the compiler core (the language below, alias validation, EPAC and plain JSON output) and covers every Azure Policy effect: `Audit`, `Deny`, `Disabled`, `Modify`, `Append`, `DenyAction`, `Manual`, `AuditIfNotExists` and `DeployIfNotExists`, with `Count` for field and value counts. It also builds initiatives, checking each member against the policies it includes. Next is a decompiler that turns existing policy JSON into Bylaw files.
+Bylaw is a preview, at version 0.1.0-alpha on the PowerShell Gallery: the language may still change before 1.0. It has the compiler core (the language below, alias validation, EPAC and plain JSON output) and covers every Azure Policy effect: `Audit`, `Deny`, `Disabled`, `Modify`, `Append`, `DenyAction`, `Manual`, `AuditIfNotExists` and `DeployIfNotExists`, with `Count` for field and value counts. It also builds initiatives, checking each member against the policies it includes. Next is a decompiler that turns existing policy JSON into Bylaw files.
 
 ## Install
 
 Bylaw needs PowerShell 7.2 or later, on Windows, Linux or macOS. Compiling needs no Azure modules and no Azure connection.
 
-Until Bylaw is published, build it from source:
+Install it from the PowerShell Gallery. It is a prerelease, so it needs `-Prerelease`:
+
+```powershell
+Install-PSResource -Name Bylaw -Prerelease
+```
+
+Or build it from source:
 
 ```powershell
 git clone https://github.com/markwragg/PowerShell-Bylaw.git
@@ -692,7 +698,10 @@ An optional settings file. Bylaw looks for it from `-Path` upwards, stopping at 
 ./build/build.ps1                      # analyze and test
 ./build/build.ps1 -Task Package        # build out/Bylaw
 ./build/build.ps1 -Task UpdateGolden   # regenerate the expected JSON after an intended output change
+./build/build.ps1 -Task Test -Coverage # test, writing code coverage to out/coverage.xml
 ```
+
+Releases are driven by [CHANGELOG.md](CHANGELOG.md): add your changes under a `## !Deploy` heading, optionally with a version such as `## !Deploy 0.2.0`, and when it reaches `main` the build publishes to the PowerShell Gallery, dates the changelog and creates a GitHub release. Every build of `main` also updates the coverage badge ([ADR-0036](docs/adr/0036-release-process.md)).
 
 The tests include golden files: [examples/](examples/), [tests/Golden/](tests/Golden/) and [tests/GoldenPlainJson/](tests/GoldenPlainJson/) hold each policy source next to the exact JSON it must compile to. [tests/Golden/GoldenRoots.psd1](tests/Golden/GoldenRoots.psd1) lists the folders and the format each is built in.
 
