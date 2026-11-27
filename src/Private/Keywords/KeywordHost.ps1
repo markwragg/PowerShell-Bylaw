@@ -12,7 +12,7 @@ $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
     'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append', 'AuditIfNotExists',
-    'DeployIfNotExists', 'Deployment', 'Count', 'Current', 'Member', 'DefinitionGroup'
+    'DeployIfNotExists', 'Deployment', 'Count', 'Current', 'PolicyDefinition', 'DefinitionGroup'
 )
 
 # Keywords that set the effect. A policy has exactly one (ADR-0017).

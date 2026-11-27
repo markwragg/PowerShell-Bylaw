@@ -4,7 +4,7 @@ date: 2026-11-27
 decision-makers: Bylaw maintainers
 ---
 
-# Initiative is a top-level keyword like Policy, with Member for each policy it includes
+# Initiative is a top-level keyword like Policy, with PolicyDefinition for each policy it includes
 
 ## Context and Problem Statement
 
@@ -27,13 +27,13 @@ How is an initiative written in Bylaw?
 
 ## Considered Options
 
-* An `Initiative` keyword with a `Member` keyword per member
+* An `Initiative` keyword with a `PolicyDefinition` keyword per member
 * Initiatives as a hashtable or data file next to the policies
 * A `Policy -Initiative` parameter that adds a policy to a named initiative
 
 ## Decision Outcome
 
-Chosen option: "An `Initiative` keyword with a `Member` keyword per member".
+Chosen option: "An `Initiative` keyword with a `PolicyDefinition` keyword per member".
 
 ```powershell
 Initiative 'tagging-baseline' {
@@ -48,13 +48,13 @@ Initiative 'tagging-baseline' {
     Parameter MandatoryTags -Type Array -Default @('CostCenter', 'Owner')
 
     # A policy from this build, by name.
-    Member 'tags-require-mandatory-tags' -Parameters @{
+    PolicyDefinition 'tags-require-mandatory-tags' -Parameters @{
         mandatoryTags = Param MandatoryTags
         effect        = Param Effect
     }
 
     # A built-in policy, by ID, pinned to its major version.
-    Member -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{
+    PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{
         tagName = 'CostCenter'
     }
 }
@@ -67,21 +67,22 @@ Initiative 'tagging-baseline' {
 * `Properties` takes `DisplayName` (required), `Description`, `Category`, `Version`, `Preview`, `Deprecated` and `Metadata`, with the same rules and limits as for a policy (ADR-0016). `Mode` is a compile error: it belongs to the members.
 * `Parameter` declares initiative parameters, as for a policy. A parameter no member uses is a warning (ADR-0021).
 * At most 1000 members and 400 parameters, as Learn documents. More is a compile error.
-* Only `Properties`, `Parameter`, `Member` and `DefinitionGroup` are allowed inside. An initiative has no rule and no effect.
+* Only `Properties`, `Parameter`, `PolicyDefinition` and `DefinitionGroup` are allowed inside. An initiative has no rule and no effect.
 
-### Member
+### PolicyDefinition
 
-* `Member 'policy-name'` includes a policy from the same build, by its `Policy` name, matched ignoring case. Whether it exists is checked once every file has compiled (ADR-0034).
-* `Member -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>'` includes a built-in policy. Any other definition ID, such as a custom definition deployed outside this build, is also accepted: `-Id` emits the ID as written.
+* `PolicyDefinition 'policy-name'` includes a policy from the same build, by its `Policy` name, matched ignoring case. Whether it exists is checked once every file has compiled (ADR-0034).
+* `PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>'` includes a built-in policy. Any other definition ID, such as a custom definition deployed outside this build, is also accepted: `-Id` emits the ID as written.
 * `-ReferenceId` is the member's `policyDefinitionReferenceId`. It defaults to the policy name for a member from the build, and is required for `-Id`. Reference IDs are unique within an initiative, ignoring case. A policy can be a member more than once, with different reference IDs, as 15 ALZ members are.
 * `-Parameters @{ name = value }` passes values to the member's parameters. A value is a literal, `Param` (an initiative parameter), `Arm`, or `ResourceGroupTag`. Each is emitted as `{ "value": ... }`. An `[ordered]` hashtable keeps its order, and a plain one is sorted, as for `Deployment -Parameters` (ADR-0031). Names are emitted as written and matched against the member's parameters ignoring case, as ARM does (ADR-0034).
 * `-Version '1.*.*'` emits `definitionVersion`. It is a major version, then a minor version or `*`, then a patch or `*`, with an optional `-preview` suffix: `^\d+\.(\d+|\*)\.(\d+|\*)(-preview)?$`. For a member from the build, the pattern must match the policy's `Version` (ADR-0034).
 * `-Group` names the member's policy definition groups (`groupNames`).
+* The name matches the initiative's `policyDefinitions` array, as `DefinitionGroup` matches `policyDefinitionGroups`. It was first `Member`, but outside an `Initiative` PowerShell runs `Get-Member` for `Member`, adding the `Get-` prefix itself, so a stray `Member` would run silently instead of giving Bylaw's error (ADR-0005). `Include` was also considered, but psake has an `Include` function.
 
 ### DefinitionGroup
 
 * `DefinitionGroup 'name' -DisplayName ... -Category ... -Description ... -AdditionalMetadataId ...` declares a policy definition group. Only the name is required.
-* A `Member -Group` value that no `DefinitionGroup` declares is a compile error, and so is a group no member uses.
+* A `PolicyDefinition -Group` value that no `DefinitionGroup` declares is a compile error, and so is a group no member uses.
 * The name matches Azure's `policyDefinitionGroups` property and Learn's "policy definition group". `PolicyGroup` was considered, but reads as a group of policies in its own right, which is what an initiative is. Plain `Group` can't be used, because PowerShell's `group` alias for `Group-Object` would run instead of a function of that name (ADR-0005).
 
 ### Consequences
@@ -96,7 +97,7 @@ Unit tests cover each keyword, option and error, references to policies in the s
 
 ## Pros and Cons of the Options
 
-### `Initiative` with `Member`
+### `Initiative` with `PolicyDefinition`
 
 * Good, because it reads like the rest of the language, and each member's options are validated.
 * Bad, because it adds a top-level keyword.

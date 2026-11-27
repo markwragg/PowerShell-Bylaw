@@ -5,7 +5,7 @@ function Initiative {
 
     .DESCRIPTION
         A top-level Bylaw DSL command, like Policy (ADR-0033). The scriptblock uses the inner
-        keywords Properties, Parameter, Member and DefinitionGroup, with Param, Arm and
+        keywords Properties, Parameter, PolicyDefinition and DefinitionGroup, with Param, Arm and
         ResourceGroupTag for values. They exist only while the block runs.
 
         Members are policies from the same build, by name, or other definitions by ID. Members from
@@ -25,7 +25,7 @@ function Initiative {
             Properties @{ DisplayName = 'Tagging baseline'; Category = 'Tags'; Version = '1.0.0' }
             Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Audit
 
-            Member 'tags-require-mandatory-tags' -Parameters @{ effect = Param Effect }
+            PolicyDefinition 'tags-require-mandatory-tags' -Parameters @{ effect = Param Effect }
         }
     #>
     [CmdletBinding()]
@@ -62,9 +62,9 @@ function Initiative {
         Exit-BylawFrame -Frame $frame
     }
 
-    if ($initiative.Members.Count -eq 0 -and -not $frame.Singletons.ContainsKey('Member')) {
+    if ($initiative.Members.Count -eq 0 -and -not $frame.Singletons.ContainsKey('PolicyDefinition')) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1054' -Location $location -Message (
-            "Initiative '$Name' has no Member. Add the policies it includes, e.g. Member 'policy-name', or Member -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>' -ReferenceId 'Name'."
+            "Initiative '$Name' has no PolicyDefinition. Add the policies it includes, e.g. PolicyDefinition 'policy-name', or PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>' -ReferenceId 'Name'."
         )
     }
 

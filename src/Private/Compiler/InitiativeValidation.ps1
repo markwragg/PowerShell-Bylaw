@@ -54,10 +54,10 @@ function Invoke-BylawInitiativeValidation {
 
         if ($member.DefinitionId) {
             if ($member.DefinitionId -match '/providers/Microsoft\.Authorization/policySetDefinitions/') {
-                & $add 'BYL3111' "Member -Id '$($member.DefinitionId)' is an initiative. An initiative can't include another initiative: include its policies instead." $member.Location
+                & $add 'BYL3111' "PolicyDefinition -Id '$($member.DefinitionId)' is an initiative. An initiative can't include another initiative: include its policies instead." $member.Location
             }
             elseif ($member.DefinitionId -notmatch $script:BylawPolicyDefinitionIdPattern) {
-                & $add 'BYL3111' "Member -Id '$($member.DefinitionId)' is not a policy definition ID. Use /providers/Microsoft.Authorization/policyDefinitions/<name>, optionally after a management group or subscription scope." $member.Location
+                & $add 'BYL3111' "PolicyDefinition -Id '$($member.DefinitionId)' is not a policy definition ID. Use /providers/Microsoft.Authorization/policyDefinitions/<name>, optionally after a management group or subscription scope." $member.Location
             }
         }
 
@@ -72,13 +72,13 @@ function Invoke-BylawInitiativeValidation {
         foreach ($groupName in $member.GroupNames) {
             $null = $usedGroups.Add($groupName)
             if (-not $groups.ContainsKey($groupName)) {
-                & $add 'BYL3113' "Member '$($member.ReferenceId)' is in group '$groupName', which no DefinitionGroup declares. Add: DefinitionGroup '$groupName'." $member.Location
+                & $add 'BYL3113' "PolicyDefinition '$($member.ReferenceId)' is in group '$groupName', which no DefinitionGroup declares. Add: DefinitionGroup '$groupName'." $member.Location
             }
         }
     }
     foreach ($group in $groups.Values) {
         if (-not $usedGroups.Contains($group.Name)) {
-            & $add 'BYL3114' "Definition group '$($group.Name)' has no members. Add it to a Member with -Group '$($group.Name)', or remove it." $group.Location
+            & $add 'BYL3114' "Definition group '$($group.Name)' has no members. Add it to a PolicyDefinition with -Group '$($group.Name)', or remove it." $group.Location
         }
     }
 

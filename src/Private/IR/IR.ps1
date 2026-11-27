@@ -679,14 +679,14 @@ class BylawPolicy : BylawNode {
 }
 
 class BylawInitiativeMember : BylawNode {
-    # Member 'policy-name' or Member -Id ... (ADR-0033). Exactly one of PolicyName and DefinitionId.
+    # PolicyDefinition 'policy-name' or PolicyDefinition -Id ... (ADR-0033). Exactly one of PolicyName and DefinitionId.
     # A policy in the build, by its Policy name as written.
     [string] $PolicyName
     # A definition ID as written, for a built-in or any definition outside the build.
     [string] $DefinitionId
     # policyDefinitionReferenceId: -ReferenceId, or the policy name.
     [string] $ReferenceId
-    # Member parameter name as written -> BylawValue, in order (sorted for a plain hashtable).
+    # PolicyDefinition parameter name as written -> BylawValue, in order (sorted for a plain hashtable).
     [System.Collections.Specialized.OrderedDictionary] $Parameters = [System.Collections.Specialized.OrderedDictionary]::new()
     # definitionVersion, e.g. '1.*.*', or $null.
     [string] $Version

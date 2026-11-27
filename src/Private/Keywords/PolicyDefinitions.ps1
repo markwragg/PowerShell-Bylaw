@@ -1,18 +1,18 @@
-# Member and DefinitionGroup, inside Initiative (ADR-0033).
+# PolicyDefinition and DefinitionGroup, inside Initiative (ADR-0033).
 
 # definitionVersion: a major version, then a minor version or *, then a patch or *, optionally -preview.
 $script:BylawDefinitionVersionPattern = '^\d+\.(\d+|\*)\.(\d+|\*)(-preview)?$'
 
-function Member {
+function PolicyDefinition {
     <#
     .SYNOPSIS
         A policy the initiative includes: a policy from this build by name, or any definition by ID.
 
     .EXAMPLE
-        Member 'tags-require-mandatory-tags' -Parameters @{ effect = Param Effect }
+        PolicyDefinition 'tags-require-mandatory-tags' -Parameters @{ effect = Param Effect }
 
     .EXAMPLE
-        Member -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{ tagName = 'CostCenter' }
+        PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{ tagName = 'CostCenter' }
     #>
     [CmdletBinding()]
     param(
@@ -36,19 +36,19 @@ function Member {
         [string[]] $Group
     )
 
-    $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Member')
-    $frame = Test-BylawParent -Keyword 'Member' -Allowed 'Initiative' -Location $location
+    $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'PolicyDefinition')
+    $frame = Test-BylawParent -Keyword 'PolicyDefinition' -Allowed 'Initiative' -Location $location
     if ($null -eq $frame) {
         return
     }
-    # Initiative reports "no Member" only when there was none at all, not when each one failed.
-    $frame.Singletons['Member'] = $location
+    # Initiative reports "no PolicyDefinition" only when there was none at all, not when each one failed.
+    $frame.Singletons['PolicyDefinition'] = $location
 
     $hasName = -not [string]::IsNullOrWhiteSpace($Name)
     $hasId = -not [string]::IsNullOrWhiteSpace($Id)
     if ($hasName -eq $hasId) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1055' -Location $location -Message (
-            "Member takes a policy name or -Id, not both: Member 'policy-name' for a policy in this build, or Member -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>' -ReferenceId 'Name'."
+            "PolicyDefinition takes a policy name or -Id, not both: PolicyDefinition 'policy-name' for a policy in this build, or PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>' -ReferenceId 'Name'."
         )
         return
     }
@@ -71,7 +71,7 @@ function Member {
     }
     elseif ($hasId) {
         Add-BylawDiagnostic -Severity Error -Code 'BYL1056' -Location $location -Message (
-            'Member -Id needs -ReferenceId: the short name the initiative uses for the member, e.g. -ReferenceId InheritCostCenter.'
+            'PolicyDefinition -Id needs -ReferenceId: the short name the initiative uses for the member, e.g. -ReferenceId InheritCostCenter.'
         )
         $valid = $false
     }
@@ -127,7 +127,7 @@ function DefinitionGroup {
     #>
     [CmdletBinding()]
     param(
-        # The group's name, which Member -Group refers to.
+        # The group's name, which PolicyDefinition -Group refers to.
         [Parameter(Mandatory, Position = 0)]
         [AllowEmptyString()]
         [string] $Name,
