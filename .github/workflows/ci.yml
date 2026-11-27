@@ -36,3 +36,61 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: out/testResults.xml
           if-no-files-found: ignore
+
+  # On main only: measure coverage for the README badge and, when CHANGELOG.md has a "## !Deploy"
+  # line, publish to the PowerShell Gallery and create a GitHub release (ADR-0036).
+  release:
+    name: Coverage and release
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test with coverage
+        shell: pwsh
+        run: ./build/build.ps1 -Task Bootstrap, Test -CI -Coverage
+
+      - name: Update the coverage badge
+        shell: pwsh
+        run: ./build/build.ps1 -Task UpdateCoverageBadge
+
+      - name: Publish to the PowerShell Gallery
+        id: publish
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: ./build/build.ps1 -Task Publish
+
+      - name: Commit the badge, changelog and manifest
+        id: commit
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md CHANGELOG.md src/Bylaw.psd1
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            'Nothing to commit.'
+            "sha=$env:GITHUB_SHA" | Add-Content -Path $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $message = if ('${{ steps.publish.outputs.published }}' -eq 'true') { 'Release ${{ steps.publish.outputs.version }}' } else { 'Update the coverage badge' }
+          git commit -m "$message [skip ci]"
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "sha=$(git rev-parse HEAD)" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Create the GitHub release
+        if: steps.publish.outputs.published == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.publish.outputs.version }}'
+          $zip = "out/Bylaw-v$version.zip"
+          Compress-Archive -Path out/Bylaw -DestinationPath $zip
+          $prerelease = if ($version.Contains('-')) { @('--prerelease') } else { @() }
+          gh release create "v$version" $zip --target '${{ steps.commit.outputs.sha }}' --title "v$version" --notes-file out/release-notes.md @prerelease

@@ -18,8 +18,12 @@
     PrivateData          = @{
         PSData = @{
             Tags       = @('Azure', 'AzurePolicy', 'Policy', 'DSL', 'EPAC', 'Governance', 'PSEdition_Core', 'Windows', 'Linux', 'MacOS')
-            LicenseUri = 'https://opensource.org/license/mit'
-            Prerelease = 'alpha'
+            LicenseUri   = 'https://github.com/markwragg/PowerShell-Bylaw/blob/main/LICENSE'
+            ProjectUri   = 'https://github.com/markwragg/PowerShell-Bylaw'
+            IconUri      = 'https://raw.githubusercontent.com/markwragg/PowerShell-Bylaw/main/bylaw-logo.png'
+            ReleaseNotes = 'https://github.com/markwragg/PowerShell-Bylaw/blob/main/CHANGELOG.md'
+            # Set by ./build/build.ps1 -Task Publish from CHANGELOG.md (ADR-0036).
+            Prerelease   = 'alpha'
         }
     }
 }
