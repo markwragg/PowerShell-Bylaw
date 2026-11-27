@@ -54,7 +54,7 @@ Proposed: "`-InitiativeOutputPath`, defaulting to `-OutputPath`".
 * Key order follows the schema and Learn: `policyDefinitionReferenceId`, then `policyDefinitionName` or `policyDefinitionId`, `definitionVersion`, `parameters`, `groupNames`. Empty `parameters` and `groupNames` are left out.
 * A member from the build is emitted with `policyDefinitionName`, and EPAC resolves it. A member by `-Id` is emitted with `policyDefinitionId`.
 * `Category` and `Version` are required, as for policies (BYL4001, BYL4002). Parameters get generated display names, as for policies (ADR-0023). No effect parameter is generated: an initiative has no effect.
-* A `PolicyGroup` with `-DisplayName`, `-Category` or `-Description` is an EPAC error, because the schema doesn't allow them on a group. Only `name` and `additionalMetadataId` are emitted.
+* A `DefinitionGroup` with `-DisplayName`, `-Category` or `-Description` is an EPAC error, because the schema doesn't allow them on a group. Only `name` and `additionalMetadataId` are emitted.
 
 ### Plain JSON format
 

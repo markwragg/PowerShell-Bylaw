@@ -67,7 +67,7 @@ Initiative 'tagging-baseline' {
 * `Properties` takes `DisplayName` (required), `Description`, `Category`, `Version`, `Preview`, `Deprecated` and `Metadata`, with the same rules and limits as for a policy (ADR-0016). `Mode` is a compile error: it belongs to the members.
 * `Parameter` declares initiative parameters, as for a policy. A parameter no member uses is a warning (ADR-0021).
 * At most 1000 members and 400 parameters, as Learn documents. More is a compile error.
-* Only `Properties`, `Parameter`, `Member` and `PolicyGroup` are allowed inside. An initiative has no rule and no effect.
+* Only `Properties`, `Parameter`, `Member` and `DefinitionGroup` are allowed inside. An initiative has no rule and no effect.
 
 ### Member
 
@@ -78,11 +78,11 @@ Initiative 'tagging-baseline' {
 * `-Version '1.*.*'` emits `definitionVersion`. It is a major version, then a minor version or `*`, then a patch or `*`, with an optional `-preview` suffix: `^\d+\.(\d+|\*)\.(\d+|\*)(-preview)?$`. For a member from the build, the pattern must match the policy's `Version` (ADR-0034).
 * `-Group` names the member's policy definition groups (`groupNames`).
 
-### PolicyGroup
+### DefinitionGroup
 
-* `PolicyGroup 'name' -DisplayName ... -Category ... -Description ... -AdditionalMetadataId ...` declares a policy definition group. Only the name is required.
-* A `Member -Group` value that no `PolicyGroup` declares is a compile error, and so is a group no member uses.
-* The keyword isn't called `Group`, because PowerShell's `group` alias for `Group-Object` would run instead of a function of that name (ADR-0005).
+* `DefinitionGroup 'name' -DisplayName ... -Category ... -Description ... -AdditionalMetadataId ...` declares a policy definition group. Only the name is required.
+* A `Member -Group` value that no `DefinitionGroup` declares is a compile error, and so is a group no member uses.
+* The name matches Azure's `policyDefinitionGroups` property and Learn's "policy definition group". `PolicyGroup` was considered, but reads as a group of policies in its own right, which is what an initiative is. Plain `Group` can't be used, because PowerShell's `group` alias for `Group-Object` would run instead of a function of that name (ADR-0005).
 
 ### Consequences
 
