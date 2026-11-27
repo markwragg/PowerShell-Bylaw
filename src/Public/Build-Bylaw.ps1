@@ -209,6 +209,25 @@ function Build-Bylaw {
             }
         }
 
+        # Initiative members against the build's policies, once every file has compiled (ADR-0034).
+        # Only when the files compiled cleanly: a policy with errors has nothing reliable to check.
+        if (@($diagnostics | Where-Object Severity -EQ ([BylawSeverity]::Error)).Count -eq 0) {
+            $policyResults = @($compiled | Where-Object Kind -EQ 'Policy' | ForEach-Object Policy)
+            $initiativeResults = @($compiled | Where-Object Kind -EQ 'Initiative' | ForEach-Object {
+                    [pscustomobject]@{ Name = $_.Policy.Name; File = $_.Source.File; Parameters = $_.Policy.Parameters; Members = $_.Policy.Members }
+                })
+            foreach ($diagnostic in Test-BylawInitiativeMemberSet -Policies $policyResults -Initiatives $initiativeResults) {
+                $diagnostics.Add($diagnostic)
+                # -PassThru reports warnings with the initiative they're about: the last one in the
+                # file that starts at or before the member's line.
+                $owner = $compiled | Where-Object { $_.Kind -eq 'Initiative' -and $_.Source.File -eq $diagnostic.Location.File -and $_.Policy.Line -le $diagnostic.Location.Line } |
+                    Sort-Object { $_.Policy.Line } | Select-Object -Last 1
+                if ($owner -and $diagnostic.Severity -eq [BylawSeverity]::Warning) {
+                    $owner.Policy.Diagnostics = @($owner.Policy.Diagnostics) + $diagnostic
+                }
+            }
+        }
+
         foreach ($warning in $diagnostics | Where-Object Severity -EQ ([BylawSeverity]::Warning)) {
             Write-Warning $warning.ToString()
         }

@@ -48,6 +48,11 @@ Chosen option: "A cross-file pass in `Build-Bylaw`, over plain data each file re
 * The ID must be a policy definition ID: `/providers/Microsoft.Authorization/policyDefinitions/<name>`, optionally after a management group or subscription scope. A policy set ID is an error, because initiatives can't contain initiatives.
 * Its parameters aren't checked: Bylaw has no snapshot of built-in definitions. Like the alias snapshot (ADR-0008), one could be added later, and the checks above would then apply.
 
+### Diagnostics
+
+* Errors: BYL3120 (the policy isn't in the build, with the closest name), BYL3121 (a passed name that isn't a parameter), BYL3122 (a parameter without a default that isn't passed), BYL3123 (a literal of the wrong type or not allowed), BYL3124 (an initiative parameter of another type), BYL3125 (an initiative parameter whose default or allowed values the member doesn't allow), BYL3126 (`-Version` doesn't match the policy's `Version`, or the policy has none).
+* Warnings: BYL3127 (the name differs from the policy's only in case: it is emitted as written), BYL3128 (an initiative parameter with no allowed values, passed to a parameter that has them).
+* The pass runs only when every file compiled without errors, because a policy with errors has nothing reliable to check against.
 ### Consequences
 
 * Good, because the most common initiative mistakes, a misspelled member or parameter, a missing required parameter or an effect the member doesn't allow, fail the build with a source location.

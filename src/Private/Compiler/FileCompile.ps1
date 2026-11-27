@@ -157,6 +157,8 @@ function Complete-BylawFileJob {
                         Line        = $policy.Line
                         Text        = $policy.Text
                         Inputs      = @($policy.Inputs)
+                        Version     = $policy.Version
+                        Parameters  = @($policy.Parameters)
                         Diagnostics = @($policy.Diagnostics | ForEach-Object { ConvertFrom-BylawPlainDiagnostic -Plain $_ })
                     }
                 })
@@ -165,6 +167,8 @@ function Complete-BylawFileJob {
                         Name        = $initiative.Name
                         Line        = $initiative.Line
                         Text        = $initiative.Text
+                        Parameters  = @($initiative.Parameters)
+                        Members     = @($initiative.Members)
                         Diagnostics = @($initiative.Diagnostics | ForEach-Object { ConvertFrom-BylawPlainDiagnostic -Plain $_ })
                     }
                 })
@@ -226,6 +230,7 @@ function Invoke-BylawFileCompile {
     foreach ($policy in Get-BylawCollectedPolicy) {
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $text = $null
+        $parameters = @()
         # After a front-end error the IR may be incomplete, so compiling would only add noise.
         if (-not $frontEndFailed) {
             if ($null -eq $snapshot) {
@@ -240,6 +245,8 @@ function Invoke-BylawFileCompile {
                     $diagnostics.Add($diagnostic)
                 }
                 $text = $emitted.Text
+                # The parameters as emitted, for the checks of initiative members (ADR-0034).
+                $parameters = @(ConvertTo-BylawPlainParameterList -Document $emitted.Document)
             }
         }
         $policies.Add([pscustomobject]@{
@@ -248,6 +255,8 @@ function Invoke-BylawFileCompile {
                 Text        = $text
                 # Files the policy reads, such as a deployment template (ADR-0031). They are inputs, never stale output.
                 Inputs      = @(Get-BylawPolicyInputFile -Policy $policy)
+                Version     = if ($policy.Properties) { $policy.Properties.Version } else { $null }
+                Parameters  = $parameters
                 Diagnostics = @($diagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
             })
     }
@@ -258,6 +267,7 @@ function Invoke-BylawFileCompile {
     foreach ($initiative in Get-BylawCollectedInitiative) {
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $text = $null
+        $parameters = @()
         if (-not $frontEndFailed) {
             foreach ($diagnostic in Invoke-BylawInitiativeValidation -Initiative $initiative) {
                 $diagnostics.Add($diagnostic)
@@ -268,12 +278,15 @@ function Invoke-BylawFileCompile {
                     $diagnostics.Add($diagnostic)
                 }
                 $text = $emitted.Text
+                $parameters = @(ConvertTo-BylawPlainParameterList -Document $emitted.Document)
             }
         }
         $initiatives.Add([pscustomobject]@{
                 Name        = $initiative.Name
                 Line        = if ($initiative.Location) { $initiative.Location.Line } else { 0 }
                 Text        = $text
+                Parameters  = $parameters
+                Members     = @(ConvertTo-BylawPlainMemberList -Initiative $initiative)
                 Diagnostics = @($diagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
             })
     }
