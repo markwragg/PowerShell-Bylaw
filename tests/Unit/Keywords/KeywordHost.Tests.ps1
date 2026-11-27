@@ -120,6 +120,34 @@ Set-Content -Path (Join-Path $TestDrive 'user-field.txt') -Value (Field)
     It 'leaves the CommandNotFoundAction for other commands alone' {
         { Invoke-NoSuchBylawCommand } | Should -Throw -ErrorId 'CommandNotFoundException'
     }
+
+    # A scriptblock handler belongs to the importing runspace, so a lookup from another thread, as
+    # during tab completion, waited for that runspace and hung the terminal.
+    It 'handles unknown commands with compiled code, not a scriptblock' {
+        $handler = $ExecutionContext.InvokeCommand.CommandNotFoundAction
+        $handler.Target | Should -BeOfType ([Bylaw.KeywordLookup])
+        $handler.Method.Name | Should -Be 'OnCommandNotFound'
+    }
+
+    It 'passes other names to the handler that was registered before' {
+        $saved = $ExecutionContext.InvokeCommand.CommandNotFoundAction
+        $previous = [System.EventHandler[System.Management.Automation.CommandLookupEventArgs]] {
+            param($source, $lookup)
+            $null = $source
+            $lookup.CommandScriptBlock = { 'from the previous handler' }
+            $lookup.StopSearch = $true
+        }
+        try {
+            $lookup = [Bylaw.KeywordLookup]::new([string[]] @('Zzkeyword'), $previous)
+            $ExecutionContext.InvokeCommand.CommandNotFoundAction = [System.EventHandler[System.Management.Automation.CommandLookupEventArgs]] $lookup.OnCommandNotFound
+            Invoke-NoSuchBylawCommand | Should -Be 'from the previous handler'
+            { Zzkeyword } | Should -Throw "*BYL1001: 'Zzkeyword' is a Bylaw keyword*"
+            $lookup.Previous | Should -Be $previous
+        }
+        finally {
+            $ExecutionContext.InvokeCommand.CommandNotFoundAction = $saved
+        }
+    }
 }
 
 Describe 'Policy' {
