@@ -4,23 +4,28 @@
 #   Test      [BylawPolicy] -> diagnostics: format rules the policy must meet
 #   Emit      [BylawPolicy] -> document: the output as ordered objects
 #   Serialize document      -> text: bytes on disk (a Bicep emitter can bring its own)
+#   TestInitiative, EmitInitiative: the same for an initiative (ADR-0035)
 # plus FileExtension for the output file. A Bicep emitter would add an entry here.
 
 $script:BylawEmitters = [ordered]@{
     Epac      = [pscustomobject]@{
-        Name          = 'Epac'
-        FileExtension = '.json'
-        Test          = 'Test-BylawEpacPolicy'
-        Emit          = 'ConvertTo-BylawEpacDocument'
-        Serialize     = 'ConvertTo-BylawJson'
+        Name           = 'Epac'
+        FileExtension  = '.json'
+        Test           = 'Test-BylawEpacPolicy'
+        Emit           = 'ConvertTo-BylawEpacDocument'
+        Serialize      = 'ConvertTo-BylawJson'
+        TestInitiative = 'Test-BylawEpacInitiative'
+        EmitInitiative = 'ConvertTo-BylawEpacInitiativeDocument'
     }
     # ADR-0027.
     PlainJson = [pscustomobject]@{
-        Name          = 'PlainJson'
-        FileExtension = '.json'
-        Test          = 'Test-BylawPlainJsonPolicy'
-        Emit          = 'ConvertTo-BylawPlainJsonDocument'
-        Serialize     = 'ConvertTo-BylawJson'
+        Name           = 'PlainJson'
+        FileExtension  = '.json'
+        Test           = 'Test-BylawPlainJsonPolicy'
+        Emit           = 'ConvertTo-BylawPlainJsonDocument'
+        Serialize      = 'ConvertTo-BylawJson'
+        TestInitiative = 'Test-BylawPlainJsonInitiative'
+        EmitInitiative = 'ConvertTo-BylawPlainJsonInitiativeDocument'
     }
 }
 

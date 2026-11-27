@@ -62,6 +62,13 @@ Chosen option: "`-InitiativeOutputPath`, defaulting to `-OutputPath`".
 * Every member needs a full `policyDefinitionId`. For a member from the build, it is `<definitionScope>/providers/Microsoft.Authorization/policyDefinitions/<name>`, where `definitionScope` is the scope the build's policies are deployed at, such as `/providers/Microsoft.Management/managementGroups/contoso`. It is set with `Build-Bylaw -DefinitionScope` or `definitionScope` in `bylaw.json`. A plain JSON build with an initiative that has a member from the build, and no definition scope, is an error.
 * Groups keep `displayName`, `category` and `description`.
 
+### Diagnostics
+
+* BYL4001 and BYL4002 (no `Category` or `Version`) and BYL4009 (a `DateTime` parameter) apply to EPAC initiatives as to policies. BYL4011 is a `DefinitionGroup` with `-DisplayName`, `-Category` or `-Description` in EPAC output.
+* BYL4012 is a plain JSON initiative with a member from the build, and no definition scope.
+* BYL5006 is a `-DefinitionScope` or `definitionScope` that is not a management group or subscription ID. `initiativeOutputPath` follows BYL5005, as the other paths in `bylaw.json` do.
+* `Build-Bylaw -PassThru` results have a `Kind` of `Policy` or `Initiative`.
+
 ### Consequences
 
 * Good, because EPAC users write to the folders EPAC reads, and nothing changes for builds without initiatives.

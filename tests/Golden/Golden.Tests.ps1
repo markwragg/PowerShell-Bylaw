@@ -26,6 +26,7 @@ BeforeDiscovery {
 BeforeAll {
     Import-Module -Name (Join-Path $PSScriptRoot '../../src/Bylaw.psd1') -Force
     $script:Schema = Join-Path $PSScriptRoot '../Schemas/epac-policy-definition-schema.json'
+    $script:SetSchema = Join-Path $PSScriptRoot '../Schemas/epac-policy-set-definition-schema.json'
 }
 
 AfterAll {
@@ -84,6 +85,11 @@ Describe 'Golden files in <Name> (<Format>)' -ForEach $GoldenRoots {
         # Append details are an array, as Azure requires; the EPAC schema says object (BYL4010). Check
         # everything else against the schema.
         $node = [System.Text.Json.Nodes.JsonNode]::Parse($text)
+        # An initiative is checked against EPAC's policy set definition schema (ADR-0035).
+        if ($null -ne $node['properties']['policyDefinitions']) {
+            Test-Json -Json $text -SchemaFile $SetSchema -ErrorAction SilentlyContinue | Should -BeTrue
+            return
+        }
         $then = $node['properties']['policyRule']['then']
         if ($then['details'] -is [System.Text.Json.Nodes.JsonArray]) {
             $then['effect'].ToString() | Should -BeIn @('Append', "[parameters('effect')]")

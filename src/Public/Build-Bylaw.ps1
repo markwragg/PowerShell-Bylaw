@@ -6,6 +6,7 @@ function Build-Bylaw {
     .DESCRIPTION
         Finds *.bylaw.ps1 files under -Path (recursively), compiles each one in a fresh runspace,
         and writes one file per policy to -OutputPath, mirroring the source folder structure.
+        Initiatives are written the same way, to -InitiativeOutputPath (ADR-0035).
 
         Every file is compiled and every error is reported before the build fails. If anything
         fails, no files are written.
@@ -26,9 +27,19 @@ function Build-Bylaw {
           for New-AzPolicyDefinition, the Azure CLI, Bicep or Terraform (ADR-0027). The policy is
           emitted as written: a literal effect stays literal and nothing is generated.
 
+    .PARAMETER InitiativeOutputPath
+        Folder for initiatives. Defaults to initiativeOutputPath in bylaw.json, then to -OutputPath.
+        For EPAC, use its policySetDefinitions folder (ADR-0035).
+
+    .PARAMETER DefinitionScope
+        The scope the build's policies are deployed at, such as
+        /providers/Microsoft.Management/managementGroups/contoso. Plain JSON initiatives need it to
+        give their members from the build a full policyDefinitionId (ADR-0035). Defaults to
+        definitionScope in bylaw.json.
+
     .PARAMETER PassThru
-        Returns one result per policy: Name, SourceFile, SourceLine, OutputFile, Json, Warnings.
-        Without -OutputPath, compiles in memory and writes nothing.
+        Returns one result per policy and initiative: Kind, Name, SourceFile, SourceLine,
+        OutputFile, Json, Warnings. Without -OutputPath, compiles in memory and writes nothing.
 
     .PARAMETER Settings
         Path to a bylaw.json settings file. By default, the nearest bylaw.json at or above -Path
@@ -55,6 +66,9 @@ function Build-Bylaw {
 
     .EXAMPLE
         Build-Bylaw -Path ./policies -OutputPath ./out -Format PlainJson
+
+    .EXAMPLE
+        Build-Bylaw ./policies -OutputPath ./Definitions/policyDefinitions -InitiativeOutputPath ./Definitions/policySetDefinitions
     #>
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType('Bylaw.BuildResult')]
@@ -65,6 +79,10 @@ function Build-Bylaw {
 
         [Parameter(Position = 1)]
         [string] $OutputPath,
+
+        [string] $InitiativeOutputPath,
+
+        [string] $DefinitionScope,
 
         [ValidateSet('Epac', 'PlainJson')]
         [string] $Format = 'Epac',
@@ -140,12 +158,22 @@ function Build-Bylaw {
         }
         Write-Verbose "Role map: $($roleData.Path)"
 
+        # The scope for plain JSON initiatives' member IDs (ADR-0035).
+        $scope = $settingsResult.Settings.DefinitionScope
+        if ($PSBoundParameters.ContainsKey('DefinitionScope')) {
+            $problem = Get-BylawDefinitionScopeProblem -Scope $DefinitionScope
+            if ($problem) {
+                $PSCmdlet.ThrowTerminatingError((New-BylawErrorRecord -Message "BYL5006: -DefinitionScope $problem" -Id 'BylawDefinitionScope' -Category InvalidArgument))
+            }
+            $scope = $DefinitionScope
+        }
+
         # Compile every file, one fresh runspace each, several at once (ADR-0014).
         # Results come back in file order, so output doesn't depend on which file finishes first.
         $throttle = if ($PSBoundParameters.ContainsKey('ThrottleLimit')) { $ThrottleLimit } else { Get-BylawDefaultThrottleLimit }
         $throttle = [Math]::Min($throttle, $sources.Count)
         Write-Verbose "Compiling $($sources.Count) file(s), up to $throttle at once"
-        $results = @(Invoke-BylawFileInRunspace -File @($sources.File) -SnapshotData $snapshotData -RoleData $roleData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name -ThrottleLimit $throttle)
+        $results = @(Invoke-BylawFileInRunspace -File @($sources.File) -SnapshotData $snapshotData -RoleData $roleData -AllowUnknownAlias $AllowUnknownAlias.IsPresent -Format $emitter.Name -DefinitionScope $scope -ThrottleLimit $throttle)
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $compiled = [System.Collections.Generic.List[object]]::new()
         for ($index = 0; $index -lt $sources.Count; $index++) {
@@ -155,20 +183,26 @@ function Build-Bylaw {
             $diagnostics.AddRange([object[]] @($result.Diagnostics))
             foreach ($policy in $result.Policies) {
                 $diagnostics.AddRange([object[]] @($policy.Diagnostics))
-                $compiled.Add([pscustomobject]@{ Source = $source; Policy = $policy; FileDiagnostics = $result.Diagnostics })
+                $compiled.Add([pscustomobject]@{ Kind = 'Policy'; Source = $source; Policy = $policy; FileDiagnostics = $result.Diagnostics })
+            }
+            # An initiative is handled like a policy from here on; only its output folder differs.
+            foreach ($initiative in @($result.Initiatives)) {
+                $diagnostics.AddRange([object[]] @($initiative.Diagnostics))
+                $compiled.Add([pscustomobject]@{ Kind = 'Initiative'; Source = $source; Policy = $initiative; FileDiagnostics = $result.Diagnostics })
             }
             if ($result.Policies.Count -eq 0 -and @($result.Initiatives).Count -eq 0 -and $result.Diagnostics.Count -eq 0) {
                 $diagnostics.Add([BylawDiagnostic]::new([BylawSeverity]::Warning, 'BYL5021', 'The file contains no Policy or Initiative blocks.', [BylawSourceLocation]::new($source.File, 0, 0, $null)))
             }
         }
 
-        # Names are unique across the build, ignoring case (ADR-0013).
+        # Names are unique across the build, ignoring case, for policies and initiatives together
+        # (ADR-0013, ADR-0033).
         $names = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($entry in $compiled) {
             $name = $entry.Policy.Name
             if ($names.ContainsKey($name)) {
                 $first = $names[$name]
-                $diagnostics.Add([BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL5020', "Policy name '$name' is already used at $($first.Source.File):$($first.Policy.Line). Names must be unique across a build, ignoring case.", [BylawSourceLocation]::new($entry.Source.File, $entry.Policy.Line, 0, 'Policy')))
+                $diagnostics.Add([BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL5020', "$($entry.Kind) name '$name' is already used by the $($first.Kind.ToLowerInvariant()) at $($first.Source.File):$($first.Policy.Line). Policy and initiative names must be unique across a build, ignoring case.", [BylawSourceLocation]::new($entry.Source.File, $entry.Policy.Line, 0, $entry.Kind)))
             }
             else {
                 $names[$name] = $entry
@@ -184,13 +218,24 @@ function Build-Bylaw {
             $PSCmdlet.ThrowTerminatingError((New-BylawBuildErrorRecord -Diagnostics $errors))
         }
 
-        # Output, mirroring the source folders (ADR-0011).
-        $outputRoot = if ($OutputPath) { $PSCmdlet.GetUnresolvedProviderPathFromPSPath($OutputPath) } else { $null }
+        # Output, mirroring the source folders (ADR-0011). Initiatives go to their own folder, which
+        # defaults to the policies' one (ADR-0035).
+        $outputRoot = if ($OutputPath) { [System.IO.Path]::GetFullPath($PSCmdlet.GetUnresolvedProviderPathFromPSPath($OutputPath)) } else { $null }
+        $initiativeRoot = if ($InitiativeOutputPath) {
+            [System.IO.Path]::GetFullPath($PSCmdlet.GetUnresolvedProviderPathFromPSPath($InitiativeOutputPath))
+        }
+        elseif ($settingsResult.Settings.InitiativeOutputPath) {
+            $settingsResult.Settings.InitiativeOutputPath
+        }
+        else {
+            $outputRoot
+        }
         foreach ($entry in $compiled) {
             $outputFile = $null
-            if ($outputRoot) {
+            $root = if ($entry.Kind -eq 'Initiative') { $initiativeRoot } else { $outputRoot }
+            if ($outputRoot -and $root) {
                 $folder = [System.IO.Path]::GetDirectoryName($entry.Source.Relative)
-                $outputFile = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($outputRoot, $folder, $entry.Policy.Name + $emitter.FileExtension))
+                $outputFile = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($root, $folder, $entry.Policy.Name + $emitter.FileExtension))
             }
             $entry | Add-Member -NotePropertyName OutputFile -NotePropertyValue $outputFile
         }
@@ -198,17 +243,24 @@ function Build-Bylaw {
         if ($outputRoot) {
             $produced = [System.Collections.Generic.HashSet[string]]::new([string[]] @($compiled.OutputFile), [System.StringComparer]::OrdinalIgnoreCase)
             # Files a policy reads, such as a deployment template (ADR-0031), are inputs, not stale output.
-            foreach ($inputFile in @($compiled | ForEach-Object { $_.Policy.Inputs })) {
+            foreach ($inputFile in @($compiled | Where-Object Kind -EQ 'Policy' | ForEach-Object { $_.Policy.Inputs })) {
                 if ($inputFile) {
                     $null = $produced.Add([System.IO.Path]::GetFullPath($inputFile))
                 }
             }
-            if ([System.IO.Directory]::Exists($outputRoot)) {
-                $existing = [System.IO.Directory]::GetFiles($outputRoot, '*' + $emitter.FileExtension, [System.IO.SearchOption]::AllDirectories)
-                foreach ($stale in ($existing | Sort-Object -Culture ([cultureinfo]::InvariantCulture))) {
-                    if (-not $produced.Contains($stale)) {
-                        Write-Warning "$stale BYL5030: This file was not produced by this build. Bylaw never deletes output; remove it if its policy is gone."
+            # Both output folders, each once, and every file in them at most once.
+            $roots = @($outputRoot, $initiativeRoot | Where-Object { $_ } | Sort-Object -Unique)
+            $existing = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($root in $roots) {
+                if ([System.IO.Directory]::Exists($root)) {
+                    foreach ($file in [System.IO.Directory]::GetFiles($root, '*' + $emitter.FileExtension, [System.IO.SearchOption]::AllDirectories)) {
+                        $null = $existing.Add($file)
                     }
+                }
+            }
+            foreach ($stale in $existing) {
+                if (-not $produced.Contains($stale)) {
+                    Write-Warning "$stale BYL5030: This file was not produced by this build. Bylaw never deletes output; remove it if its policy or initiative is gone."
                 }
             }
             $encoding = [System.Text.UTF8Encoding]::new($false)
@@ -218,7 +270,8 @@ function Build-Bylaw {
                     Write-Verbose "Unchanged $file"
                     continue
                 }
-                if ($PSCmdlet.ShouldProcess($file, 'Write policy definition')) {
+                $what = if ($entry.Kind -eq 'Initiative') { 'Write initiative definition' } else { 'Write policy definition' }
+                if ($PSCmdlet.ShouldProcess($file, $what)) {
                     $null = [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($file))
                     [System.IO.File]::WriteAllText($file, $entry.Policy.Text, $encoding)
                 }
@@ -230,6 +283,7 @@ function Build-Bylaw {
                 $warnings = @(@($entry.FileDiagnostics) + @($entry.Policy.Diagnostics) | Where-Object Severity -EQ ([BylawSeverity]::Warning) | ForEach-Object { $_.ToString() })
                 [pscustomobject]@{
                     PSTypeName = 'Bylaw.BuildResult'
+                    Kind       = $entry.Kind
                     Name       = $entry.Policy.Name
                     SourceFile = $entry.Source.File
                     SourceLine = $entry.Policy.Line

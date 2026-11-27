@@ -32,6 +32,8 @@ Chosen option: "Recursive discovery of `*.bylaw.ps1`".
 |---|---|
 | `-Path` | Source files or folders. Defaults to the current folder. |
 | `-OutputPath` | Output folder. Required unless `-PassThru` is used alone. |
+| `-InitiativeOutputPath` | Output folder for initiatives, defaulting to `-OutputPath` (ADR-0035). |
+| `-DefinitionScope` | The scope the build's policies are deployed at, for plain JSON initiatives (ADR-0035). |
 | `-Format` | `Epac` (the default, ADR-0011) or `PlainJson` (ADR-0027). |
 | `-PassThru` | Returns one result object per policy: `Name`, `SourceFile`, `SourceLine`, `OutputFile`, `Json`, `Warnings`. |
 | `-Settings` | An explicit path to `bylaw.json` (ADR-0012). |

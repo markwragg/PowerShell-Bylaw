@@ -72,6 +72,17 @@ Describe 'Read-BylawSettingsFile' {
         $result.Settings.RoleCache | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'read/data/roles.json')))
     }
 
+    It 'resolves initiativeOutputPath relative to bylaw.json, and reads definitionScope' {
+        $result = Read-TestSettingsFile '{ "initiativeOutputPath": "Definitions/policySetDefinitions", "definitionScope": "/providers/Microsoft.Management/managementGroups/contoso" }'
+        $result.Diagnostics | Should -BeNullOrEmpty
+        $result.Settings.InitiativeOutputPath | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'read/Definitions/policySetDefinitions')))
+        $result.Settings.DefinitionScope | Should -BeExactly '/providers/Microsoft.Management/managementGroups/contoso'
+    }
+
+    It 'accepts a subscription as definitionScope' {
+        (Read-TestSettingsFile '{ "definitionScope": "/subscriptions/00000000-0000-0000-0000-000000000000" }').Diagnostics | Should -BeNullOrEmpty
+    }
+
     It 'reports <Code> for <Case>' -ForEach @(
         @{ Code = 'BYL5001'; Case = 'invalid JSON'; Json = '{ "languageVersion": ' }
         @{ Code = 'BYL5001'; Case = 'a JSON array'; Json = '[]' }
@@ -81,6 +92,9 @@ Describe 'Read-BylawSettingsFile' {
         @{ Code = 'BYL5004'; Case = 'a numeric language version'; Json = '{ "languageVersion": 1.0 }' }
         @{ Code = 'BYL5005'; Case = 'an aliasCache that is not a string'; Json = '{ "aliasCache": 5 }' }
         @{ Code = 'BYL5005'; Case = 'an empty roleCache'; Json = '{ "roleCache": "" }' }
+        @{ Code = 'BYL5005'; Case = 'an initiativeOutputPath that is not a string'; Json = '{ "initiativeOutputPath": true }' }
+        @{ Code = 'BYL5006'; Case = 'a definitionScope that is a resource group'; Json = '{ "definitionScope": "/subscriptions/x/resourceGroups/rg" }' }
+        @{ Code = 'BYL5006'; Case = 'a definitionScope that is not a string'; Json = '{ "definitionScope": 5 }' }
     ) {
         @((Read-TestSettingsFile $Json).Diagnostics.Code) | Should -Contain $Code
     }
