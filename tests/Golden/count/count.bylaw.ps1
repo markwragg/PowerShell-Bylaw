@@ -23,23 +23,23 @@ Policy 'golden-count-empty-array' {
     Effect Audit
 }
 
-# A value count over a parameter, compared with its length: every mandatory tag is set.
-Policy 'golden-count-mandatory-tags' {
+# A value count over a parameter, with the member as a value: the name matches one of the patterns.
+Policy 'golden-count-name-patterns' {
 
     Properties @{
-        DisplayName = 'Golden: resources have every mandatory tag'
-        Category    = 'Tags'
+        DisplayName = 'Golden: resource names match an allowed pattern'
+        Category    = 'General'
         Version     = '1.0.0'
         Mode        = 'Indexed'
     }
 
-    Parameter MandatoryTags -Type Array -Default @('CostCenter', 'Owner')
+    Parameter NamePatterns -Type Array -Default @('rg-*', 'st*')
 
     Resource * {
-        Require 'Every mandatory tag is set' {
-            Count -Value (Param MandatoryTags) -Name tagName -Where {
-                Tag (Current tagName) | Must -Exist
-            } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+        Require 'The name matches an allowed pattern' {
+            Count -Value (Param NamePatterns) -Name pattern -Where {
+                Field name | Must -BeLike (Current pattern)
+            } | Must -BeGreaterThan 0
         }
     }
 

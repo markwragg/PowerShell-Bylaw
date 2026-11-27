@@ -4,7 +4,7 @@
   "properties": {
     "displayName": "Golden: storage and tagging baseline",
     "policyType": "Custom",
-    "description": "Storage accounts are private, and resources carry the mandatory tags.",
+    "description": "Storage accounts are private, and resource names follow the naming patterns.",
     "metadata": {
       "version": "1.0.0",
       "category": "General"
@@ -22,15 +22,15 @@
         ],
         "defaultValue": "Audit"
       },
-      "mandatoryTags": {
+      "namePatterns": {
         "type": "Array",
         "metadata": {
-          "displayName": "Mandatory tags",
-          "description": "Tags every resource must have."
+          "displayName": "Name patterns",
+          "description": "Patterns a resource name can match."
         },
         "defaultValue": [
-          "CostCenter",
-          "Owner"
+          "rg-*",
+          "st*"
         ]
       }
     },
@@ -48,11 +48,11 @@
         ]
       },
       {
-        "policyDefinitionReferenceId": "golden-count-mandatory-tags",
-        "policyDefinitionName": "golden-count-mandatory-tags",
+        "policyDefinitionReferenceId": "golden-count-name-patterns",
+        "policyDefinitionName": "golden-count-name-patterns",
         "parameters": {
-          "mandatoryTags": {
-            "value": "[parameters('mandatoryTags')]"
+          "namePatterns": {
+            "value": "[parameters('namePatterns')]"
           },
           "effect": {
             "value": "[parameters('effect')]"
@@ -63,12 +63,12 @@
         ]
       },
       {
-        "policyDefinitionReferenceId": "golden-count-environment-tag",
-        "policyDefinitionName": "golden-count-mandatory-tags",
+        "policyDefinitionReferenceId": "golden-count-vnet-names",
+        "policyDefinitionName": "golden-count-name-patterns",
         "parameters": {
-          "mandatoryTags": {
+          "namePatterns": {
             "value": [
-              "Environment"
+              "vnet-*"
             ]
           }
         },

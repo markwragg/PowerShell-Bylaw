@@ -1,4 +1,4 @@
-# A tagging baseline: resources have the mandatory tags, and inherit two of them from their resource
+# A tagging baseline: resources have a required tag, and inherit two tags from their resource
 # group. The inherit policy is included twice, once per tag, with a reference ID for each. A
 # built-in policy is included by ID, pinned to its major version.
 
@@ -10,14 +10,13 @@ Initiative 'tagging-baseline' {
         Version     = '1.0.0'
     }
 
-    Parameter MandatoryTags @{
-        Type        = 'Array'
-        Default     = 'CostCenter', 'Owner'
-        Description = 'Tags every resource must have.'
+    Parameter RequiredTag @{
+        Default     = 'CostCenter'
+        Description = 'The tag every resource must have.'
     }
 
-    PolicyDefinition 'tags-require-mandatory-tags' -Parameters @{
-        mandatoryTags = Param MandatoryTags
+    PolicyDefinition 'general-require-tag' -Parameters @{
+        tagName = Param RequiredTag
     }
 
     PolicyDefinition 'tags-inherit-from-resource-group' -ReferenceId 'inherit-cost-center' -Parameters @{

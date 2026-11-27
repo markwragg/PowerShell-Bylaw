@@ -27,10 +27,10 @@ The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tes
 | [general/attest-access-review](general/attest-access-review.bylaw.ps1) | `Manual` with `-DefaultState`, for a control that people attest |
 | [compute/audit-antimalware](compute/audit-antimalware.bylaw.ps1) | `AuditIfNotExists` on a VM extension, and the full alias for a field named like a reserved one |
 | [key-vault/deploy-diagnostics](key-vault/deploy-diagnostics.bylaw.ps1) | `DeployIfNotExists` with a template file in [key-vault/templates](key-vault/templates/), roles by ID, and an effect parameter that allows `AuditIfNotExists` |
-| [tags/require-mandatory-tags](tags/require-mandatory-tags.bylaw.ps1) | A value count over a parameter, with `Tag (Current tagName)`, compared with the parameter's length |
+| [general/name-matches-a-pattern](general/name-matches-a-pattern.bylaw.ps1) | A value count over a parameter, with `Current` as the value each name is compared with |
 | [network/limit-inbound-allow-rules](network/limit-inbound-allow-rules.bylaw.ps1) | A field count with `-Where`, compared with an `Integer` parameter |
 | [initiatives/storage-baseline](initiatives/storage-baseline.bylaw.ps1) | An initiative of storage policies from other files, with one `Effect` passed to all of them, and a member that needs no parameters |
-| [initiatives/tagging-baseline](initiatives/tagging-baseline.bylaw.ps1) | An initiative that includes one policy twice with different reference IDs, and a built-in policy by ID with `-Version` |
+| [initiatives/tagging-baseline](initiatives/tagging-baseline.bylaw.ps1) | An initiative that passes its own parameter to a policy, includes one policy twice with different reference IDs, and includes a built-in policy by ID with `-Version` |
 
 Template files live in `templates` folders. They are inputs, not golden files.
 

@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml/badge.svg)](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml)
 
+[<img src="bylaw-logo.png" align="right" width="100">](https://www.powershellgallery.com/packages/bylaw)
+
 Bylaw is a PowerShell module for writing Azure Policy in a Pester-style language. You describe what a *compliant* resource looks like, and Bylaw compiles that into Azure Policy definition JSON, in the [Enterprise Policy as Code (EPAC)](https://github.com/Azure/enterprise-azure-policy-as-code) format or as plain definitions for other tools.
 
 ```powershell
@@ -249,7 +251,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `AllOf { }` | Inside `AnyOf`, one alternative made of several statements that must all hold. |
 | `Field name` | A field: a short name, a standard field (`name`, `type`, `location`, `tags`, ...), or a full alias. `-AllowUnknownAlias` accepts an alias missing from the snapshot. |
 | `Element` | The element itself, inside `Each` over an array of plain values, or in a field count's `-Where`. |
-| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter, and `Tag (Current name)` from a value count. |
+| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter. |
 | `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
 | `Count path[*]`, `Count -Value list` | The number of array elements, or list members, that match `-Where`, piped to `Must`. See [Counts](#counts). |
 | `Current [name]` | Inside `Count -Where`: the element or member being counted. |
@@ -400,12 +402,14 @@ Require 'Few rules allow inbound traffic' {
 - **A value count** counts the members of a list: a literal array, `Param` or `Arm`. `Current` is the member being counted, and `-Name` gives it a name, which nested counts need:
 
   ```powershell
-  Require 'Every mandatory tag is set' {
-      Count -Value (Param MandatoryTags) -Name tagName -Where {
-          Tag (Current tagName) | Must -Exist
-      } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+  Require 'The name matches an allowed pattern' {
+      Count -Value (Param NamePatterns) -Name pattern -Where {
+          Field name | Must -BeLike (Current pattern)
+      } | Must -BeGreaterThan 0
   }
   ```
+
+  `Current` can't name a tag: `Tag (Current tagName)` is a compile error (BYL1059), because Azure rejects a field named with `current()`.
 
 - **In `Require`**, the comparison is inverted like any other: `-BeGreaterThan 0` emits `lessOrEquals 0`. A count is never missing, so it gets no guard.
 - **`Each path[*] { P }`** is the same as `Count path[*] -Where { <violation of P> } | Must -Be 0`, and stays the simple way to say "every element".
@@ -570,13 +574,10 @@ Initiative 'tagging-baseline' {
         Version     = '1.0.0'
     }
 
-    Parameter MandatoryTags @{
-        Type    = 'Array'
-        Default = 'CostCenter', 'Owner'
-    }
+    Parameter RequiredTag @{ Default = 'CostCenter' }
 
-    PolicyDefinition 'tags-require-mandatory-tags' -Parameters @{
-        mandatoryTags = Param MandatoryTags
+    PolicyDefinition 'general-require-tag' -Parameters @{
+        tagName = Param RequiredTag
     }
 
     # The same policy twice, with a reference ID for each.

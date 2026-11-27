@@ -29,16 +29,16 @@ Initiative 'golden-initiative' {
 
     Properties @{
         DisplayName = 'Golden: storage and tagging baseline'
-        Description = 'Storage accounts are private, and resources carry the mandatory tags.'
+        Description = 'Storage accounts are private, and resource names follow the naming patterns.'
         Category    = 'General'
         Version     = '1.0.0'
     }
 
     Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Audit
-    Parameter MandatoryTags @{
+    Parameter NamePatterns @{
         Type        = 'Array'
-        Default     = 'CostCenter', 'Owner'
-        Description = 'Tags every resource must have.'
+        Default     = 'rg-*', 'st*'
+        Description = 'Patterns a resource name can match.'
     }
 
     DefinitionGroup 'Storage' -AdditionalMetadataId '/providers/Microsoft.PolicyInsights/policyMetadata/golden-storage'
@@ -48,15 +48,15 @@ Initiative 'golden-initiative' {
         effect = Param Effect
     }
 
-    # golden-count-mandatory-tags has a literal effect, so EPAC output gives it an effect parameter.
-    PolicyDefinition 'golden-count-mandatory-tags' -Group Tags -Parameters ([ordered]@{
-            mandatoryTags = Param MandatoryTags
-            effect        = Param Effect
+    # golden-count-name-patterns has a literal effect, so EPAC output gives it an effect parameter.
+    PolicyDefinition 'golden-count-name-patterns' -Group Tags -Parameters ([ordered]@{
+            namePatterns = Param NamePatterns
+            effect       = Param Effect
         })
 
     # The same policy again, with a fixed list.
-    PolicyDefinition 'golden-count-mandatory-tags' -ReferenceId 'golden-count-environment-tag' -Group Tags -Parameters @{
-        mandatoryTags = @('Environment')
+    PolicyDefinition 'golden-count-name-patterns' -ReferenceId 'golden-count-vnet-names' -Group Tags -Parameters @{
+        namePatterns = @('vnet-*')
     }
 
     PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Group Tags -Parameters @{

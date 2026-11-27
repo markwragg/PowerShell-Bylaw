@@ -9,25 +9,22 @@
       "category": "Tags"
     },
     "parameters": {
-      "mandatoryTags": {
-        "type": "Array",
+      "requiredTag": {
+        "type": "String",
         "metadata": {
-          "displayName": "Mandatory tags",
-          "description": "Tags every resource must have."
+          "displayName": "Required tag",
+          "description": "The tag every resource must have."
         },
-        "defaultValue": [
-          "CostCenter",
-          "Owner"
-        ]
+        "defaultValue": "CostCenter"
       }
     },
     "policyDefinitions": [
       {
-        "policyDefinitionReferenceId": "tags-require-mandatory-tags",
-        "policyDefinitionName": "tags-require-mandatory-tags",
+        "policyDefinitionReferenceId": "general-require-tag",
+        "policyDefinitionName": "general-require-tag",
         "parameters": {
-          "mandatoryTags": {
-            "value": "[parameters('mandatoryTags')]"
+          "tagName": {
+            "value": "[parameters('requiredTag')]"
           }
         }
       },
