@@ -92,5 +92,7 @@ jobs:
           $version = '${{ steps.publish.outputs.version }}'
           $zip = "out/Bylaw-v$version.zip"
           Compress-Archive -Path out/Bylaw -DestinationPath $zip
-          $prerelease = if ($version.Contains('-')) { @('--prerelease') } else { @() }
-          gh release create "v$version" $zip --target '${{ steps.commit.outputs.sha }}' --title "v$version" --notes-file out/release-notes.md @prerelease
+          # A boolean flag value, not a splatted array: splatting passed gh a stray '-' as an asset.
+          $prerelease = if ($version.Contains('-')) { 'true' } else { 'false' }
+          gh release create "v$version" $zip --target '${{ steps.commit.outputs.sha }}' --title "v$version" --notes-file out/release-notes.md "--prerelease=$prerelease"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
