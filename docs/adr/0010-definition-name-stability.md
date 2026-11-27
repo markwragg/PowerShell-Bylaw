@@ -10,7 +10,7 @@ decision-makers: Bylaw maintainers
 
 A policy definition's `name` is its identity. EPAC and Azure use it to match a definition with its assignments, so renaming it creates a new definition and orphans the old one's assignments. The name must never be derived from something that changes incidentally, such as a file name, the display name or a hash.
 
-Which names are allowed? Existing definitions should be able to move to Bylaw with their names. Every one of the 149 custom definitions in the Azure Landing Zones Library has capitals, for example `Deny-Storage-minTLS`, and initiatives (Milestone 4) and the decompiler (Milestone 5) will meet the same names. The name is also the output file name, so it must be safe on Windows, Linux and macOS.
+Which names are allowed? Existing definitions should be able to move to Bylaw with their names. Every one of the 149 custom definitions in the Azure Landing Zones Library has capitals, for example `Deny-Storage-minTLS`, and initiatives and the planned decompiler meet the same names. The name is also the output file name, so it must be safe on Windows, Linux and macOS.
 
 ## Decision Drivers
 
@@ -33,7 +33,7 @@ Chosen option: "Any name Azure accepts that is also a safe file name".
 * Lowercase kebab-case, such as `storage-deny-public-network-access`, is the recommended style in the documentation and examples, but isn't enforced or warned about. A warning would fire on every policy imported from ALZ or the portal, and the author can't change those names without changing the definitions' identity.
 * Names must be unique across a build, ignoring case (ADR-0013). That also prevents two output files whose names differ only in case, which would clash on Windows and macOS.
 * The name is also the output file name, `<name>.json` (ADR-0011), in the case it is written.
-* The same rule will apply to initiative names (Milestone 4).
+* The same rule applies to initiative names ([ADR-0033](0033-initiatives.md)).
 
 Azure Resource Manager limits definition names to 64 characters and disallows `<>*%&:\?.+/`. The Microsoft Learn pages for definition structure don't state this.
 
@@ -71,5 +71,5 @@ Unit tests cover each disallowed character, the length limits, leading and trail
 
 ## More Information
 
-* Milestones 1 and 2 used the kebab-case rule (`^[a-z0-9]+(-[a-z0-9]+)*$`, 3 to 64 characters). Milestone 3 replaced it, before Bylaw was published, so existing definitions such as the Azure Landing Zones Library's can keep their names.
+* An earlier version of this ADR used the kebab-case rule (`^[a-z0-9]+(-[a-z0-9]+)*$`, 3 to 64 characters). It was replaced before Bylaw was published, so existing definitions such as the Azure Landing Zones Library's can keep their names.
 * Related: [ADR-0011](0011-epac-default-output.md), [ADR-0013](0013-discovery-by-convention.md)

@@ -48,7 +48,7 @@ Chosen option: "The EPAC definition file format as the default".
 
 ### Layout
 
-* One file per policy, named `<name>.json`. Initiatives (Milestone 4) can be written to a folder of their own, as EPAC needs ([ADR-0035](0035-initiative-output.md)).
+* One file per policy, named `<name>.json`. Initiatives can be written to a folder of their own, as EPAC needs ([ADR-0035](0035-initiative-output.md)).
 * The output mirrors the source folder structure: `<Path>/storage/a.bylaw.ps1` writes its policies to `<OutputPath>/storage/<name>.json`. A file that contains several policies writes them side by side in the mirrored folder.
 * Bylaw never deletes files in `-OutputPath`. Cleaning up stale output is left to the user, and Bylaw warns about `*.json` files in the output folder that no source file produced.
 

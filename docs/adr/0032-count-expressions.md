@@ -26,7 +26,7 @@ Learn also documents comparing a count with other numbers: "exactly one", "at le
 
 * A `Count` keyword whose result is piped to `Must`
 * More `Each` variants: `EachOf`, `AnyOf` over elements, `None`
-* Only the raw-condition escape hatch (Milestone 5)
+* Only the planned raw-condition escape hatch
 
 ## Decision Outcome
 

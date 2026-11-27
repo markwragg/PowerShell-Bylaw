@@ -14,7 +14,7 @@ Policy values often use ARM template expressions: `[parameters('x')]`, `[resourc
 
 * Cover the most common expressions with validation.
 * Keep the v1 surface small. `Arm` covers everything else.
-* Let real data from the ALZ coverage report (Milestone 5) drive what gets added.
+* Let real data from the planned ALZ coverage report drive what gets added.
 
 ## Considered Options
 
@@ -38,7 +38,7 @@ Chosen option: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide f
   * It can be used wherever a value is expected (`Must -Be (ResourceGroupTag CostCenter)`, a `Modify` operation's value), and piped into `Must` as a value condition (ADR-0025).
   * The same name rule as `Tag` applies.
 * `Arm '[...]'` is passed through exactly as written. The compiler checks only that the value starts with `[` and ends with `]`, and that it isn't `[[` (an escaped literal). Any `parameters('x')` names referenced inside are checked against the declared parameters on a best-effort basis, as a warning.
-* The Milestone 5 coverage report counts which `Arm` patterns appear most often in ALZ policies. Helpers for the top patterns are proposed in a follow-up ADR.
+* The planned coverage report will count which `Arm` patterns appear most often in ALZ policies. Helpers for the top patterns are proposed in a follow-up ADR.
 
 ### Consequences
 

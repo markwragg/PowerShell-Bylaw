@@ -46,7 +46,7 @@ Chosen option: "A bundled snapshot plus an optional refreshed cache, with lookup
 ```
 
 * Whether an alias is an array is derived from `[*]` in its name. Only facts that can't be derived are stored, and both are optional:
-  * `modifiable`, which `Modify` needs in Milestone 2.
+  * `modifiable`, which `Modify` needs (ADR-0024).
   * `type`, the property's data type as Azure reports it (`DefaultMetadata.Type`). It is omitted when Azure says `NotSpecified`. Comparing mismatched types is a runtime `Error` in Azure (ADR-0004), so a later validation rule can use this to catch, for example, a numeric comparison against a `String` property at compile time.
 * The snapshot is written with the canonical writer (ADR-0009), with types and aliases sorted by ordinal comparison, so refreshing it gives minimal diffs.
 * It is read with `System.Text.Json`, not `ConvertFrom-Json`, which would turn `generatedAt` into a `DateTime`.
