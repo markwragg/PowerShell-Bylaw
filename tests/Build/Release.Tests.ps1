@@ -2,6 +2,8 @@
 # release, and the text changes to the manifest, changelog and README badge.
 
 BeforeAll {
+    # build.ps1 runs in strict mode, so the helpers are tested in it too.
+    Set-StrictMode -Version Latest
     . (Join-Path $PSScriptRoot '../../build/Release.ps1')
 
     function ConvertTo-TestVersion([string] $Text) {
@@ -138,9 +140,17 @@ Describe 'Get-ReleasedChangeLog and Get-ChangeLogSection' {
 }
 
 Describe 'Get-CoveragePercent and Get-ReadmeWithCoverage' {
-    It 'reads the command coverage from a JaCoCo report' {
-        $report = [xml] '<report name="Pester"><counter type="INSTRUCTION" missed="25" covered="75" /><counter type="LINE" missed="1" covered="1" /></report>'
+    # Pester's JaCoCo report starts with a DOCTYPE named 'report', so $xml.report isn't the element.
+    # The build runs in strict mode, as here.
+    It 'reads the command coverage from a JaCoCo report with its DOCTYPE, in strict mode' {
+        $report = [xml] ('<?xml version="1.0" encoding="utf-8" standalone="no"?>' + "`n" + '<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd"[]>' + "`n" +
+            '<report name="Pester"><package name="src"><counter type="INSTRUCTION" missed="1" covered="1" /></package><counter type="INSTRUCTION" missed="25" covered="75" /><counter type="LINE" missed="1" covered="1" /></report>')
+        Set-StrictMode -Version Latest
         Get-CoveragePercent -Report $report | Should -Be 75
+    }
+
+    It 'refuses a report without an INSTRUCTION counter' {
+        { Get-CoveragePercent -Report ([xml] '<report><counter type="LINE" missed="1" covered="1" /></report>') } | Should -Throw '*no INSTRUCTION counter*'
     }
 
     It 'sets the badge to <Percent>% as <Expected>' -ForEach @(

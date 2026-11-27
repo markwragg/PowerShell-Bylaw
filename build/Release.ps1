@@ -122,7 +122,8 @@ function Get-CoveragePercent {
     # The share of commands covered in a JaCoCo report from Pester, as Pester's CoveragePercent.
     param([Parameter(Mandatory)] [xml] $Report)
 
-    $counter = $Report.report.counter | Where-Object type -EQ 'INSTRUCTION'
+    # DocumentElement, not .report: the JaCoCo DOCTYPE is also a child node named 'report'.
+    $counter = @($Report.DocumentElement.ChildNodes | Where-Object { $_.LocalName -eq 'counter' -and $_.GetAttribute('type') -eq 'INSTRUCTION' }) | Select-Object -First 1
     if ($null -eq $counter) {
         throw 'The coverage report has no INSTRUCTION counter.'
     }
