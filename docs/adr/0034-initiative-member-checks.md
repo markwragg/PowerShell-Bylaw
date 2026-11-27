@@ -41,7 +41,7 @@ Chosen option: "A cross-file pass in `Build-Bylaw`, over plain data each file re
   * A literal must match the parameter's type and be one of its allowed values.
   * A `Param` must be an initiative parameter of the same type. Its default, if it has one, must be one of the member's allowed values, and so must each of its own allowed values. Otherwise it's an error: the assignment could pass a value the member rejects.
   * An `Arm` or `ResourceGroupTag` value isn't checked: its value is only known when the policy is evaluated.
-* **`-Version` matches the policy's `Version`:** `1.*.*` matches `1.4.0` but not `2.0.0`. A pattern that doesn't match is an error, because the assignment would use a version this build doesn't produce. A member without `-Version` is fine: Azure uses the latest major version.
+* **`-Version` matches the policy's `Version`,** with a warning that Azure matches it against a top-level `version` Bylaw doesn't emit (BYL3129). Match: `1.*.*` matches `1.4.0` but not `2.0.0`. A pattern that doesn't match is an error, because the assignment would use a version this build doesn't produce. A member without `-Version` is fine: Azure uses the latest major version.
 
 ### For a member by `-Id`
 
@@ -51,7 +51,7 @@ Chosen option: "A cross-file pass in `Build-Bylaw`, over plain data each file re
 ### Diagnostics
 
 * Errors: BYL3120 (the policy isn't in the build, with the closest name), BYL3121 (a passed name that isn't a parameter), BYL3122 (a parameter without a default that isn't passed), BYL3123 (a literal of the wrong type or not allowed), BYL3124 (an initiative parameter of another type), BYL3125 (an initiative parameter whose default or allowed values the member doesn't allow), BYL3126 (`-Version` doesn't match the policy's `Version`, or the policy has none).
-* Warnings: BYL3127 (the name differs from the policy's only in case: it is emitted as written), BYL3128 (an initiative parameter with no allowed values, passed to a parameter that has them).
+* Warnings: BYL3127 (the name differs from the policy's only in case: it is emitted as written), BYL3128 (an initiative parameter with no allowed values, passed to a parameter that has them), BYL3129 (`-Version` on a member from the build: Azure matches `definitionVersion` against a top-level `version`, which Bylaw doesn't emit while custom versioning is in preview, ADR-0016).
 * The pass runs only when every file compiled without errors, because a policy with errors has nothing reliable to check against.
 ### Consequences
 

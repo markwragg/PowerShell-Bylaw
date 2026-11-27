@@ -128,6 +128,9 @@ function Test-BylawInitiativeMemberSet {
             }
 
             if ($member.Version) {
+                # Azure matches definitionVersion against a definition's top-level version, which
+                # Bylaw doesn't emit while custom versioning is in preview (ADR-0016).
+                & $new 'BYL3129' "PolicyDefinition '$($member.ReferenceId)' pins version $($member.Version), but Azure matches definitionVersion against a definition's top-level version property, which Bylaw doesn't emit: Version goes to metadata.version (ADR-0016). The pin may not select the version you expect." ([BylawSeverity]::Warning)
                 if (-not $policy.Version) {
                     & $new 'BYL3126' "PolicyDefinition '$($member.ReferenceId)' asks for version $($member.Version), but policy '$($policy.Name)' has no Version. Add Version to its Properties, or remove -Version."
                 }

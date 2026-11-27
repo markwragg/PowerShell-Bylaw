@@ -172,6 +172,17 @@ Describe 'Initiative member checks (ADR-0034)' {
         }
     }
 
+    It 'warns (BYL3129) that Azure matches -Version against a version Bylaw does not emit' {
+        $result = Invoke-MemberBuild -Body "PolicyDefinition 'storage-tier' -Version '1.*.*' -Parameters @{ tier = 'Hot' }"
+        $result.Errors | Should -BeNullOrEmpty
+        ($result.Warnings -join "`n") | Should -BeLike "*BYL3129: PolicyDefinition 'storage-tier' pins version 1.*.*, but Azure matches definitionVersion against a definition's top-level version property*"
+    }
+
+    It 'does not warn about -Version on a member by -Id' {
+        $result = Invoke-MemberBuild -Body "PolicyDefinition -Id '$InheritTag' -ReferenceId InheritTag -Version '1.*.*'"
+        ($result.Warnings -join "`n") | Should -Not -BeLike '*BYL3129*'
+    }
+
     It 'reports BYL3126 for -Version on a policy with no Version' {
         $result = Invoke-MemberBuild -Policy (Get-PolicyText -Version '') -Format PlainJson -Body "PolicyDefinition 'storage-tier' -Version '1.*.*' -Parameters @{ tier = 'Hot' }"
         $result.Codes | Should -Be @('BYL3126')
