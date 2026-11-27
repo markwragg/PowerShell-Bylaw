@@ -1,6 +1,6 @@
 # Examples
 
-Each `*.bylaw.ps1` file has the EPAC policy definition it compiles to beside it. To build them all:
+Each `*.bylaw.ps1` file has the EPAC policy and initiative definitions it compiles to beside it. To build them all:
 
 ```powershell
 Build-Bylaw ./examples -OutputPath ./out
@@ -29,10 +29,12 @@ The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tes
 | [key-vault/deploy-diagnostics](key-vault/deploy-diagnostics.bylaw.ps1) | `DeployIfNotExists` with a template file in [key-vault/templates](key-vault/templates/), roles by ID, and an effect parameter that allows `AuditIfNotExists` |
 | [tags/require-mandatory-tags](tags/require-mandatory-tags.bylaw.ps1) | A value count over a parameter, with `Tag (Current tagName)`, compared with the parameter's length |
 | [network/limit-inbound-allow-rules](network/limit-inbound-allow-rules.bylaw.ps1) | A field count with `-Where`, compared with an `Integer` parameter |
+| [initiatives/storage-baseline](initiatives/storage-baseline.bylaw.ps1) | An initiative of storage policies from other files, with one `Effect` passed to all of them, and a member that needs no parameters |
+| [initiatives/tagging-baseline](initiatives/tagging-baseline.bylaw.ps1) | An initiative that includes one policy twice with different reference IDs, and a built-in policy by ID with `-Version` |
 
 Template files live in `templates` folders. They are inputs, not golden files.
 
-`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, every `Modify` operation and option, the other effects with their options (`effects/`), and the count patterns of the Azure Landing Zones Library (`count/`). `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
+`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, every `Modify` operation and option, the other effects with their options (`effects/`), the count patterns of the Azure Landing Zones Library (`count/`), and initiatives (`initiatives/`). `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
 
 After an intended change to the compiler's output, regenerate the golden files and review the diff:
 

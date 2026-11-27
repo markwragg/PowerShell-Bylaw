@@ -1,0 +1,64 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-set-definition-schema.json",
+  "name": "tagging-baseline",
+  "properties": {
+    "displayName": "Tagging baseline",
+    "policyType": "Custom",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Tags"
+    },
+    "parameters": {
+      "mandatoryTags": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Mandatory tags",
+          "description": "Tags every resource must have."
+        },
+        "defaultValue": [
+          "CostCenter",
+          "Owner"
+        ]
+      }
+    },
+    "policyDefinitions": [
+      {
+        "policyDefinitionReferenceId": "tags-require-mandatory-tags",
+        "policyDefinitionName": "tags-require-mandatory-tags",
+        "parameters": {
+          "mandatoryTags": {
+            "value": "[parameters('mandatoryTags')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionReferenceId": "inherit-cost-center",
+        "policyDefinitionName": "tags-inherit-from-resource-group",
+        "parameters": {
+          "tagName": {
+            "value": "CostCenter"
+          }
+        }
+      },
+      {
+        "policyDefinitionReferenceId": "inherit-owner",
+        "policyDefinitionName": "tags-inherit-from-resource-group",
+        "parameters": {
+          "tagName": {
+            "value": "Owner"
+          }
+        }
+      },
+      {
+        "policyDefinitionReferenceId": "require-environment-on-resource-groups",
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/96670d01-0a4d-4649-9c89-2d3abc0a5025",
+        "definitionVersion": "1.*.*",
+        "parameters": {
+          "tagName": {
+            "value": "Environment"
+          }
+        }
+      }
+    ]
+  }
+}

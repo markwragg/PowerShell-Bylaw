@@ -1,0 +1,103 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-set-definition-schema.json",
+  "name": "golden-initiative",
+  "properties": {
+    "displayName": "Golden: storage and tagging baseline",
+    "policyType": "Custom",
+    "description": "Storage accounts are private, and resources carry the mandatory tags.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "General"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      },
+      "mandatoryTags": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Mandatory tags",
+          "description": "Tags every resource must have."
+        },
+        "defaultValue": [
+          "CostCenter",
+          "Owner"
+        ]
+      }
+    },
+    "policyDefinitions": [
+      {
+        "policyDefinitionReferenceId": "golden-initiative-public-network",
+        "policyDefinitionName": "golden-initiative-public-network",
+        "parameters": {
+          "effect": {
+            "value": "[parameters('effect')]"
+          }
+        },
+        "groupNames": [
+          "Storage"
+        ]
+      },
+      {
+        "policyDefinitionReferenceId": "golden-count-mandatory-tags",
+        "policyDefinitionName": "golden-count-mandatory-tags",
+        "parameters": {
+          "mandatoryTags": {
+            "value": "[parameters('mandatoryTags')]"
+          },
+          "effect": {
+            "value": "[parameters('effect')]"
+          }
+        },
+        "groupNames": [
+          "Tags"
+        ]
+      },
+      {
+        "policyDefinitionReferenceId": "golden-count-environment-tag",
+        "policyDefinitionName": "golden-count-mandatory-tags",
+        "parameters": {
+          "mandatoryTags": {
+            "value": [
+              "Environment"
+            ]
+          }
+        },
+        "groupNames": [
+          "Tags"
+        ]
+      },
+      {
+        "policyDefinitionReferenceId": "InheritCostCenter",
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54",
+        "definitionVersion": "1.*.*",
+        "parameters": {
+          "tagName": {
+            "value": "CostCenter"
+          }
+        },
+        "groupNames": [
+          "Tags"
+        ]
+      }
+    ],
+    "policyDefinitionGroups": [
+      {
+        "name": "Storage",
+        "additionalMetadataId": "/providers/Microsoft.PolicyInsights/policyMetadata/golden-storage"
+      },
+      {
+        "name": "Tags"
+      }
+    ]
+  }
+}

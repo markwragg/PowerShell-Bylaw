@@ -12,11 +12,12 @@ BeforeDiscovery {
     $script:GoldenRoots = foreach ($golden in $roots) {
         $root = Join-Path $repoRoot $golden.Path
         @{
-            Name   = $golden.Path
-            Root   = $root
-            Format = $golden.Format
+            Name            = $golden.Path
+            Root            = $root
+            Format          = $golden.Format
+            DefinitionScope = if ($golden.ContainsKey('DefinitionScope')) { $golden.DefinitionScope } else { $null }
             # Deployment templates (ADR-0031) are inputs, kept in templates folders, not golden files.
-            Golden = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.json' | Where-Object { $_.Directory.Name -ne 'templates' } | ForEach-Object {
+            Golden          = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.json' | Where-Object { $_.Directory.Name -ne 'templates' } | ForEach-Object {
                     @{ Relative = [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/'); File = $_.FullName; Format = $golden.Format }
                 })
         }
@@ -37,7 +38,11 @@ Describe 'Golden files in <Name> (<Format>)' -ForEach $GoldenRoots {
     BeforeAll {
         $script:Out = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         $warnings = $null
-        $script:Results = @(Build-Bylaw -Path $Root -OutputPath $Out -Format $Format -PassThru -WarningVariable warnings -WarningAction SilentlyContinue)
+        $build = @{ Path = $Root; OutputPath = $Out; Format = $Format; PassThru = $true }
+        if ($DefinitionScope) {
+            $build.DefinitionScope = $DefinitionScope
+        }
+        $script:Results = @(Build-Bylaw @build -WarningVariable warnings -WarningAction SilentlyContinue)
         $script:BuildWarnings = @($warnings)
         $script:Produced = @(Get-ChildItem -LiteralPath $Out -Recurse -File | ForEach-Object {
                 [System.IO.Path]::GetRelativePath($Out, $_.FullName).Replace('\', '/')
@@ -110,6 +115,19 @@ Describe 'Golden files in <Name> (<Format>)' -ForEach $GoldenRoots {
             $parsed.Dispose()
         }
         $properties = ($text | ConvertFrom-Json -AsHashtable)['properties']
+        # An initiative (ADR-0035): members, each with a full ID, and no rule.
+        if ($properties.Contains('policyDefinitions')) {
+            foreach ($key in 'displayName', 'policyType', 'policyDefinitions') {
+                $properties.Contains($key) | Should -BeTrue -Because "plain initiatives need properties.$key"
+            }
+            $allowed = 'displayName', 'policyType', 'description', 'metadata', 'parameters', 'policyDefinitions', 'policyDefinitionGroups'
+            @($properties.Keys | Where-Object { $_ -notin $allowed }) | Should -BeNullOrEmpty
+            foreach ($member in $properties['policyDefinitions']) {
+                $member['policyDefinitionId'] | Should -Match '/providers/Microsoft\.Authorization/policyDefinitions/[^/]+$'
+                $member.Contains('policyDefinitionReferenceId') | Should -BeTrue
+            }
+            return
+        }
         foreach ($key in 'displayName', 'policyType', 'mode', 'policyRule') {
             $properties.Contains($key) | Should -BeTrue -Because "plain definitions need properties.$key"
         }
