@@ -129,6 +129,23 @@ Set-Content -Path (Join-Path $TestDrive 'user-field.txt') -Value (Field)
         $handler.Method.Name | Should -Be 'OnCommandNotFound'
     }
 
+    It 'imports without the handler when Add-Type fails, as in Constrained Language Mode' {
+        InModuleScope Bylaw {
+            $saved = $ExecutionContext.InvokeCommand.CommandNotFoundAction
+            $savedLookup = $script:BylawKeywordLookup
+            Mock Add-Type { throw 'Cannot add type. Definition of new types is not supported in this language mode.' }
+            try {
+                Register-BylawKeywordLookup -TypeName 'Bylaw.NoSuchKeywordLookup' | Should -BeFalse
+                Should -Invoke Add-Type -Times 1 -Exactly
+                $ExecutionContext.InvokeCommand.CommandNotFoundAction | Should -Be $saved
+                $script:BylawKeywordLookup | Should -Be $savedLookup
+            }
+            finally {
+                $ExecutionContext.InvokeCommand.CommandNotFoundAction = $saved
+            }
+        }
+    }
+
     It 'passes other names to the handler that was registered before' {
         $saved = $ExecutionContext.InvokeCommand.CommandNotFoundAction
         $previous = [System.EventHandler[System.Management.Automation.CommandLookupEventArgs]] {

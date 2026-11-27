@@ -10,10 +10,11 @@
 # runspace, and when a lookup comes from another thread while that runspace is busy, PowerShell waits
 # for the runspace, so tab completion hung. The compiled handler runs no PowerShell for other names,
 # and for a keyword gives an unbound scriptblock that throws.
+#
+# Where Add-Type isn't allowed, as in Constrained Language Mode, the module imports without the
+# handler, and a keyword outside a Policy gets PowerShell's usual "term not recognized" error.
 
-if ($null -eq ('Bylaw.KeywordLookup' -as [type])) {
-    # Compiled once per process: Build-Bylaw imports the module in a runspace per file (ADR-0014).
-    Add-Type -Language CSharp -TypeDefinition @'
+$script:BylawKeywordLookupSource = @'
 using System;
 using System.Collections.Generic;
 using System.Management.Automation;
@@ -63,14 +64,38 @@ namespace Bylaw
     }
 }
 '@
+
+function Register-BylawKeywordLookup {
+    # Compiles Bylaw.KeywordLookup once per process (Build-Bylaw imports the module in a runspace
+    # per file, ADR-0014) and registers it as the handler. Returns $false, leaving the handler as it
+    # was, when the type can't be compiled.
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([string] $TypeName = 'Bylaw.KeywordLookup')
+
+    $type = $TypeName -as [type]
+    if ($null -eq $type) {
+        try {
+            Add-Type -Language CSharp -TypeDefinition $script:BylawKeywordLookupSource -ErrorAction Stop
+            $type = $TypeName -as [type]
+        }
+        catch {
+            Write-Verbose "Bylaw: no keyword handler, because Add-Type failed: $($_.Exception.Message)"
+        }
+        if ($null -eq $type) {
+            return $false
+        }
+    }
+    $script:BylawKeywordLookup = $type::new([string[]] $script:BylawKeywordNames, $ExecutionContext.InvokeCommand.CommandNotFoundAction)
+    $ExecutionContext.InvokeCommand.CommandNotFoundAction = [System.EventHandler[System.Management.Automation.CommandLookupEventArgs]] $script:BylawKeywordLookup.OnCommandNotFound
+    $true
 }
 
-$script:BylawKeywordLookup = [Bylaw.KeywordLookup]::new(
-    [string[]] $script:BylawKeywordNames,
-    $ExecutionContext.InvokeCommand.CommandNotFoundAction
-)
-$ExecutionContext.InvokeCommand.CommandNotFoundAction = [System.EventHandler[System.Management.Automation.CommandLookupEventArgs]] $script:BylawKeywordLookup.OnCommandNotFound
+$script:BylawKeywordLookup = $null
+$null = Register-BylawKeywordLookup
 
 $ExecutionContext.SessionState.Module.OnRemove = {
-    $ExecutionContext.InvokeCommand.CommandNotFoundAction = $script:BylawKeywordLookup.Previous
+    if ($null -ne $script:BylawKeywordLookup) {
+        $ExecutionContext.InvokeCommand.CommandNotFoundAction = $script:BylawKeywordLookup.Previous
+    }
 }
