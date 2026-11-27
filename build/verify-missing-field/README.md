@@ -1,11 +1,12 @@
 # Azure Policy verification
 
-This is a developer-only tool behind [ADR-0004](../../docs/adr/0004-strict-missing-field-behaviour.md), [ADR-0024](../../docs/adr/0024-modify-effect.md) and [ADR-0025](../../docs/adr/0025-value-conditions.md). It is not part of the Bylaw module and is never shipped. Bylaw itself never deploys anything ([ADR-0007](../../docs/adr/0007-compile-only.md)).
+This is a developer-only tool behind [ADR-0004](../../docs/adr/0004-strict-missing-field-behaviour.md), [ADR-0024](../../docs/adr/0024-modify-effect.md), [ADR-0025](../../docs/adr/0025-value-conditions.md) and [ADR-0030](../../docs/adr/0030-if-not-exists-effects.md). It is not part of the Bylaw module and is never shipped. Bylaw itself never deploys anything ([ADR-0007](../../docs/adr/0007-compile-only.md)).
 
 Microsoft Learn doesn't document some policy behaviour that Bylaw relies on. This script measures it in a sandbox subscription:
 
 * **Fields:** how each operator evaluates against present, empty and missing fields (ADR-0004).
 * **Resource group tags:** how a missing or empty resource group tag compares in a value condition (ADR-0025).
+* **Existence conditions:** how an `AuditIfNotExists` existence condition evaluates on a related resource that lacks the field, with the operator alone and in the guarded forms Bylaw emits (ADR-0030).
 * **Modify with Audit:** whether `Audit` is accepted as the effect of a definition with a `modify` details block, and whether it then reports compliance (ADR-0024).
 
 ## What it creates
@@ -13,8 +14,8 @@ Microsoft Learn doesn't document some policy behaviour that Bylaw relies on. Thi
 The script creates the following. A route table costs nothing.
 
 * A resource group (`rg-bylaw-verify` by default), tagged `bylawPresent=abc` and `bylawEmpty=` (an empty value).
-* One route table in that group, with the same tags.
-* One Audit policy definition per test case, named `bylaw-verify-001` and up, at subscription scope. With the default fields there are 88 field cases and 15 resource group tag cases.
+* One route table in that group, with the same tags, and one route (`bylaw-route`, next hop `VnetLocal`), which has no `nextHopIpAddress`.
+* One Audit policy definition per test case, named `bylaw-verify-001` and up, at subscription scope. With the default fields there are 88 field cases, 15 resource group tag cases and 8 existence-condition cases. The existence cases are `auditIfNotExists` policies on the route table, with the route as the related resource.
 * One initiative, `bylaw-verify-set`, containing those definitions, and an assignment of it to the resource group.
 * One Modify definition, `bylaw-verify-modify-audit`, whose effect parameter allows `Modify`, `Audit` and `Disabled`. It is assigned to the resource group separately, with the effect set to `Audit`. It has no managed identity, so it can't change anything.
 
@@ -76,6 +77,7 @@ Send the Markdown file back so the ADRs can be updated.
 * The `tagMissing` and `aliasMissing` columns answer ADR-0004's "`inv(P)` on missing" question.
 * `tagEmpty` shows whether an empty value behaves like a missing one.
 * `rgTagMissing` with `equals ""` answers ADR-0025's question. `true` means a missing resource group tag compares as an empty string, as the built-in tag inheritance policies assume.
+* For the existence cases, a cell says whether the existence condition held for the route (the route table was Compliant). `presentEquals` should be `true` and `presentNotEquals` `false`. The report shows what ADR-0004 needs beside each guarded case.
 * For the Modify check:
   * `true` means `Audit` works on a Modify definition.
   * `rejected` means Azure refused the definition or the assignment. The message is in the report.

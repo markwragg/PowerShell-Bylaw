@@ -84,7 +84,7 @@ AuditIfNotExists -Type 'Microsoft.Compute/virtualMachines/extensions' {
 
 * Unit tests cover each option and error, field resolution against `-Type`, and the existence condition for each operator, with and without `-IfPresent`, and inside `Each`.
 * Golden tests cover an `AuditIfNotExists` and a `DeployIfNotExists` policy in EPAC and plain JSON.
-* The sandbox script measures one `AuditIfNotExists` policy: an existence condition on a related resource's property that is missing, to confirm that a missing field doesn't satisfy it.
+* The sandbox script measures `AuditIfNotExists` policies whose existence condition tests a property the related resource doesn't have. Measured on 2026-11-26 ([results](assets/0004-missing-field-results.md#fourth-run-2026-11-26-existence-conditions)): a missing field on a related resource behaves as it does on the evaluated resource. `notEquals`, `notIn` and `notLike` hold on it, so the guard is needed; the guarded form Bylaw emits doesn't hold, and the `-IfPresent` form does.
 
 ## Pros and Cons of the Options
 

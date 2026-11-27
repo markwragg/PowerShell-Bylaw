@@ -7,6 +7,30 @@ Results from [build/verify-missing-field](../../../build/verify-missing-field/RE
 * `missing`: no compliance state.
 * `Error`: Azure reported the compliance state `Error`.
 
+## Fourth run (2026-11-26): existence conditions
+
+This run added AuditIfNotExists cases for [ADR-0030](../0030-if-not-exists-effects.md). The route table has one route, with `nextHopType` `VnetLocal` and no `nextHopIpAddress`, so that field is missing on the related resource. Each case is an `auditIfNotExists` policy on the route table with `type` `Microsoft.Network/routeTables/routes` and the existence condition below. Here a cell says whether the existence condition held for the route: `true` means the route table was Compliant.
+
+Every case has a result. The field and resource group tag cases gave exactly the same results as the third run, and the Modify check was `true` again.
+
+| Case | Existence condition | Held | Bylaw needs |
+|---|---|---|---|
+| presentEquals | `nextHopType equals 'VnetLocal'` | true | true |
+| presentNotEquals | `nextHopType equals 'VirtualAppliance'` | false | false |
+| missingEquals | `nextHopIpAddress equals '10.9.9.9'` | false | |
+| missingNotEquals | `nextHopIpAddress notEquals '10.9.9.9'` | true | |
+| missingNotIn | `nextHopIpAddress notIn ['10.9.9.9']` | true | |
+| missingNotLike | `nextHopIpAddress notLike '10.*'` | true | |
+| guardedNotEquals | `allOf[nextHopIpAddress exists true, nextHopIpAddress notEquals '10.9.9.9']` | false | false |
+| ifPresentEquals | `anyOf[nextHopIpAddress exists false, nextHopIpAddress equals '10.9.9.9']` | true | true |
+
+What it shows:
+
+* **The controls match**, so the run is valid.
+* **A missing field on a related resource behaves as it does on the evaluated resource.** `equals` is false, and `notEquals`, `notIn` and `notLike` are true, as in the field cases.
+* **So the guard is needed.** Without it, `Must -Not -Be '10.9.9.9'` would be satisfied by a route that has no next hop address at all. The form Bylaw emits, `allOf[exists: true, notEquals]`, isn't, which is what ADR-0004 requires.
+* **`-IfPresent` works as intended.** `anyOf[exists: false, equals]` is satisfied by the route without the field.
+
 ## Third run (2026-11-26)
 
 Collected 2026-11-26 14:32 UTC. Every case has a result.

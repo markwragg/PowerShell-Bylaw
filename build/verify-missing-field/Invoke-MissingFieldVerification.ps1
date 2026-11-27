@@ -146,12 +146,13 @@ $expressions = [ordered]@{
     rgTagMissing = "[resourceGroup().tags['bylawMissing']]"
 }
 # Existence conditions under test (ADR-0030), on the route table's one route. Its nextHopType is
-# Internet, so it has no nextHopIpAddress: that field is missing. The raw cases show what Azure does
-# with the operator alone; the guarded cases are the forms Bylaw emits.
+# VnetLocal, so it has no nextHopIpAddress: that field is missing. (Internet would need a public
+# address prefix.) The raw cases show what Azure does with the operator alone; the guarded cases
+# are the forms Bylaw emits.
 $routeName = 'bylaw-route'
 $routeField = 'Microsoft.Network/routeTables/routes'
 $existenceCases = [ordered]@{
-    presentEquals    = [ordered]@{ field = "$routeField/nextHopType"; equals = 'Internet' }
+    presentEquals    = [ordered]@{ field = "$routeField/nextHopType"; equals = 'VnetLocal' }
     presentNotEquals = [ordered]@{ field = "$routeField/nextHopType"; equals = 'VirtualAppliance' }
     missingEquals    = [ordered]@{ field = "$routeField/nextHopIpAddress"; equals = '10.9.9.9' }
     missingNotEquals = [ordered]@{ field = "$routeField/nextHopIpAddress"; notEquals = '10.9.9.9' }
@@ -296,7 +297,7 @@ function Invoke-Deploy {
             # One route with no next hop address, for the existence cases.
             Properties        = @{
                 routes = @(
-                    @{ name = $routeName; properties = @{ addressPrefix = '10.0.0.0/24'; nextHopType = 'Internet' } }
+                    @{ name = $routeName; properties = @{ addressPrefix = '10.0.0.0/24'; nextHopType = 'VnetLocal' } }
                 )
             }
             Tag               = $tags
