@@ -76,7 +76,7 @@ Require 'The name matches an allowed pattern' {
 
 ### Details
 
-* A count is compared with whole numbers: literals, an `Integer` parameter (an `Array` one for `-BeIn`), or `Arm`.
+* A count is compared with whole numbers: literals, an `Integer` parameter (an `Array` one for `-BeIn`), the length of a parameter with `Param Name -Length` (ADR-0020), or `Arm`.
 * `Current name` refers to the value count with that `-Name` around it, so a nested count can use an outer count's member. A `Count -Value` inside another count, including inside `Each`, needs `-Name`.
 * `ResourceGroupTag (Current name)` emits `[resourceGroup().tags[current('name')]]`, and needs a value count.
 * `Element` in `-Where` is only for a field count; a value count's member is `Current`.

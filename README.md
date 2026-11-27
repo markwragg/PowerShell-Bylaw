@@ -270,7 +270,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `Initiative 'name' { }` | An initiative (policy set definition), alongside `Policy`. It takes `Properties`, `Parameter`, `PolicyDefinition` and `DefinitionGroup`. See [Initiatives](#initiatives). |
 | `PolicyDefinition 'name'`, `PolicyDefinition -Id ...` | Inside `Initiative`: a policy it includes, from this build by name, or any definition by ID. |
 | `DefinitionGroup 'name'` | Inside `Initiative`: a policy definition group, such as a regulatory compliance control. |
-| `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
+| `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. `Param Name -Length` is the number of members of an `Array` parameter (or characters of a `String`), `[length(parameters('name'))]`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
 | `Arm '[...]'` | A raw ARM template expression, for anything else. |
 
 `Each` over objects uses the element's fields. Over plain values, it uses `Element`:
@@ -410,6 +410,16 @@ Require 'Few rules allow inbound traffic' {
   ```
 
   `Current` can't name a tag: `Tag (Current tagName)` is a compile error (BYL1059), because Azure rejects a field named with `current()`.
+
+- **To compare with the length of a list**, use `Param Name -Length`. Here every pattern must match, not just one:
+
+  ```powershell
+  Require 'The name matches every pattern' {
+      Count -Value (Param NamePatterns) -Name pattern -Where {
+          Field name | Must -BeLike (Current pattern)
+      } | Must -Be (Param NamePatterns -Length)
+  }
+  ```
 
 - **In `Require`**, the comparison is inverted like any other: `-BeGreaterThan 0` emits `lessOrEquals 0`. A count is never missing, so it gets no guard.
 - **`Each path[*] { P }`** is the same as `Count path[*] -Where { <violation of P> } | Must -Be 0`, and stays the simple way to say "every element".

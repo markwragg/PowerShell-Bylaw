@@ -111,6 +111,22 @@ class BylawParamRef : BylawValue {
     }
 }
 
+class BylawParamLength : BylawValue {
+    # Param Name -Length (ADR-0020): the number of members of an array parameter, or of characters
+    # of a string one, emitted as [length(parameters('<jsonName>'))].
+    [BylawParamRef] $Parameter
+
+    BylawParamLength() {}
+
+    BylawParamLength([BylawParamRef] $parameter) {
+        $this.Parameter = $parameter
+    }
+
+    [string] ToString() {
+        return 'Param {0} -Length' -f $this.Parameter.Name
+    }
+}
+
 class BylawExpr : BylawValue {
     # Raw ARM template expression, preserved verbatim, e.g. "[field('location')]".
     [string] $Text

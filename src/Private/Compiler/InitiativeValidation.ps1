@@ -96,11 +96,15 @@ function Invoke-BylawInitiativeValidation {
 }
 
 function Get-BylawValueParameterReference {
-    # The Param references in a value: the value itself, or a ResourceGroupTag's tag name.
+    # The Param references in a value: the value itself, the parameter of Param -Length, or a
+    # ResourceGroupTag's tag name.
     param([AllowNull()] [BylawValue] $Value)
 
     if ($Value -is [BylawParamRef]) {
         $Value
+    }
+    elseif ($Value -is [BylawParamLength]) {
+        $Value.Parameter
     }
     elseif ($Value -is [BylawResourceGroupTag] -and $Value.TagName -is [BylawParamRef]) {
         $Value.TagName

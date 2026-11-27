@@ -349,6 +349,11 @@ function Test-BylawCountAssertion {
 
     $value = $Assertion.Value
     $operatorName = '-' + $Assertion.DslOperator
+    if ($value -is [BylawParamLength]) {
+        # A length is a whole number, like the count (ADR-0020).
+        Test-BylawParamLength -Length $value -DslOperator $Assertion.DslOperator -Policy $Policy -Add $Add
+        return
+    }
     if ($value -is [BylawParamRef]) {
         $parameter = $Policy.FindParameter($value.Name)
         if ($null -eq $parameter) {
@@ -376,6 +381,37 @@ function Test-BylawCountAssertion {
     }
 }
 
+function Test-BylawParamLength {
+    # Param Name -Length (ADR-0020): the parameter must be declared (BYL3020) and something Azure's
+    # length() takes, an Array, String or Object (BYL3130). The length is a whole number, so as a
+    # value it is compared with -Be or a comparison, and as a subject also with -BeIn (BYL3130).
+    param(
+        [Parameter(Mandatory)] [BylawParamLength] $Length,
+        [Parameter(Mandatory)] [string] $DslOperator,
+        [switch] $AsSubject,
+        [Parameter(Mandatory)] [BylawPolicy] $Policy,
+        [Parameter(Mandatory)] [scriptblock] $Add
+    )
+
+    $reference = $Length.Parameter
+    $parameter = $Policy.FindParameter($reference.Name)
+    if ($null -eq $parameter) {
+        & $Add 'BYL3020' "Parameter '$($reference.Name)' is used but not declared. Add a Parameter $($reference.Name) -Type Array declaration." $Length.Location
+        return
+    }
+    if ($parameter.Type -notin 'Array', 'String', 'Object') {
+        & $Add 'BYL3130' "$Length needs an Array, String or Object parameter, which length() takes (Parameter '$($parameter.Name)' is $($parameter.Type))." $Length.Location
+        return
+    }
+    $allowed = @('Be', 'BeGreaterThan', 'BeGreaterOrEqual', 'BeLessThan', 'BeLessOrEqual')
+    if ($AsSubject) {
+        $allowed += 'BeIn'
+    }
+    if ($DslOperator -notin $allowed) {
+        & $Add 'BYL3130' "$Length is a whole number, so it is tested with -Be or a comparison, not -$DslOperator." $Length.Location
+    }
+}
+
 function Test-BylawAssertionValue {
     # Per-operator value rules (ADR-0015) and parameter references.
     param(
@@ -390,6 +426,13 @@ function Test-BylawAssertionValue {
 
     if ($Assertion.Subject -is [BylawCount]) {
         Test-BylawCountAssertion -Assertion $Assertion -Policy $Policy -Add $Add
+        return
+    }
+    if ($Assertion.Subject -is [BylawParamLength]) {
+        Test-BylawParamLength -Length $Assertion.Subject -DslOperator $Assertion.DslOperator -AsSubject -Policy $Policy -Add $Add
+    }
+    if ($value -is [BylawParamLength]) {
+        Test-BylawParamLength -Length $value -DslOperator $Assertion.DslOperator -Policy $Policy -Add $Add
         return
     }
     if ($value -is [BylawParamRef]) {
@@ -597,6 +640,9 @@ function Get-BylawUsedParameterName {
     foreach ($value in $values) {
         if ($value -is [BylawParamRef]) {
             $null = $used.Add($value.Name)
+        }
+        elseif ($value -is [BylawParamLength]) {
+            $null = $used.Add($value.Parameter.Name)
         }
         elseif ($value -is [BylawExpr]) {
             foreach ($parameter in $Policy.Parameters) {

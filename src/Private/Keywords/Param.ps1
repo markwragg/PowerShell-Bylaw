@@ -1,7 +1,16 @@
 function Param {
     <#
     .SYNOPSIS
-        References a policy parameter by its DSL name; emits [parameters('<jsonName>')].
+        References a policy parameter by its DSL name; emits [parameters('<jsonName>')]. With
+        -Length, its length: [length(parameters('<jsonName>'))].
+
+    .EXAMPLE
+        Field location | Must -BeIn (Param AllowedLocations)
+
+    .EXAMPLE
+        Count -Value (Param MandatoryTags) -Name tagName -Where {
+            Tag (Current tagName) | Must -Exist
+        } | Must -Be (Param MandatoryTags -Length)
     #>
     # 'param' is a language keyword only at the start of a scriptblock; as a command it parses
     # normally (verified with the parser). The name is part of the DSL spec.
@@ -9,7 +18,11 @@ function Param {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, Position = 0)]
-        [string] $Name
+        [string] $Name,
+
+        # The number of members of an Array parameter (or characters of a String one), as
+        # Azure's length() function returns it (ADR-0020).
+        [switch] $Length
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Param')
@@ -21,5 +34,10 @@ function Param {
     }
     $reference = [BylawParamRef]::new($Name)
     $reference.Location = $location
+    if ($Length) {
+        $lengthValue = [BylawParamLength]::new($reference)
+        $lengthValue.Location = $location
+        return $lengthValue
+    }
     $reference
 }

@@ -46,6 +46,29 @@ Policy 'golden-count-name-patterns' {
     Effect Deny
 }
 
+# A value count compared with the length of its list (ADR-0020): the name matches every pattern.
+Policy 'golden-count-every-pattern' {
+
+    Properties @{
+        DisplayName = 'Golden: resource names match every required pattern'
+        Category    = 'General'
+        Version     = '1.0.0'
+        Mode        = 'Indexed'
+    }
+
+    Parameter NamePatterns -Type Array -Default @('*-prod-*', '*-uks-*')
+
+    Resource * {
+        Require 'The name matches every pattern' {
+            Count -Value (Param NamePatterns) -Name pattern -Where {
+                Field name | Must -BeLike (Current pattern)
+            } | Must -Be (Param NamePatterns -Length)
+        }
+    }
+
+    Effect Deny
+}
+
 # A nested count: no security rule allows inbound traffic from the internet on a management port.
 # The -Where blocks select what to count and are emitted as written; field names are relative to
 # each element, and Element is a member of a primitive array.

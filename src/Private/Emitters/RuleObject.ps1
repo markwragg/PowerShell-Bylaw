@@ -111,6 +111,10 @@ function ConvertTo-BylawValueObject {
         }
         return "[parameters('$jsonName')]"
     }
+    if ($Value -is [BylawParamLength]) {
+        $parameterValue = ConvertTo-BylawValueObject -Value $Value.Parameter -Policy $Policy
+        return "[length($($parameterValue.Substring(1, $parameterValue.Length - 2)))]"
+    }
     if ($Value -is [BylawExpr]) {
         return $Value.Text
     }

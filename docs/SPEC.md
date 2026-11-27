@@ -144,7 +144,7 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 | `DenyAction`, `Manual`, `Append { }` | Effects with a `details` block, in place of `Effect` (Milestone 3, ADR-0028, ADR-0029). |
 | `AuditIfNotExists -Type ... { }`, `DeployIfNotExists -Type ... { }` | Effects on a related resource, in place of `Effect`. The block describes the related resource's compliant state (Milestone 3, ADR-0030, ADR-0031). |
 | `Count path[*]`, `Count -Value ...` | A field or value count, piped to `Must` (Milestone 3, ADR-0032). |
-| `Param Name` | Reference a parameter (emits `[parameters('name')]`). |
+| `Param Name` | Reference a parameter (emits `[parameters('name')]`). `Param Name -Length` emits `[length(parameters('name'))]` (ADR-0020). |
 | `Arm '[...]'` | Raw ARM template expression escape hatch. |
 
 `Element` and `Arm` were originally `Item` and `Expr`. They were renamed because, outside a `Policy`, those names resolved to `Get-Item` and the native `expr` program (ADR-0005).

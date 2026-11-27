@@ -27,6 +27,8 @@ Policy values often use ARM template expressions: `[parameters('x')]`, `[resourc
 Chosen option: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide from ALZ coverage data".
 
 * `Param Name` emits `[parameters('<jsonName>')]`. The parameter must exist (ADR-0021).
+  * `Param Name -Length` emits `[length(parameters('<jsonName>'))]`, the number of members of a list, as when a value count is compared with the length of its list (ADR-0032). It replaces the most common `Arm` in count comparisons, and checks what `Arm` can't: the parameter must exist, and be an `Array`, `String` or `Object`, which `length()` takes (BYL3130).
+  * A length is a whole number. As a value it is used with `-Be` and the comparisons; tested itself, as in `Param Name -Length | Must -BeGreaterThan 0`, it also takes `-BeIn`. Other operators are BYL3130. It can't be the list of `Count -Value` (BYL1047).
 * `Tag name` is a field reference to the tag, `tags['name']`. It can be piped into `Must` and into `Modify` operations (ADR-0024).
   * `Tag (Param TagName)` emits the field `[concat('tags[', parameters('tagName'), ']')]`, as Azure's built-in tag policies do.
   * A tag name containing `'`, `[` or `]` is a compile error (`BYL1023`), because it can't be written safely inside `tags['...']`.
