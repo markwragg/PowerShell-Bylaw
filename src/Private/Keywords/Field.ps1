@@ -3,9 +3,28 @@ function Field {
     .SYNOPSIS
         A field reference, resolved to a full alias at compile time. Pipe it to Must, or inside
         Modify to an operation.
+
+    .DESCRIPTION
+        A short name such as minimumTlsVersion is resolved against the aliases of the Resource
+        type, so it becomes Microsoft.Storage/storageAccounts/minimumTlsVersion. Reserved fields
+        need no alias: name, fullName, kind, type, location, id, identity.type,
+        identity.userAssignedIdentities, extendedLocation and its name and type, and tags,
+        including tags['name']. Inside Each, names
+        are relative to the element. A name not in the alias snapshot fails the build with the
+        closest match, unless -AllowUnknownAlias is used.
+
+    .EXAMPLE
+        Field minimumTlsVersion | Must -Be 'TLS1_2'
+
+    .EXAMPLE
+        Field location | Must -BeIn (Param AllowedLocations)
+
+    .EXAMPLE
+        Field properties.newPreviewSetting -AllowUnknownAlias | Must -Be 'Enabled'
     #>
     [CmdletBinding()]
     param(
+        # The field: a short alias name, a full alias, or a reserved field such as location.
         [Parameter(Mandatory, Position = 0)]
         [string] $Name,
 
@@ -30,6 +49,15 @@ function Element {
     <#
     .SYNOPSIS
         The current element of a primitive array inside Each. Pipe it to Must.
+
+    .DESCRIPTION
+        Use Element when the array holds plain values, such as strings, rather than objects with
+        fields. It also works in a field count's -Where.
+
+    .EXAMPLE
+        Each permissions.keys[*] {
+            Element | Must -Not -Be 'purge'
+        }
     #>
     [CmdletBinding()]
     param()

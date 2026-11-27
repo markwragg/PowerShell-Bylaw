@@ -17,9 +17,9 @@ function Count {
         Count securityRules[*] -Where { Field access | Must -Be 'Allow' } | Must -BeLessOrEqual 2
 
     .EXAMPLE
-        Count -Value (Param MandatoryTags) -Name tagName -Where {
-            Tag (Current tagName) | Must -Exist
-        } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+        Count -Value (Param NamePatterns) -Name pattern -Where {
+            Field name | Must -BeLike (Current pattern)
+        } | Must -BeGreaterThan 0
     #>
     [CmdletBinding()]
     param(
@@ -123,8 +123,15 @@ function Current {
         The member a count is at, inside Count -Where: Current name for a named value count, or
         Current for the innermost count.
 
+    .DESCRIPTION
+        Current is a value: compare it with Must, or pass it to ResourceGroupTag. It can't name a
+        Tag, because Azure rejects a field named with current() (BYL1059).
+
     .EXAMPLE
-        Count -Value (Param MandatoryTags) -Name tagName -Where { Tag (Current tagName) | Must -Exist } | Must -Be 0
+        Count -Value (Param NamePatterns) -Name pattern -Where { Field name | Must -BeLike (Current pattern) } | Must -BeGreaterThan 0
+
+    .EXAMPLE
+        Count -Value @('Inbound', 'Outbound') -Where { Current | Must -Be 'Inbound' } | Must -Be 1
     #>
     [CmdletBinding()]
     param(

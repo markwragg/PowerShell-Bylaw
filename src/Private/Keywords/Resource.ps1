@@ -3,12 +3,33 @@ function Resource {
     .SYNOPSIS
         Scopes the policy to a resource type and sets the alias resolution context.
         Resource * means no type condition.
+
+    .DESCRIPTION
+        Resource emits a type condition, and short field names inside it are resolved against
+        that type's aliases. With Resource *, the policy applies to every resource type, and fields
+        are reserved fields such as location or tags, or full aliases.
+
+    .EXAMPLE
+        Resource 'Microsoft.Storage/storageAccounts' {
+            Require 'TLS 1.2 or later' {
+                Field minimumTlsVersion | Must -Be 'TLS1_2'
+            }
+        }
+
+    .EXAMPLE
+        Resource * {
+            Require 'An allowed location' {
+                Field location | Must -BeIn (Param AllowedLocations)
+            }
+        }
     #>
     [CmdletBinding()]
     param(
+        # The resource type, e.g. Microsoft.Storage/storageAccounts, or * for every type.
         [Parameter(Mandatory, Position = 0)]
         [string] $Type,
 
+        # When and Require blocks.
         [Parameter(Mandatory, Position = 1)]
         [scriptblock] $Body
     )

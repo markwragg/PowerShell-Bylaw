@@ -13,6 +13,8 @@ function AnyOf {
     #>
     [CmdletBinding()]
     param(
+        # The alternatives: Must statements, Count, nested AnyOf, and AllOf for an alternative of
+        # several statements.
         [Parameter(Mandatory, Position = 0)]
         [scriptblock] $Body
     )
@@ -41,6 +43,7 @@ function AllOf {
     #>
     [CmdletBinding()]
     param(
+        # The statements that must all hold for this alternative.
         [Parameter(Mandatory, Position = 0)]
         [scriptblock] $Body
     )

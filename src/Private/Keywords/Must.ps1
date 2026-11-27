@@ -24,23 +24,51 @@ function Must {
 
     .EXAMPLE
         Each networkAcls.ipRules[*] { Field value | Must -Not -Be '0.0.0.0/0' }
+
+    .EXAMPLE
+        Field minimumTlsVersion | Must -BeIn 'TLS1_2', 'TLS1_3' -IfPresent
     #>
     [CmdletBinding()]
     param(
+        # What is tested: a Field, Tag, Element, Count or value, piped to Must.
         [Parameter(ValueFromPipeline)]
         [object] $InputObject,
 
+        # Compliant when the value equals this. Emits equals; the violation is notEquals.
         [AllowNull()] [object] $Be,
+
+        # Compliant when the value is one of these. Emits in; the violation is notIn.
         [object[]] $BeIn,
+
+        # Compliant when the value matches this wildcard pattern, with at most one *. Emits like.
         [object] $BeLike,
+
+        # Compliant when the value matches this Azure match pattern (# a digit, ? a letter, . any
+        # character), ignoring case. Emits matchInsensitively.
         [object] $Match,
+
+        # As -Match, but case-sensitive. Emits match.
         [object] $MatchCase,
+
+        # Compliant when the value contains this text. Emits contains.
         [object] $ContainText,
+
+        # Compliant when the value has this key, such as a tag name. Emits containsKey.
         [object] $ContainKey,
+
+        # Compliant when the value is present. Emits exists: true.
         [switch] $Exist,
+
+        # Compliant when the value is greater than this. Emits greater.
         [object] $BeGreaterThan,
+
+        # Compliant when the value is greater than or equal to this. Emits greaterOrEquals.
         [object] $BeGreaterOrEqual,
+
+        # Compliant when the value is less than this. Emits less.
         [object] $BeLessThan,
+
+        # Compliant when the value is less than or equal to this. Emits lessOrEquals.
         [object] $BeLessOrEqual,
 
         # Inverts the operator.
