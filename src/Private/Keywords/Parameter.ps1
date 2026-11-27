@@ -10,7 +10,7 @@ function Parameter {
         Hashtable form: Parameter Locations @{ Type = 'Array'; Metadata = @{ strongType = 'location' } }
                         Parameter @{ Name = 'Locations'; Type = 'Array' }
 
-        The hashtable form takes the same options as keys, one per line if you like (ADR-0036).
+        The hashtable form takes the same options as keys, one per line if you like (ADR-0021).
         When -Type is omitted it is inferred from -Default or -AllowedValues.
 
     .EXAMPLE

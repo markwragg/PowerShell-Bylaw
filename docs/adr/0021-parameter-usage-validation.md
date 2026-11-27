@@ -41,7 +41,28 @@ Chosen option: "Errors for definite mismatches, warnings for likely mistakes".
 * A parameter that is declared but never used.
 * A `String` parameter with no `AllowedValues` that is used as an effect. This is already an error under ADR-0017, so it is listed here only for completeness.
 
-Parameter types follow Azure: `String`, `Array`, `Object`, `Boolean`, `Integer`, `Float`, `DateTime`. The one-line `Parameter` form infers `Type` from `-Default` and `-AllowedValues` when it isn't given. If inference is ambiguous, the build fails and asks for an explicit `-Type`.
+Parameter types follow Azure: `String`, `Array`, `Object`, `Boolean`, `Integer`, `Float`, `DateTime`. When `Type` isn't given, every `Parameter` form infers it from `Default` and `AllowedValues`. If inference is ambiguous, the build fails and asks for an explicit `-Type`.
+
+### Declaration forms
+
+A parameter can be declared in three forms, which all give the same parameter:
+
+```powershell
+Parameter Sku -Type String -AllowedValues a, b -Default a
+
+Parameter Sku @{
+    Type          = 'String'
+    AllowedValues = 'a', 'b'
+    Default       = 'a'
+}
+
+Parameter @{ Name = 'Sku'; Type = 'String'; AllowedValues = 'a', 'b'; Default = 'a' }
+```
+
+* The one-line form suits a short declaration. A long one would need backtick line continuation, which Bylaw files don't use, so it goes in a hashtable after the name, one option per line. That keeps the name first, as in the one-line form and in `Policy 'name' { }`.
+* The hashtable keys are the option names `Type`, `AllowedValues`, `Default`, `DisplayName`, `Description`, `JsonName` and `Metadata`, matched ignoring case. The form with `Name` inside the hashtable also suits declarations built as data.
+* These are BYL1015: an unknown key, a hashtable together with named options such as `-Type`, a `Name` key in a hashtable after a name, two hashtables, a second argument that isn't a hashtable, and a missing or empty name.
+* Splatting (`Parameter Sku @options`) also works, because `Parameter` is a PowerShell function. It isn't the documented form, because the options sit away from the declaration, and a misspelled key is a PowerShell binding error, not a Bylaw diagnostic that lists the valid keys.
 
 ### Consequences
 
