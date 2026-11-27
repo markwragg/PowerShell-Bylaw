@@ -254,6 +254,7 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 - Bicep emitter
 - `Test-PolicyRule` local evaluator against sample resource JSON
 - VS Code syntax support and argument completers for `Field` driven by the enclosing `Resource` type
+- To consider after Milestone 4: an optional file name suffix, as a `bylaw.json` setting, writing `<name>.policy.json` and `<name>.initiative.json`. It would tell policies and initiatives apart in a shared output folder, let editors match plain JSON files to a schema by name, and limit the stale-output check to Bylaw's own files. A project would choose it once, because switching renames every output file.
 
 ## Definition of done for Milestone 1
 
