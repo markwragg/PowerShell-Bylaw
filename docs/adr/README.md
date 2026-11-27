@@ -39,3 +39,4 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0033](0033-initiatives.md) | Initiative is a top-level keyword like Policy, with PolicyDefinition for each policy it includes | Accepted |
 | [0034](0034-initiative-member-checks.md) | Initiative members are checked against the emitted definitions after every file has compiled | Accepted |
 | [0035](0035-initiative-output.md) | Initiatives are emitted as EPAC policy set definitions or plain JSON, to their own output folder | Accepted |
+| [0036](0036-parameter-hashtable-form.md) | Parameter takes its options as a hashtable after the name, as well as on one line | Proposed |

@@ -7,9 +7,19 @@ function Parameter {
 
     .DESCRIPTION
         One-line form:  Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Deny
-        Hashtable form: Parameter @{ Name = 'Locations'; Type = 'Array'; Metadata = @{ strongType = 'location' } }
+        Hashtable form: Parameter Locations @{ Type = 'Array'; Metadata = @{ strongType = 'location' } }
+                        Parameter @{ Name = 'Locations'; Type = 'Array' }
 
+        The hashtable form takes the same options as keys, one per line if you like (ADR-0036).
         When -Type is omitted it is inferred from -Default or -AllowedValues.
+
+    .EXAMPLE
+        Parameter AllowedValues @{
+            Type        = 'Array'
+            Default     = 'Public', 'Private', 'Confidential', 'Restricted'
+            DisplayName = 'Allowed values'
+            Description = 'Allowed classifications'
+        }
     #>
     [CmdletBinding()]
     param(
@@ -17,6 +27,10 @@ function Parameter {
         # DisplayName, Description, JsonName and Metadata.
         [Parameter(Mandatory, Position = 0)]
         [object] $Name,
+
+        # The options as a hashtable, after the name: the same keys as above, without Name.
+        [Parameter(Position = 1)]
+        [object] $Options,
 
         [string] $Type,
         [object[]] $AllowedValues,
@@ -34,8 +48,25 @@ function Parameter {
     }
 
     $spec = @{}
-    if ($Name -is [System.Collections.IDictionary]) {
-        $extra = @($PSBoundParameters.Keys | Where-Object { $_ -ne 'Name' })
+    $nameIsTable = $Name -is [System.Collections.IDictionary]
+    $hasOptions = $PSBoundParameters.ContainsKey('Options')
+    if ($hasOptions -and $nameIsTable) {
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message (
+            "Give the name before one hashtable, or inside it as Name, e.g. Parameter Locations @{ Type = 'Array' }."
+        )
+        return
+    }
+    if ($hasOptions -and $Options -isnot [System.Collections.IDictionary]) {
+        Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message (
+            "Parameter takes its options as named parameters or a hashtable, e.g. Parameter $Name -Default x or Parameter $Name @{ Default = 'x' }."
+        )
+        return
+    }
+
+    if ($nameIsTable -or $hasOptions) {
+        $table = if ($nameIsTable) { $Name } else { $Options }
+        $form = if ($nameIsTable) { 'Name' } else { 'Options' }
+        $extra = @($PSBoundParameters.Keys | Where-Object { $_ -notin 'Name', $form })
         if ($extra.Count -gt 0) {
             Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message (
                 'Use either the hashtable form or parameters, not both (found -' + ($extra -join ', -') + ').'
@@ -43,7 +74,7 @@ function Parameter {
             return
         }
         $validKeys = @('Name', 'Type', 'AllowedValues', 'Default', 'DisplayName', 'Description', 'JsonName', 'Metadata')
-        foreach ($key in $Name.Keys) {
+        foreach ($key in $table.Keys) {
             $canonical = $validKeys | Where-Object { $_ -eq $key } | Select-Object -First 1
             if (-not $canonical) {
                 Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message (
@@ -51,12 +82,25 @@ function Parameter {
                 )
                 return
             }
-            $spec[$canonical] = $Name[$key]
+            if ($hasOptions -and $canonical -eq 'Name') {
+                Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message (
+                    "Parameter '$Name' has its name twice. Give it before the hashtable or as the Name key, not both."
+                )
+                return
+            }
+            $spec[$canonical] = $table[$key]
+        }
+        if ($hasOptions) {
+            $spec['Name'] = $Name
         }
         if (-not ($spec['Name'] -is [string] -and $spec['Name'])) {
-            Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message (
+            $message = if ($nameIsTable) {
                 "The Parameter hashtable must include a non-empty 'Name'."
-            )
+            }
+            else {
+                "Parameter needs a name before the hashtable, e.g. Parameter Locations @{ Type = 'Array' }."
+            }
+            Add-BylawDiagnostic -Severity Error -Code 'BYL1015' -Location $location -Message $message
             return
         }
     }

@@ -1,4 +1,5 @@
-# Several Require blocks, several Must statements in one block, an array parameter and -IfPresent.
+# Several Require blocks, several Must statements in one block, an array parameter in the hashtable
+# form and -IfPresent.
 Policy 'storage-require-secure-transfer' {
 
     Properties @{
@@ -10,7 +11,13 @@ Policy 'storage-require-secure-transfer' {
     }
 
     Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Audit
-    Parameter AllowedTlsVersions -Type Array -AllowedValues TLS1_2, TLS1_3 -Default TLS1_2, TLS1_3 -DisplayName 'Allowed TLS versions'
+    # A parameter with several options reads better as a hashtable, one option per line.
+    Parameter AllowedTlsVersions @{
+        Type          = 'Array'
+        AllowedValues = 'TLS1_2', 'TLS1_3'
+        Default       = 'TLS1_2', 'TLS1_3'
+        DisplayName   = 'Allowed TLS versions'
+    }
 
     Resource 'Microsoft.Storage/storageAccounts' {
 

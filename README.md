@@ -239,7 +239,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 |---|---|
 | `Policy 'name' { }` | One policy definition. The name becomes the definition's `name` and its file name, so renaming it creates a new definition. Any name Azure accepts that is also a safe file name works, such as `Deny-Storage-minTLS` (ADR-0010); lowercase with hyphens is the suggested style for new policies. Names are unique across a build, ignoring case. |
 | `Properties @{ }` | `DisplayName`, `Description`, `Category`, `Version`, `Mode`, `Preview`, `Deprecated`, `Metadata`. EPAC output needs `Category` and `Version`. `Mode` is `All` (the default) or `Indexed`. Unknown keys fail the build. |
-| `Parameter Name` | A policy parameter, with `-Type`, `-AllowedValues`, `-Default`, `-DisplayName`, `-Description`. `AllowedLocations` is emitted as `allowedLocations`. |
+| `Parameter Name` | A policy parameter, with `-Type`, `-AllowedValues`, `-Default`, `-DisplayName`, `-Description`, `-JsonName`, `-Metadata`. `AllowedLocations` is emitted as `allowedLocations`. For a long declaration, give the options as a hashtable after the name, one per line: `Parameter AllowedLocations @{ Type = 'Array'; Default = 'uksouth' }`. See [Parameters](#parameters). |
 | `Resource 'type' { }` | The resource type the rule applies to, and the type short field names resolve against. `Resource *` applies to every type; use standard fields such as `location`, or full aliases. |
 | `When { }` | Conditions that decide whether the policy applies. Written and emitted as is. |
 | `Require 'description' { }` | A requirement a compliant resource meets. All `Require` blocks must hold, and so must all `Must` statements inside one. |
@@ -294,6 +294,23 @@ Require 'No rule allows inbound traffic from the internet' {
 ```
 
 Keywords other than `Policy` exist only inside a `Policy` block, so they don't clash with commands of the same name, and calling them elsewhere gives a clear error. `Must` was chosen over `Should` so Bylaw and Pester can be used in the same session.
+
+### Parameters
+
+A parameter with one or two options fits on one line. When it has more, give them as a hashtable after the name, one option per line. Bylaw files don't use backtick line continuation.
+
+```powershell
+Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Deny
+
+Parameter AllowedValues @{
+    Type        = 'Array'
+    Default     = 'Public', 'Private', 'Confidential', 'Restricted'
+    DisplayName = 'Allowed values'
+    Description = 'Allowed classifications'
+}
+```
+
+The keys are the option names: `Type`, `AllowedValues`, `Default`, `DisplayName`, `Description`, `JsonName` and `Metadata`. An unknown key fails the build, and so does mixing the hashtable with `-Type` and the other options. The name can also go inside the hashtable as `Name`, as in `Parameter @{ Name = 'AllowedValues'; ... }`. When `Type` is left out, it is inferred from `Default` or `AllowedValues`.
 
 ## Operators
 

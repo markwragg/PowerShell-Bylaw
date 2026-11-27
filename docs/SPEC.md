@@ -128,7 +128,7 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 |---|---|
 | `Policy 'name' { }` | One policy definition. The only top-level DSL command. |
 | `Properties @{ }` | Metadata hashtable. Validated keys: `DisplayName`, `Description`, `Category`, `Version`, `Mode`, `Preview`, `Deprecated`, `Metadata`. Unknown keys fail the build. `Category`, `Version`, `Preview`, `Deprecated` go into `metadata`. |
-| `Parameter Name ...` | Policy parameter. One-line form with common options, plus a hashtable form for extras. |
+| `Parameter Name ...` | Policy parameter. One-line form (`Parameter Name -Default x`), or the same options as a hashtable after the name (`Parameter Name @{ Default = 'x' }`) or with `Name` inside it (ADR-0036). |
 | `Resource 'type' { }` | Scopes to a resource type and sets the alias resolution context. `Resource *` means no type condition. |
 | `When { }` | Applicability conditions. Not inverted. |
 | `Require 'description' { }` | A named compliance requirement. Inverted. |
