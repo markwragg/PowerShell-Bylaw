@@ -84,19 +84,20 @@ function ConvertTo-CompressedJson {
 function Invoke-Step {
     # Runs one Azure call and records whether it was accepted, without stopping the run.
     param(
-        [Parameter(Mandatory)] [System.Collections.Generic.List[object]] $Steps,
-        [Parameter(Mandatory)] [string] $Name,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [System.Collections.Generic.List[object]] $Steps,
+        # Not called Name: $Call runs in this scope, so a parameter called Name would hide the caller's $name.
+        [Parameter(Mandatory)] [string] $StepName,
         [Parameter(Mandatory)] [scriptblock] $Call
     )
 
     try {
         $result = & $Call
-        $Steps.Add([pscustomobject]@{ Step = $Name; Result = 'accepted'; Detail = '' })
+        $Steps.Add([pscustomobject]@{ Step = $StepName; Result = 'accepted'; Detail = '' })
         $result
     }
     catch {
-        $Steps.Add([pscustomobject]@{ Step = $Name; Result = 'rejected'; Detail = $_.Exception.Message })
-        Write-Warning "$Name was rejected: $($_.Exception.Message)"
+        $Steps.Add([pscustomobject]@{ Step = $StepName; Result = 'rejected'; Detail = $_.Exception.Message })
+        Write-Warning "$StepName was rejected: $($_.Exception.Message)"
     }
 }
 
@@ -140,7 +141,7 @@ function Invoke-Deploy {
                 $arguments[$entry[1]] = if ($entry[0] -eq 'description') { $properties[$entry[0]] } else { ConvertTo-CompressedJson $properties[$entry[0]] }
             }
         }
-        $created = Invoke-Step -Steps $steps -Name "Create policy $($definition['name'])" -Call { New-AzPolicyDefinition @arguments -ErrorAction Stop }
+        $created = Invoke-Step -Steps $steps -StepName "Create policy $($definition['name'])" -Call { New-AzPolicyDefinition @arguments -ErrorAction Stop }
         if ($created) {
             $policyVersions.Add([pscustomobject]@{ Name = $definition['name']; MetadataVersion = $properties['metadata']['version']; AzureVersion = if ($created.PSObject.Properties['Version']) { [string] $created.Version } else { '(none)' } })
         }
@@ -165,12 +166,12 @@ function Invoke-Deploy {
                 $arguments[$entry[1]] = if ($entry[0] -eq 'description') { $value } elseif ($entry[0] -eq 'policyDefinitionGroups') { ConvertTo-CompressedJson @($value) } else { ConvertTo-CompressedJson $value }
             }
         }
-        $created = Invoke-Step -Steps $steps -Name "Create initiative $name" -Call { New-AzPolicySetDefinition @arguments -ErrorAction Stop }
+        $created = Invoke-Step -Steps $steps -StepName "Create initiative $name" -Call { New-AzPolicySetDefinition @arguments -ErrorAction Stop }
         if (-not $created) {
             continue
         }
         # What Azure stored for each member.
-        $stored = Invoke-Step -Steps $steps -Name "Read back initiative $name" -Call { Get-AzPolicySetDefinition -Name $name -SubscriptionId $SubscriptionId -ErrorAction Stop }
+        $stored = Invoke-Step -Steps $steps -StepName "Read back initiative $name" -Call { Get-AzPolicySetDefinition -Name $name -SubscriptionId $SubscriptionId -ErrorAction Stop }
         if ($stored) {
             foreach ($member in @($stored.PolicyDefinition)) {
                 $readBack.Add([pscustomobject]@{
@@ -184,16 +185,18 @@ function Invoke-Deploy {
     }
 
     if ($PSCmdlet.ShouldProcess($ResourceGroupName, 'Create resource group and assign the initiatives')) {
-        $null = Invoke-Step -Steps $steps -Name "Create resource group $ResourceGroupName" -Call { New-AzResourceGroup -Name $ResourceGroupName -Location $Location -Force -ErrorAction Stop }
+        $null = Invoke-Step -Steps $steps -StepName "Create resource group $ResourceGroupName" -Call { New-AzResourceGroup -Name $ResourceGroupName -Location $Location -Force -ErrorAction Stop }
         foreach ($result in $build.Results | Where-Object Kind -EQ 'Initiative') {
             $name = ($result.Json | ConvertFrom-Json -AsHashtable)['name']
-            $set = Get-AzPolicySetDefinition -Name $name -SubscriptionId $SubscriptionId -ErrorAction SilentlyContinue
+            # Get-AzPolicySetDefinition throws for a missing initiative even with SilentlyContinue.
+            $set = try { Get-AzPolicySetDefinition -Name $name -SubscriptionId $SubscriptionId -ErrorAction Stop } catch { $null }
             if (-not $set) {
                 $steps.Add([pscustomobject]@{ Step = "Assign $name"; Result = 'skipped'; Detail = 'The initiative was not created.' })
                 continue
             }
-            $null = Invoke-Step -Steps $steps -Name "Assign $name" -Call {
-                New-AzPolicyAssignment -Name $name -Scope $resourceGroupScope -DisplayName $set.DisplayName -PolicyDefinition $set -ErrorAction Stop
+            $null = Invoke-Step -Steps $steps -StepName "Assign $name" -Call {
+                # bylaw-verify-set has a Modify member (the built-in), which needs a managed identity.
+                New-AzPolicyAssignment -Name $name -Scope $resourceGroupScope -DisplayName $set.DisplayName -PolicyDefinition $set -IdentityType SystemAssigned -Location $Location -ErrorAction Stop
             }
         }
     }

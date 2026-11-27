@@ -33,13 +33,11 @@ Policy 'bylaw-verify-tags' {
         Mode        = 'Indexed'
     }
 
-    Parameter MandatoryTags -Type Array -Default @('CostCenter')
+    Parameter TagName -Default 'CostCenter'
 
     Resource * {
-        Require 'Every mandatory tag is set' {
-            Count -Value (Param MandatoryTags) -Name tagName -Where {
-                Tag (Current tagName) | Must -Exist
-            } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+        Require 'The mandatory tag is set' {
+            Tag (Param TagName) | Must -Exist
         }
     }
 
@@ -71,7 +69,7 @@ Initiative 'bylaw-verify-set' {
     PolicyDefinition 'bylaw-verify-tags' -ReferenceId 'tags-default' -Group Tags
 
     PolicyDefinition 'bylaw-verify-tags' -ReferenceId 'tags-environment' -Group Tags -Parameters @{
-        mandatoryTags = @('Environment')
+        tagName = 'Environment'
     }
 
     PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'inherit-cost-center' -Version '1.*.*' -Group Tags -Parameters @{
