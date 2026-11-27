@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-27
 decision-makers: Bylaw maintainers
 ---
@@ -24,7 +24,7 @@ An initiative can include policies from any file in the build, but each file com
 
 ## Decision Outcome
 
-Proposed: "A cross-file pass in `Build-Bylaw`, over plain data each file returns".
+Chosen option: "A cross-file pass in `Build-Bylaw`, over plain data each file returns".
 
 ### How
 

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-27
 decision-makers: Bylaw maintainers
 ---
@@ -24,7 +24,7 @@ EPAC reads policy definitions from `Definitions/policyDefinitions` and initiativ
 
 ## Decision Outcome
 
-Proposed: "`-InitiativeOutputPath`, defaulting to `-OutputPath`".
+Chosen option: "`-InitiativeOutputPath`, defaulting to `-OutputPath`".
 
 ### Where
 

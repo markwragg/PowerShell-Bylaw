@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-27
 decision-makers: Bylaw maintainers
 ---
@@ -33,7 +33,7 @@ How is an initiative written in Bylaw?
 
 ## Decision Outcome
 
-Proposed: "An `Initiative` keyword with a `Member` keyword per member".
+Chosen option: "An `Initiative` keyword with a `Member` keyword per member".
 
 ```powershell
 Initiative 'tagging-baseline' {
