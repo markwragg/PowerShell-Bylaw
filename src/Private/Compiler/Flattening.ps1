@@ -124,6 +124,9 @@ function Get-BylawValueKey {
     if ($Value -is [BylawParamRef]) {
         return 'param:' + $Value.Name
     }
+    if ($Value -is [BylawParamLength]) {
+        return 'length:' + $Value.Parameter.Name
+    }
     if ($Value -is [BylawExpr]) {
         return 'arm:' + $Value.Text
     }

@@ -8,7 +8,7 @@ decision-makers: Bylaw maintainers
 
 ## Context and Problem Statement
 
-Azure Policy conditions can test the result of an expression instead of a field: `{ "value": "[resourceGroup().tags['owner']]", "notEquals": "" }`. Both of Azure's built-in tag-inheritance policies need this, to apply only when the resource group has the tag. Milestone 1 only accepts `Field` and `Element` before `Must`. How should value conditions be written?
+Azure Policy conditions can test the result of an expression instead of a field: `{ "value": "[resourceGroup().tags['owner']]", "notEquals": "" }`. Both of Azure's built-in tag-inheritance policies need this, to apply only when the resource group has the tag. Until now, only `Field` and `Element` could be piped to `Must`. How should value conditions be written?
 
 ## Decision Drivers
 

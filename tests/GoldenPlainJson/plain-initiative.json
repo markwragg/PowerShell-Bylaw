@@ -1,0 +1,55 @@
+{
+  "name": "plain-initiative",
+  "properties": {
+    "displayName": "Plain: storage TLS",
+    "policyType": "Custom",
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyDefinitions": [
+      {
+        "policyDefinitionReferenceId": "plain-parameters",
+        "policyDefinitionId": "/providers/Microsoft.Management/managementGroups/golden/providers/Microsoft.Authorization/policyDefinitions/plain-parameters",
+        "parameters": {
+          "allowedTlsVersions": {
+            "value": [
+              "TLS1_2",
+              "TLS1_3"
+            ]
+          },
+          "effect": {
+            "value": "[parameters('effect')]"
+          }
+        },
+        "groupNames": [
+          "TLS"
+        ]
+      },
+      {
+        "policyDefinitionReferenceId": "InheritCostCenter",
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54",
+        "parameters": {
+          "tagName": {
+            "value": "CostCenter"
+          }
+        }
+      }
+    ],
+    "policyDefinitionGroups": [
+      {
+        "name": "TLS",
+        "category": "Storage",
+        "displayName": "Transport security",
+        "description": "Storage accounts use modern TLS."
+      }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-count-every-pattern",
+  "properties": {
+    "displayName": "Golden: resource names match every required pattern",
+    "policyType": "Custom",
+    "mode": "Indexed",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "General"
+    },
+    "parameters": {
+      "namePatterns": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Name patterns"
+        },
+        "defaultValue": [
+          "*-prod-*",
+          "*-uks-*"
+        ]
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "count": {
+          "value": "[parameters('namePatterns')]",
+          "name": "pattern",
+          "where": {
+            "field": "name",
+            "like": "[current('pattern')]"
+          }
+        },
+        "notEquals": "[length(parameters('namePatterns'))]"
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

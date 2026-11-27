@@ -43,9 +43,11 @@ function Policy {
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Policy')
 
-    if ($null -ne (Get-BylawCurrentFrame)) {
+    $outer = Get-BylawCurrentFrame
+    if ($null -ne $outer) {
+        $what = if ($outer.Keyword -eq 'Policy') { 'another Policy' } else { $outer.Keyword }
         Add-BylawDiagnostic -Severity Error -Code 'BYL1003' -Location $location -Message (
-            "Policy '$Name' is nested inside another Policy. Each Policy must be at the top level of the file."
+            "Policy '$Name' is nested inside $what. Each Policy must be at the top level of the file."
         )
         return
     }

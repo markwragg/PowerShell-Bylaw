@@ -8,7 +8,7 @@ decision-makers: Bylaw maintainers
 
 ## Context and Problem Statement
 
-The Milestone 1 definition of done says `Build-Bylaw` produces EPAC-valid JSON, and ADR-0011 says golden files are validated against the EPAC schema. The [EPAC policy definition schema](https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json) (JSON Schema 2020-12, checked 2026-11-25) is stricter than Azure itself:
+The spec's definition of done says `Build-Bylaw` produces EPAC-valid JSON, and ADR-0011 says golden files are validated against the EPAC schema. The [EPAC policy definition schema](https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json) (JSON Schema 2020-12, checked 2026-11-25) is stricter than Azure itself:
 
 | EPAC schema rule | Azure |
 |---|---|

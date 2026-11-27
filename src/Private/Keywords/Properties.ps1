@@ -11,12 +11,13 @@ function Properties {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Properties')
-    $frame = Test-BylawParent -Keyword 'Properties' -Allowed 'Policy' -Location $location
+    $frame = Test-BylawParent -Keyword 'Properties' -Allowed 'Policy', 'Initiative' -Location $location
     if ($null -eq $frame -or -not (Test-BylawSingleton -Frame $frame -Keyword 'Properties' -Location $location)) {
         return
     }
 
-    $stringKeys = @('DisplayName', 'Description', 'Category', 'Version', 'Mode')
+    # An initiative has no rule, so no Mode: Mode belongs to its member policies (ADR-0033).
+    $stringKeys = if ($frame.Keyword -eq 'Initiative') { @('DisplayName', 'Description', 'Category', 'Version') } else { @('DisplayName', 'Description', 'Category', 'Version', 'Mode') }
     $booleanKeys = @('Preview', 'Deprecated')
     $validKeys = $stringKeys + $booleanKeys + 'Metadata'
 
@@ -28,7 +29,7 @@ function Properties {
         $value = $Values[$key]
         if (-not $canonical) {
             $suggestion = Get-BylawClosestMatch -Value ([string] $key) -Candidates $validKeys
-            $hint = if ($suggestion) { " Did you mean '$suggestion'?" } else { '' }
+            $hint = if ($frame.Keyword -eq 'Initiative' -and $key -eq 'Mode') { " An initiative has no Mode: each member policy has its own." } elseif ($suggestion) { " Did you mean '$suggestion'?" } else { '' }
             Add-BylawDiagnostic -Severity Error -Code 'BYL1011' -Location $location -Message (
                 "Unknown Properties key '$key'.$hint Valid keys: $($validKeys -join ', ')."
             )

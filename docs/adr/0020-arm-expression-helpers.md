@@ -14,7 +14,7 @@ Policy values often use ARM template expressions: `[parameters('x')]`, `[resourc
 
 * Cover the most common expressions with validation.
 * Keep the v1 surface small. `Arm` covers everything else.
-* Let real data from the ALZ coverage report (Milestone 5) drive what gets added.
+* Let real data from the planned ALZ coverage report drive what gets added.
 
 ## Considered Options
 
@@ -27,6 +27,8 @@ Policy values often use ARM template expressions: `[parameters('x')]`, `[resourc
 Chosen option: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide from ALZ coverage data".
 
 * `Param Name` emits `[parameters('<jsonName>')]`. The parameter must exist (ADR-0021).
+  * `Param Name -Length` emits `[length(parameters('<jsonName>'))]`, the number of members of a list, as when a value count is compared with the length of its list (ADR-0032). It replaces the most common `Arm` in count comparisons, and checks what `Arm` can't: the parameter must exist, and be an `Array`, `String` or `Object`, which `length()` takes (BYL3130).
+  * A length is a whole number. As a value it is used with `-Be` and the comparisons; tested itself, as in `Param Name -Length | Must -BeGreaterThan 0`, it also takes `-BeIn`. Other operators are BYL3130. It can't be the list of `Count -Value` (BYL1047).
 * `Tag name` is a field reference to the tag, `tags['name']`. It can be piped into `Must` and into `Modify` operations (ADR-0024).
   * `Tag (Param TagName)` emits the field `[concat('tags[', parameters('tagName'), ']')]`, as Azure's built-in tag policies do.
   * A tag name containing `'`, `[` or `]` is a compile error (`BYL1023`), because it can't be written safely inside `tags['...']`.
@@ -38,7 +40,7 @@ Chosen option: "Only `Param`, `Tag`, `ResourceGroupTag` and `Arm`, then decide f
   * It can be used wherever a value is expected (`Must -Be (ResourceGroupTag CostCenter)`, a `Modify` operation's value), and piped into `Must` as a value condition (ADR-0025).
   * The same name rule as `Tag` applies.
 * `Arm '[...]'` is passed through exactly as written. The compiler checks only that the value starts with `[` and ends with `]`, and that it isn't `[[` (an escaped literal). Any `parameters('x')` names referenced inside are checked against the declared parameters on a best-effort basis, as a warning.
-* The Milestone 5 coverage report counts which `Arm` patterns appear most often in ALZ policies. Helpers for the top patterns are proposed in a follow-up ADR.
+* The planned coverage report will count which `Arm` patterns appear most often in ALZ policies. Helpers for the top patterns are proposed in a follow-up ADR.
 
 ### Consequences
 

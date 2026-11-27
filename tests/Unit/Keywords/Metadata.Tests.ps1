@@ -81,6 +81,57 @@ Describe 'Parameter' {
         $parameter.HasDefault | Should -BeFalse
     }
 
+    It 'accepts the name before a hashtable of options' {
+        $extra = "Parameter Classifications @{`n    Type = 'Array'`n    Default = 'Public', 'Private'`n    DisplayName = 'Allowed values'`n    Description = 'Allowed classifications'`n}"
+        $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Extra $extra)
+        $result.Diagnostics | Should -BeNullOrEmpty
+        $parameter = $result.Policies[0].Parameters[0]
+        $parameter.Name | Should -BeExactly 'Classifications'
+        $parameter.Type | Should -Be 'Array'
+        $parameter.DefaultValue | Should -Be @('Public', 'Private')
+        $parameter.DisplayName | Should -Be 'Allowed values'
+        $parameter.Description | Should -Be 'Allowed classifications'
+    }
+
+    It 'infers the type in the name-and-hashtable form' {
+        $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Extra "Parameter P @{ Default = 5 }")
+        $result.Diagnostics | Should -BeNullOrEmpty
+        $result.Policies[0].Parameters[0].Type | Should -Be 'Integer'
+    }
+
+    It 'gives the same parameter in every form' {
+        $forms = @(
+            "Parameter Sku -Type String -AllowedValues a, b -Default a -DisplayName 'SKU' -JsonName 'skuName'"
+            "Parameter Sku @{ Type = 'String'; AllowedValues = 'a', 'b'; Default = 'a'; DisplayName = 'SKU'; JsonName = 'skuName' }"
+            "Parameter @{ Name = 'Sku'; Type = 'String'; AllowedValues = 'a', 'b'; Default = 'a'; DisplayName = 'SKU'; JsonName = 'skuName' }"
+        )
+        $parameters = foreach ($form in $forms) {
+            $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Extra $form)
+            $result.Diagnostics | Should -BeNullOrEmpty
+            $result.Policies[0].Parameters[0]
+        }
+        foreach ($parameter in $parameters) {
+            $parameter.Name | Should -BeExactly 'Sku'
+            $parameter.Type | Should -Be 'String'
+            $parameter.AllowedValues | Should -Be @('a', 'b')
+            $parameter.DefaultValue | Should -Be 'a'
+            $parameter.DisplayName | Should -Be 'SKU'
+            $parameter.JsonName | Should -Be 'skuName'
+        }
+    }
+
+    It 'rejects <Case>' -ForEach @(
+        @{ Case = 'a name and a hashtable with Name'; Extra = "Parameter P @{ Name = 'P'; Default = 'x' }" }
+        @{ Case = 'a name, a hashtable and a named option'; Extra = "Parameter P @{ Default = 'x' } -Type String" }
+        @{ Case = 'two hashtables'; Extra = "Parameter @{ Name = 'P' } @{ Default = 'x' }" }
+        @{ Case = 'a value that is not a hashtable after the name'; Extra = 'Parameter P x' }
+        @{ Case = 'an unknown key after the name'; Extra = "Parameter P @{ Default = 'x'; Strongtype = 'location' }" }
+        @{ Case = 'an empty name before a hashtable'; Extra = "Parameter '' @{ Default = 'x' }" }
+    ) {
+        $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Extra $Extra)
+        $result.Codes | Should -Contain 'BYL1015'
+    }
+
     It 'rejects <Case>' -ForEach @(
         @{ Case = 'an unknown type'; Extra = 'Parameter P -Type Text -Default x' }
         @{ Case = 'a type that cannot be inferred'; Extra = 'Parameter P' }

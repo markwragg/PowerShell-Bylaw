@@ -152,3 +152,22 @@ Policy 'plain-count' {
 
     Effect Audit
 }
+
+# An initiative as written: members from the build get a full ID at the golden root's definition
+# scope (GoldenRoots.psd1), and groups keep every property (ADR-0035).
+Initiative 'plain-initiative' {
+
+    Properties @{ DisplayName = 'Plain: storage TLS' }
+
+    Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Audit
+
+    DefinitionGroup 'TLS' -DisplayName 'Transport security' -Category 'Storage' -Description 'Storage accounts use modern TLS.'
+
+    PolicyDefinition 'plain-parameters' -Group TLS -Parameters @{
+        effect             = Param Effect
+        allowedTlsVersions = @('TLS1_2', 'TLS1_3')
+    }
+    PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Parameters @{
+        tagName = 'CostCenter'
+    }
+}

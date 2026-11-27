@@ -128,7 +128,7 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 |---|---|
 | `Policy 'name' { }` | One policy definition. The only top-level DSL command. |
 | `Properties @{ }` | Metadata hashtable. Validated keys: `DisplayName`, `Description`, `Category`, `Version`, `Mode`, `Preview`, `Deprecated`, `Metadata`. Unknown keys fail the build. `Category`, `Version`, `Preview`, `Deprecated` go into `metadata`. |
-| `Parameter Name ...` | Policy parameter. One-line form with common options, plus a hashtable form for extras. |
+| `Parameter Name ...` | Policy parameter. One-line form (`Parameter Name -Default x`), or the same options as a hashtable after the name (`Parameter Name @{ Default = 'x' }`) or with `Name` inside it (ADR-0021). |
 | `Resource 'type' { }` | Scopes to a resource type and sets the alias resolution context. `Resource *` means no type condition. |
 | `When { }` | Applicability conditions. Not inverted. |
 | `Require 'description' { }` | A named compliance requirement. Inverted. |
@@ -144,7 +144,7 @@ Note: the parameter is declared as `Effect` in the DSL and emitted as `effect` i
 | `DenyAction`, `Manual`, `Append { }` | Effects with a `details` block, in place of `Effect` (Milestone 3, ADR-0028, ADR-0029). |
 | `AuditIfNotExists -Type ... { }`, `DeployIfNotExists -Type ... { }` | Effects on a related resource, in place of `Effect`. The block describes the related resource's compliant state (Milestone 3, ADR-0030, ADR-0031). |
 | `Count path[*]`, `Count -Value ...` | A field or value count, piped to `Must` (Milestone 3, ADR-0032). |
-| `Param Name` | Reference a parameter (emits `[parameters('name')]`). |
+| `Param Name` | Reference a parameter (emits `[parameters('name')]`). `Param Name -Length` emits `[length(parameters('name'))]` (ADR-0020). |
 | `Arm '[...]'` | Raw ARM template expression escape hatch. |
 
 `Element` and `Arm` were originally `Item` and `Expr`. They were renamed because, outside a `Policy`, those names resolved to `Get-Item` and the native `expr` program (ADR-0005).
@@ -236,9 +236,10 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 
 ### Milestone 4: initiatives
 
-- An initiative keyword: member policies from the same build or built-in policies by ID, parameters passed to members, policy groups
-- Cross-file checks after every file has compiled: references exist, passed parameters match
-- EPAC policy set definition output, and plain JSON
+- An initiative keyword: member policies from the same build or built-in policies by ID, parameters passed to members, policy groups (ADR-0033)
+- Cross-file checks after every file has compiled: references exist, passed parameters match (ADR-0034)
+- EPAC policy set definition output, and plain JSON, with a separate output folder for initiatives (ADR-0035)
+- Golden tests, examples and README for all of the above
 
 ### Milestone 5: decompiler and ALZ round-trip
 
@@ -253,6 +254,7 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 - Bicep emitter
 - `Test-PolicyRule` local evaluator against sample resource JSON
 - VS Code syntax support and argument completers for `Field` driven by the enclosing `Resource` type
+- To consider after Milestone 4: an optional file name suffix, as a `bylaw.json` setting, writing `<name>.policy.json` and `<name>.initiative.json`. It would tell policies and initiatives apart in a shared output folder, let editors match plain JSON files to a schema by name, and limit the stale-output check to Bylaw's own files. A project would choose it once, because switching renames every output file.
 
 ## Definition of done for Milestone 1
 

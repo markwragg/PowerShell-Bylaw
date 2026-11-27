@@ -94,7 +94,8 @@ function ConvertTo-BylawValueObject {
     # The JSON value for an IR value.
     param(
         [AllowNull()] [BylawValue] $Value,
-        [Parameter(Mandatory)] [BylawPolicy] $Policy
+        # A policy or an initiative: whatever declares the parameters a Param refers to.
+        [Parameter(Mandatory)] [BylawNode] $Policy
     )
 
     if ($null -eq $Value) {
@@ -109,6 +110,10 @@ function ConvertTo-BylawValueObject {
             Get-BylawParameterJsonName -Name $Value.Name
         }
         return "[parameters('$jsonName')]"
+    }
+    if ($Value -is [BylawParamLength]) {
+        $parameterValue = ConvertTo-BylawValueObject -Value $Value.Parameter -Policy $Policy
+        return "[length($($parameterValue.Substring(1, $parameterValue.Length - 2)))]"
     }
     if ($Value -is [BylawExpr]) {
         return $Value.Text

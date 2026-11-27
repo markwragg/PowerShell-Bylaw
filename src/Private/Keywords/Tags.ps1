@@ -90,7 +90,15 @@ function ConvertTo-BylawTagName {
         return $Name
     }
     if ($Name -is [BylawCurrent]) {
-        # A tag name from the member a value count is at, as in Tag (Current tagName) (ADR-0032).
+        # Tag (Current tagName) would be a field named with current(), which Azure rejects: "'field'
+        # and 'current' functions are not supported in the 'field' accessor" (ADR-0032).
+        if ($Keyword -eq 'Tag') {
+            Add-BylawDiagnostic -Severity Error -Code 'BYL1059' -Location $Location -Message (
+                "Tag ($Name) can't be compiled: it names a field with current(), and Azure rejects that. Check each tag with its own Tag, e.g. Tag CostCenter | Must -Exist, or Tag (Param TagName)."
+            )
+            return $null
+        }
+        # A tag name from the member a value count is at, as in ResourceGroupTag (Current tagName).
         if ($Name.Count.IsFieldCount()) {
             Add-BylawDiagnostic -Severity Error -Code 'BYL1023' -Location $Location -Message (
                 "$Keyword ($Name) needs the member of a value count, which holds a tag name. In a field count, Current is an array element."

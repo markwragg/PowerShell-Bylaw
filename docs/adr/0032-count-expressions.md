@@ -26,7 +26,7 @@ Learn also documents comparing a count with other numbers: "exactly one", "at le
 
 * A `Count` keyword whose result is piped to `Must`
 * More `Each` variants: `EachOf`, `AnyOf` over elements, `None`
-* Only the raw-condition escape hatch (Milestone 5)
+* Only the planned raw-condition escape hatch
 
 ## Decision Outcome
 
@@ -44,10 +44,10 @@ Require 'At most two rules allow inbound traffic' {
     } | Must -BeLessOrEqual 2
 }
 
-Require 'Every mandatory tag is set' {
-    Count -Value (Param MandatoryTags) -Name tagName -Where {
-        Tag (Current tagName) | Must -Exist
-    } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+Require 'The name matches an allowed pattern' {
+    Count -Value (Param NamePatterns) -Name pattern -Where {
+        Field name | Must -BeLike (Current pattern)
+    } | Must -BeGreaterThan 0
 }
 ```
 
@@ -62,7 +62,7 @@ Require 'Every mandatory tag is set' {
 ### Current
 
 * `Current name` is `[current('name')]`, the member a value count is at. `Current` with no name is `[current()]`, allowed only when the count isn't inside another count, as Learn requires. In a field count's `-Where`, `Current` is `[current('<array alias>[*]')]`.
-* `Current` is allowed only inside a `-Where`. It can be used as a value, as a `Tag` name, as in `Tag (Current tagName)`, and as the subject of a value condition.
+* `Current` is allowed only inside a `-Where`. It can be used as a value, as a `ResourceGroupTag` name, and as the subject of a value condition. It can't name a `Tag`: see Details.
 * `-Name` is letters and digits. Learn makes it required when the count is inside another count. Without it, Azure uses `default`.
 
 ### Limits
@@ -76,14 +76,14 @@ Require 'Every mandatory tag is set' {
 
 ### Details
 
-* A count is compared with whole numbers: literals, an `Integer` parameter (an `Array` one for `-BeIn`), or `Arm`.
+* A count is compared with whole numbers: literals, an `Integer` parameter (an `Array` one for `-BeIn`), the length of a parameter with `Param Name -Length` (ADR-0020), or `Arm`.
 * `Current name` refers to the value count with that `-Name` around it, so a nested count can use an outer count's member. A `Count -Value` inside another count, including inside `Each`, needs `-Name`.
-* `Tag (Current name)` emits `[concat('tags[', current('name'), ']')]`, and `ResourceGroupTag (Current name)` emits `[resourceGroup().tags[current('name')]]`, as the ALZ tag policies write them. Both need a value count.
+* `ResourceGroupTag (Current name)` emits `[resourceGroup().tags[current('name')]]`, and needs a value count.
 * `Element` in `-Where` is only for a field count; a value count's member is `Current`.
 
 ### Diagnostics
 
-* Front end: BYL1047 (neither or both of a path and `-Value`, a path without `[*]`, or a `-Value` that is not a list), BYL1048 (`-Name` on a field count, or not letters and digits), BYL1049 (a nested value count without `-Name`), BYL1050 (`Current` outside `-Where`, with a name no count has, or without a name in a nested value count), BYL1051 (an operator a count doesn't take, or `-IfPresent` or `-Strict` on a count), BYL1052 (`Count` used as a value). `-IfPresent` and `-Strict` in `-Where` are BYL1010, an empty `-Where` is BYL1013, and `Each` in `-Where` is BYL1002.
+* Front end: BYL1047 (neither or both of a path and `-Value`, a path without `[*]`, or a `-Value` that is not a list), BYL1048 (`-Name` on a field count, or not letters and digits), BYL1049 (a nested value count without `-Name`), BYL1050 (`Current` outside `-Where`, with a name no count has, or without a name in a nested value count), BYL1051 (an operator a count doesn't take, or `-IfPresent` or `-Strict` on a count), BYL1052 (`Count` used as a value). `-IfPresent` and `-Strict` in `-Where` are BYL1010, an empty `-Where` is BYL1013, and `Each` in `-Where` is BYL1002. `Tag (Current)` is BYL1059.
 * Validation: BYL3100 (a count compared with something other than a whole number), BYL3101 (a `-Value` parameter that is not an `Array`), BYL3052 (more than 10 value counts in a rule), BYL3053 (more than 100 iterations over literal lists, nested counts multiplied).
 
 ### Consequences
@@ -94,7 +94,7 @@ Require 'Every mandatory tag is set' {
 
 ### Confirmation
 
-Unit tests cover field and value counts with and without `-Where`, each operator in `When` and `Require`, nested counts, `Current` in each form and place, and the limits. Golden tests cover the ALZ patterns: an empty-array check, a value count over a parameter compared with its length, and a nested count.
+Unit tests cover field and value counts with and without `-Where`, each operator in `When` and `Require`, nested counts, `Current` in each form and place, and the limits. Golden tests cover the ALZ patterns: an empty-array check, a value count over a parameter with `Current` as a value, and a nested count.
 
 ## Pros and Cons of the Options
 

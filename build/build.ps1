@@ -114,7 +114,11 @@ function Invoke-UpdateGolden {
     $goldenRoots = Import-PowerShellDataFile -Path (Join-Path $repoRoot 'tests/Golden/GoldenRoots.psd1')
     foreach ($golden in $goldenRoots.Roots) {
         $root = Join-Path $repoRoot $golden.Path
-        $results = @(Build-Bylaw -Path $root -OutputPath $root -Format $golden.Format -PassThru)
+        $build = @{ Path = $root; OutputPath = $root; Format = $golden.Format; PassThru = $true }
+        if ($golden.ContainsKey('DefinitionScope')) {
+            $build.DefinitionScope = $golden.DefinitionScope
+        }
+        $results = @(Build-Bylaw @build)
         Write-Information "$($golden.Path) ($($golden.Format)): $($results.Count) golden file(s)." -InformationAction Continue
     }
 }

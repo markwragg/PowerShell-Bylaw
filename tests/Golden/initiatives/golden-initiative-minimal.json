@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-set-definition-schema.json",
+  "name": "golden-initiative-minimal",
+  "properties": {
+    "displayName": "Golden: one built-in policy",
+    "policyType": "Custom",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Tags"
+    },
+    "parameters": {},
+    "policyDefinitions": [
+      {
+        "policyDefinitionReferenceId": "InheritCostCenter",
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54",
+        "parameters": {
+          "tagName": {
+            "value": "CostCenter"
+          }
+        }
+      }
+    ]
+  }
+}

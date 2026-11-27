@@ -121,16 +121,16 @@ Describe 'Count (ADR-0032)' {
     }
 
     Context 'value counts' {
-        It 'counts the members of a parameter, with Tag (Current name)' {
-            $requirements = "Require 'Every mandatory tag is set' { Count -Value (Param MandatoryTags) -Name tagName -Where { Tag (Current tagName) | Must -Exist } | Must -Be (Arm `"[length(parameters('mandatoryTags'))]`") }"
-            $result = Invoke-NsgCompile -Requirements $requirements -Extra 'Parameter MandatoryTags -Type Array -Default @(''a'')'
+        It 'counts the members of a parameter, with Current name as a value' {
+            $requirements = "Require 'The name matches a pattern' { Count -Value (Param NamePatterns) -Name pattern -Where { Field name | Must -BeLike (Current pattern) } | Must -BeGreaterThan 0 }"
+            $result = Invoke-NsgCompile -Requirements $requirements -Extra 'Parameter NamePatterns -Type Array -Default @(''nsg-*'')'
             $violation = Get-Violation $result
             $violation['count'].Keys | Should -Be @('value', 'name', 'where')
-            $violation['count']['value'] | Should -BeExactly "[parameters('mandatoryTags')]"
-            $violation['count']['name'] | Should -BeExactly 'tagName'
-            $violation['count']['where']['field'] | Should -BeExactly "[concat('tags[', current('tagName'), ']')]"
-            $violation['count']['where']['exists'] | Should -BeTrue
-            $violation['notEquals'] | Should -BeExactly "[length(parameters('mandatoryTags'))]"
+            $violation['count']['value'] | Should -BeExactly "[parameters('namePatterns')]"
+            $violation['count']['name'] | Should -BeExactly 'pattern'
+            $violation['count']['where']['field'] | Should -BeExactly 'name'
+            $violation['count']['where']['like'] | Should -BeExactly "[current('pattern')]"
+            $violation['lessOrEquals'] | Should -Be 0
             $result.Codes | Should -Not -Contain 'BYL3029'
         }
 
@@ -142,9 +142,10 @@ Describe 'Count (ADR-0032)' {
         }
 
         It 'uses ResourceGroupTag (Current name)' {
-            $requirements = "Require 'r' { Count -Value (Param TagNames) -Name tagName -Where { Tag (Current tagName) | Must -Be (ResourceGroupTag (Current tagName)) } | Must -Be (Arm `"[length(parameters('tagNames'))]`") }"
+            $requirements = "Require 'r' { Count -Value (Param TagNames) -Name tagName -Where { ResourceGroupTag (Current tagName) | Must -Be 'yes' } | Must -Be (Arm `"[length(parameters('tagNames'))]`") }"
             $where = (Get-Violation (Invoke-NsgCompile -Requirements $requirements -Extra 'Parameter TagNames -Type Array -Default @(''a'')'))['count']['where']
-            $where['equals'] | Should -BeExactly "[resourceGroup().tags[current('tagName')]]"
+            $where['value'] | Should -BeExactly "[resourceGroup().tags[current('tagName')]]"
+            $where['equals'] | Should -BeExactly 'yes'
         }
 
         It 'refers to an outer value count by name from a nested count' {
@@ -177,7 +178,9 @@ Describe 'Count (ADR-0032)' {
             @{ Code = 'BYL1002'; Case = 'Each in -Where'; Statements = "Count securityRules[*] -Where { Each destinationPortRanges[*] { Element | Must -Be '1' } } | Must -Be 0" }
             @{ Code = 'BYL1002'; Case = 'Element in a value count'; Statements = "Count -Value @('a') -Where { Element | Must -Be 'a' } | Must -Be 0" }
             @{ Code = 'BYL1013'; Case = 'an empty -Where'; Statements = 'Count securityRules[*] -Where { } | Must -Be 0' }
-            @{ Code = 'BYL1023'; Case = 'Tag (Current) in a field count'; Statements = 'Count securityRules[*] -Where { Tag (Current) | Must -Exist } | Must -Be 0' }
+            @{ Code = 'BYL1023'; Case = 'ResourceGroupTag (Current) in a field count'; Statements = "Count securityRules[*] -Where { ResourceGroupTag (Current) | Must -Be 'a' } | Must -Be 0" }
+            @{ Code = 'BYL1059'; Case = 'Tag (Current name) in a value count'; Statements = "Count -Value @('a') -Name tagName -Where { Tag (Current tagName) | Must -Exist } | Must -Be 0" }
+            @{ Code = 'BYL1059'; Case = 'Tag (Current) in a field count'; Statements = 'Count securityRules[*] -Where { Tag (Current) | Must -Exist } | Must -Be 0' }
         ) {
             $result = Invoke-BylawTestScript -Script (Format-BylawTestPolicy -Type 'Microsoft.Network/networkSecurityGroups' -Requirements "Require 'r' { $Statements }")
             $result.Codes | Should -Contain $Code -Because ($result.Diagnostics -join ' || ')

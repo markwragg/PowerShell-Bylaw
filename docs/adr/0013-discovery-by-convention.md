@@ -23,7 +23,7 @@ Chosen option: "Recursive discovery of `*.bylaw.ps1`".
 * `-Path` accepts files and folders, and several of each. Folders are searched recursively for `*.bylaw.ps1`. Other `.ps1` files are ignored, so helper scripts can live alongside policies.
 * Files are processed in ordinal order of their path relative to `-Path`, so diagnostics and `-PassThru` results come out in a stable order.
 * One file can contain several `Policy` blocks. A file with none is a warning.
-* Names must be unique across the whole build, ignoring case. A duplicate is an error that gives both locations (file and line).
+* Names must be unique across the whole build, ignoring case. A duplicate is an error that gives both locations (file and line). This covers policies and initiatives together ([ADR-0033](0033-initiatives.md)).
 * `Build-Bylaw` compiles every file and reports **all** errors before failing, not just the first. It writes no output at all if any file fails, so a broken build never leaves partial output.
 
 ### `Build-Bylaw` parameters
@@ -32,6 +32,8 @@ Chosen option: "Recursive discovery of `*.bylaw.ps1`".
 |---|---|
 | `-Path` | Source files or folders. Defaults to the current folder. |
 | `-OutputPath` | Output folder. Required unless `-PassThru` is used alone. |
+| `-InitiativeOutputPath` | Output folder for initiatives, defaulting to `-OutputPath` (ADR-0035). |
+| `-DefinitionScope` | The scope the build's policies are deployed at, for plain JSON initiatives (ADR-0035). |
 | `-Format` | `Epac` (the default, ADR-0011) or `PlainJson` (ADR-0027). |
 | `-PassThru` | Returns one result object per policy: `Name`, `SourceFile`, `SourceLine`, `OutputFile`, `Json`, `Warnings`. |
 | `-Settings` | An explicit path to `bylaw.json` (ADR-0012). |

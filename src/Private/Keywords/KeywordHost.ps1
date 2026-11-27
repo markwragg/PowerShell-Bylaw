@@ -12,7 +12,7 @@ $script:BylawKeywordNames = @(
     'Properties', 'Parameter', 'Resource', 'When', 'Require', 'Each', 'AnyOf', 'AllOf',
     'Field', 'Element', 'Tag', 'ResourceGroupTag', 'Must', 'Effect', 'Param', 'Arm',
     'Modify', 'AddOrReplace', 'Add', 'Remove', 'DenyAction', 'Manual', 'Append', 'AuditIfNotExists',
-    'DeployIfNotExists', 'Deployment', 'Count', 'Current'
+    'DeployIfNotExists', 'Deployment', 'Count', 'Current', 'PolicyDefinition', 'DefinitionGroup'
 )
 
 # Keywords that set the effect. A policy has exactly one (ADR-0017).
@@ -46,12 +46,17 @@ function Reset-BylawFrontEnd {
     param()
 
     $script:BylawCollectedPolicies = [System.Collections.Generic.List[object]]::new()
+    $script:BylawCollectedInitiatives = [System.Collections.Generic.List[object]]::new()
     $script:BylawDiagnostics = [System.Collections.Generic.List[object]]::new()
     $script:BylawFrames = [System.Collections.Generic.List[object]]::new()
 }
 
 function Get-BylawCollectedPolicy {
     $script:BylawCollectedPolicies.ToArray()
+}
+
+function Get-BylawCollectedInitiative {
+    $script:BylawCollectedInitiatives.ToArray()
 }
 
 function Get-BylawFrontEndDiagnostic {

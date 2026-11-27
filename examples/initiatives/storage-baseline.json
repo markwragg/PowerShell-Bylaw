@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-set-definition-schema.json",
+  "name": "storage-baseline",
+  "properties": {
+    "displayName": "Storage account baseline",
+    "policyType": "Custom",
+    "description": "Storage accounts are private, use TLS 1.2 or later, and require secure transfer.",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Storage"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      },
+      "allowedTlsVersions": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed TLS versions"
+        },
+        "allowedValues": [
+          "TLS1_2",
+          "TLS1_3"
+        ],
+        "defaultValue": [
+          "TLS1_2",
+          "TLS1_3"
+        ]
+      }
+    },
+    "policyDefinitions": [
+      {
+        "policyDefinitionReferenceId": "storage-deny-public-network-access",
+        "policyDefinitionName": "storage-deny-public-network-access",
+        "parameters": {
+          "effect": {
+            "value": "[parameters('effect')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionReferenceId": "storage-require-secure-transfer",
+        "policyDefinitionName": "storage-require-secure-transfer",
+        "parameters": {
+          "effect": {
+            "value": "[parameters('effect')]"
+          },
+          "allowedTlsVersions": {
+            "value": "[parameters('allowedTlsVersions')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionReferenceId": "storage-append-secure-transfer",
+        "policyDefinitionName": "storage-append-secure-transfer"
+      }
+    ]
+  }
+}

@@ -424,3 +424,111 @@ Describe 'Build-Bylaw settings and aliases' {
         ($result.Warnings -join "`n") | Should -BeLike '*BYL2006*'
     }
 }
+
+Describe 'Build-Bylaw initiatives (ADR-0035)' {
+    BeforeAll {
+        $script:InitiativeText = @'
+Initiative 'storage-baseline' {
+    Properties @{ DisplayName = 'Storage baseline'; Category = 'Storage'; Version = '1.0.0' }
+    PolicyDefinition 'test-policy'
+}
+'@
+        $script:Scope = '/providers/Microsoft.Management/managementGroups/contoso'
+    }
+
+    It 'writes initiatives beside policies by default, mirroring the source folders' {
+        $project = New-TestProject @{ 'src/storage/a.bylaw.ps1' = (Get-TestPolicyText) + "`n" + $InitiativeText }
+        $out = Join-Path $project 'out'
+        $results = @(Build-Bylaw -Path (Join-Path $project 'src') -OutputPath $out -PassThru)
+        $results.Kind | Should -Be @('Policy', 'Initiative')
+        $results.Name | Should -Be @('test-policy', 'storage-baseline')
+        Test-Path -LiteralPath (Join-Path $out 'storage/storage-baseline.json') | Should -BeTrue
+        $results[1].OutputFile | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $out 'storage/storage-baseline.json')))
+        $results[1].Json | Should -BeLike '*"policyDefinitionName": "test-policy"*'
+    }
+
+    It 'writes initiatives to <Source>' -ForEach @(
+        @{ Source = '-InitiativeOutputPath' }
+        @{ Source = 'initiativeOutputPath in bylaw.json' }
+    ) {
+        $files = @{ 'a.bylaw.ps1' = (Get-TestPolicyText) + "`n" + $InitiativeText }
+        if ($Source -like '*bylaw.json') {
+            $files['bylaw.json'] = '{ "initiativeOutputPath": "Definitions/policySetDefinitions" }'
+        }
+        $project = New-TestProject $files
+        $arguments = @{ Path = $project; OutputPath = (Join-Path $project 'Definitions/policyDefinitions') }
+        if ($Source -eq '-InitiativeOutputPath') {
+            $arguments.InitiativeOutputPath = Join-Path $project 'Definitions/policySetDefinitions'
+        }
+        $null = Build-Bylaw @arguments
+        Test-Path -LiteralPath (Join-Path $project 'Definitions/policyDefinitions/test-policy.json') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $project 'Definitions/policySetDefinitions/storage-baseline.json') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $project 'Definitions/policyDefinitions/storage-baseline.json') | Should -BeFalse
+    }
+
+    It 'warns about stale files in both output folders' {
+        $project = New-TestProject @{
+            'a.bylaw.ps1'                          = (Get-TestPolicyText) + "`n" + $InitiativeText
+            'policies/old-policy.json'             = '{}'
+            'initiatives/nested/old-initiative.json' = '{}'
+        }
+        $null = Build-Bylaw -Path $project -OutputPath (Join-Path $project 'policies') -InitiativeOutputPath (Join-Path $project 'initiatives') -WarningVariable warnings -WarningAction SilentlyContinue
+        $text = $warnings -join "`n"
+        $text | Should -BeLike '*old-policy.json BYL5030*'
+        $text | Should -BeLike '*old-initiative.json BYL5030*'
+        @($warnings | Where-Object { "$_" -like '*storage-baseline.json*' }).Count | Should -Be 0
+    }
+
+    It 'reports a policy and an initiative with the same name, ignoring case (BYL5020)' {
+        $project = New-TestProject @{
+            'a.bylaw.ps1' = Get-TestPolicyText -Name 'storage-baseline'
+            'b.bylaw.ps1' = $InitiativeText.Replace("PolicyDefinition 'test-policy'", "PolicyDefinition 'storage-baseline'").Replace("'storage-baseline' {", "'Storage-Baseline' {")
+        }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru }
+        $diagnostic = $record.Exception.Diagnostics | Where-Object Code -EQ 'BYL5020'
+        $diagnostic.Message | Should -BeLike "Initiative name 'Storage-Baseline' is already used by the policy at *a.bylaw.ps1:2*"
+    }
+
+    It 'gives plain JSON members from the build an ID at <Source>' -ForEach @(
+        @{ Source = '-DefinitionScope' }
+        @{ Source = 'definitionScope in bylaw.json' }
+    ) {
+        $files = @{ 'a.bylaw.ps1' = (Get-TestPolicyText) + "`n" + $InitiativeText }
+        $arguments = @{ PassThru = $true; Format = 'PlainJson' }
+        if ($Source -eq '-DefinitionScope') {
+            $arguments.DefinitionScope = $Scope
+        }
+        else {
+            $files['bylaw.json'] = "{ ""definitionScope"": ""$Scope"" }"
+        }
+        $project = New-TestProject $files
+        $result = Build-Bylaw -Path $project @arguments | Where-Object Kind -EQ 'Initiative'
+        $result.Json | Should -BeLike "*""policyDefinitionId"": ""$Scope/providers/Microsoft.Authorization/policyDefinitions/test-policy""*"
+    }
+
+    It 'fails plain JSON with a member from the build and no definition scope (BYL4012)' {
+        $project = New-TestProject @{ 'a.bylaw.ps1' = (Get-TestPolicyText) + "`n" + $InitiativeText }
+        $record = Get-BuildError { Build-Bylaw -Path $project -PassThru -Format PlainJson }
+        @($record.Exception.Diagnostics.Code) | Should -Be @('BYL4012')
+    }
+
+    It 'rejects a -DefinitionScope that is not a management group or subscription (BYL5006)' {
+        $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText }
+        { Build-Bylaw -Path $project -PassThru -DefinitionScope '/subscriptions/x/resourceGroups/rg' } | Should -Throw '*BYL5006*'
+    }
+
+    It 'reports an initiative''s errors with its file and line, and writes nothing' {
+        $project = New-TestProject @{ 'a.bylaw.ps1' = (Get-TestPolicyText) + "`n" + $InitiativeText.Replace("PolicyDefinition 'test-policy'", "PolicyDefinition 'test-policy' -Group Missing") }
+        $out = Join-Path $project 'out'
+        $record = Get-BuildError { Build-Bylaw -Path $project -OutputPath $out }
+        @($record.Exception.Diagnostics.Code) | Should -Be @('BYL3113')
+        $record.ErrorDetails.Message | Should -BeLike '*a.bylaw.ps1:11 `[PolicyDefinition`] BYL3113*'
+        Test-Path -LiteralPath $out | Should -BeFalse
+    }
+
+    It 'does not warn about a file with only initiatives' {
+        $project = New-TestProject @{ 'a.bylaw.ps1' = Get-TestPolicyText; 'b.bylaw.ps1' = $InitiativeText }
+        $null = Build-Bylaw -Path $project -PassThru -WarningVariable warnings -WarningAction SilentlyContinue
+        ($warnings -join "`n") | Should -Not -BeLike '*BYL5021*'
+    }
+}

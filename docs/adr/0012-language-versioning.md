@@ -41,7 +41,7 @@ Chosen option: "`languageVersion` in `bylaw.json`", defaulting to `1.0` when the
 
 ### Before the first public release
 
-These rules protect published users, and there are none yet. Until Bylaw is first released publicly, language version `1.0` stays open: new keywords and changes to output are added to `1.0` directly, and golden files are regenerated. From the first public release, `1.0` is frozen and the rules above apply. Milestone 2 (`Modify`, `Tag`, `ResourceGroupTag`, value conditions, `AnyOf` and `AllOf`) is part of `1.0` on this basis.
+These rules protect published users, and there are none yet. Until Bylaw is first released publicly, language version `1.0` stays open: new keywords and changes to output are added to `1.0` directly, and golden files are regenerated. From the first public release, `1.0` is frozen and the rules above apply. Everything added so far, such as `Modify`, the other effects, `Count` and initiatives, is part of `1.0` on this basis.
 
 ### Consequences
 

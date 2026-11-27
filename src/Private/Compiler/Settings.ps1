@@ -1,13 +1,17 @@
 # bylaw.json project settings (ADR-0012).
 #
-#   { "languageVersion": "1.0", "aliasCache": "./aliases.json", "roleCache": "./roles.json" }
+#   { "languageVersion": "1.0", "aliasCache": "./aliases.json", "roleCache": "./roles.json",
+#     "initiativeOutputPath": "./Definitions/policySetDefinitions",
+#     "definitionScope": "/providers/Microsoft.Management/managementGroups/contoso" }
 #
 # Found with -Settings, else by searching upward from the build path, stopping at the first folder
-# that contains .git, or at the filesystem root. aliasCache and roleCache are relative to the
-# settings file.
+# that contains .git, or at the filesystem root. aliasCache, roleCache and initiativeOutputPath are
+# relative to the settings file.
 
 $script:BylawSettingsFileName = 'bylaw.json'
-$script:BylawSettingsKeys = @('languageVersion', 'aliasCache', 'roleCache')
+$script:BylawSettingsKeys = @('languageVersion', 'aliasCache', 'roleCache', 'initiativeOutputPath', 'definitionScope')
+# The scope the build's policies are deployed at: a management group or a subscription (ADR-0035).
+$script:BylawDefinitionScopePattern = '^(/providers/Microsoft\.Management/managementGroups/[^/]+|/subscriptions/[^/]+)$'
 $script:BylawSupportedLanguageVersions = @('1.0')
 
 function Find-BylawSettingsFile {
@@ -36,12 +40,13 @@ function Find-BylawSettingsFile {
 
 function Read-BylawSettingsFile {
     # Settings from a bylaw.json path, or the defaults when Path is empty.
-    # Returns @{ Settings = @{ Path; LanguageVersion; AliasCache; RoleCache }; Diagnostics = @(...) }.
+    # Returns @{ Settings = @{ Path; LanguageVersion; AliasCache; RoleCache; InitiativeOutputPath;
+    # DefinitionScope }; Diagnostics = @(...) }.
     [CmdletBinding()]
     [OutputType([hashtable])]
     param([string] $Path)
 
-    $settings = @{ Path = $null; LanguageVersion = '1.0'; AliasCache = $null; RoleCache = $null }
+    $settings = @{ Path = $null; LanguageVersion = '1.0'; AliasCache = $null; RoleCache = $null; InitiativeOutputPath = $null; DefinitionScope = $null }
     $diagnostics = [System.Collections.Generic.List[object]]::new()
     $result = @{ Settings = $settings; Diagnostics = $diagnostics }
     if (-not $Path) {
@@ -94,6 +99,7 @@ function Read-BylawSettingsFile {
     foreach ($entry in @(
             @{ Key = 'aliasCache'; Setting = 'AliasCache'; What = 'an alias snapshot file' }
             @{ Key = 'roleCache'; Setting = 'RoleCache'; What = 'a role map file' }
+            @{ Key = 'initiativeOutputPath'; Setting = 'InitiativeOutputPath'; What = 'the folder to write initiatives to' }
         )) {
         if (-not $data.Contains($entry.Key)) {
             continue
@@ -106,5 +112,27 @@ function Read-BylawSettingsFile {
             $settings[$entry.Setting] = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($fullPath), $value))
         }
     }
+
+    if ($data.Contains('definitionScope')) {
+        $scope = $data['definitionScope']
+        $problem = Get-BylawDefinitionScopeProblem -Scope $scope
+        if ($problem) {
+            & $add 'BYL5006' "definitionScope $problem"
+        }
+        else {
+            $settings.DefinitionScope = $scope
+        }
+    }
     $result
+}
+
+function Get-BylawDefinitionScopeProblem {
+    # Why a definition scope isn't valid, or $null (ADR-0035).
+    [OutputType([string])]
+    param([AllowNull()] [object] $Scope)
+
+    if ($Scope -is [string] -and $Scope -match $script:BylawDefinitionScopePattern) {
+        return $null
+    }
+    "'$Scope' must be a management group or subscription ID: /providers/Microsoft.Management/managementGroups/<id> or /subscriptions/<id>."
 }

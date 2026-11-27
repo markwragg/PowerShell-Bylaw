@@ -1,23 +1,23 @@
 {
   "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
-  "name": "golden-count-mandatory-tags",
+  "name": "golden-count-name-patterns",
   "properties": {
-    "displayName": "Golden: resources have every mandatory tag",
+    "displayName": "Golden: resource names match an allowed pattern",
     "policyType": "Custom",
     "mode": "Indexed",
     "metadata": {
       "version": "1.0.0",
-      "category": "Tags"
+      "category": "General"
     },
     "parameters": {
-      "mandatoryTags": {
+      "namePatterns": {
         "type": "Array",
         "metadata": {
-          "displayName": "Mandatory tags"
+          "displayName": "Name patterns"
         },
         "defaultValue": [
-          "CostCenter",
-          "Owner"
+          "rg-*",
+          "st*"
         ]
       },
       "effect": {
@@ -37,14 +37,14 @@
     "policyRule": {
       "if": {
         "count": {
-          "value": "[parameters('mandatoryTags')]",
-          "name": "tagName",
+          "value": "[parameters('namePatterns')]",
+          "name": "pattern",
           "where": {
-            "field": "[concat('tags[', current('tagName'), ']')]",
-            "exists": true
+            "field": "name",
+            "like": "[current('pattern')]"
           }
         },
-        "notEquals": "[length(parameters('mandatoryTags'))]"
+        "lessOrEquals": 0
       },
       "then": {
         "effect": "[parameters('effect')]"

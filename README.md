@@ -1,6 +1,11 @@
 # Bylaw
 
 [![CI](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml/badge.svg)](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml)
+![coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)
+[![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/bylaw?label=PS%20Gallery)](https://www.powershellgallery.com/packages/bylaw)
+[![PowerShell Gallery Downloads](https://img.shields.io/powershellgallery/dt/bylaw?color=D3D3D3)](https://www.powershellgallery.com/packages/bylaw)
+
+[<img src="bylaw-logo.png" align="right" width="100">](https://www.powershellgallery.com/packages/bylaw)
 
 Bylaw is a PowerShell module for writing Azure Policy in a Pester-style language. You describe what a *compliant* resource looks like, and Bylaw compiles that into Azure Policy definition JSON, in the [Enterprise Policy as Code (EPAC)](https://github.com/Azure/enterprise-azure-policy-as-code) format or as plain definitions for other tools.
 
@@ -20,6 +25,7 @@ What it gives you over writing the JSON by hand:
 - **Related resources written the same way.** For `AuditIfNotExists` and `DeployIfNotExists`, you describe the related resource's compliant state with `Require`, and its field names are checked against its own type.
 - **Less boilerplate.** Effect parameters and their metadata are generated, and role names become role definition IDs.
 - **Remediation checked against the rule.** `Modify` and `Append` operations sit beside the requirements they fix, and the build warns when an operation changes a field no requirement checks. Deployment templates are checked against the parameters passed to them.
+- **Initiatives checked against their policies.** An initiative names the policies it includes, and the build checks that they exist and that the values passed to them fit their parameters.
 - **Deterministic output.** The same input always produces byte-identical files, so diffs show only real changes.
 
 Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes policy definition files.
@@ -29,7 +35,7 @@ Bylaw only compiles. Deploy the output with EPAC, or any other tool that takes p
 
 ## Status
 
-Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. It has the compiler core (the language below, alias validation, EPAC and plain JSON output) and covers every Azure Policy effect: `Audit`, `Deny`, `Disabled`, `Modify`, `Append`, `DenyAction`, `Manual`, `AuditIfNotExists` and `DeployIfNotExists`, with `Count` for field and value counts. Next are initiatives, then a decompiler that turns existing policy JSON into Bylaw files.
+Bylaw is at version 0.1.0 and is not yet on the PowerShell Gallery. It has the compiler core (the language below, alias validation, EPAC and plain JSON output) and covers every Azure Policy effect: `Audit`, `Deny`, `Disabled`, `Modify`, `Append`, `DenyAction`, `Manual`, `AuditIfNotExists` and `DeployIfNotExists`, with `Count` for field and value counts. It also builds initiatives, checking each member against the policies it includes. Next is a decompiler that turns existing policy JSON into Bylaw files.
 
 ## Install
 
@@ -229,7 +235,7 @@ What the compiler did:
 - Short field names became full aliases. `kind` and `type` are standard fields, so they stay as written.
 - `When` narrows the resources the policy applies to. It is not inverted.
 
-[examples/](examples/README.md) has eighteen more policies, each with the JSON it compiles to: tag inheritance with `Modify`, every other effect, counts, and one that uses a PowerShell loop to generate its requirements.
+[examples/](examples/README.md) has eighteen more policies and two initiatives, each with the JSON it compiles to: tag inheritance with `Modify`, every other effect, counts, initiatives built from those policies, and one that uses a PowerShell loop to generate its requirements.
 
 ## Writing policies
 
@@ -239,7 +245,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 |---|---|
 | `Policy 'name' { }` | One policy definition. The name becomes the definition's `name` and its file name, so renaming it creates a new definition. Any name Azure accepts that is also a safe file name works, such as `Deny-Storage-minTLS` (ADR-0010); lowercase with hyphens is the suggested style for new policies. Names are unique across a build, ignoring case. |
 | `Properties @{ }` | `DisplayName`, `Description`, `Category`, `Version`, `Mode`, `Preview`, `Deprecated`, `Metadata`. EPAC output needs `Category` and `Version`. `Mode` is `All` (the default) or `Indexed`. Unknown keys fail the build. |
-| `Parameter Name` | A policy parameter, with `-Type`, `-AllowedValues`, `-Default`, `-DisplayName`, `-Description`. `AllowedLocations` is emitted as `allowedLocations`. |
+| `Parameter Name` | A policy parameter, with `-Type`, `-AllowedValues`, `-Default`, `-DisplayName`, `-Description`, `-JsonName`, `-Metadata`. `AllowedLocations` is emitted as `allowedLocations`. For a long declaration, give the options as a hashtable after the name, one per line: `Parameter AllowedLocations @{ Type = 'Array'; Default = 'uksouth' }`. See [Parameters](#parameters). |
 | `Resource 'type' { }` | The resource type the rule applies to, and the type short field names resolve against. `Resource *` applies to every type; use standard fields such as `location`, or full aliases. |
 | `When { }` | Conditions that decide whether the policy applies. Written and emitted as is. |
 | `Require 'description' { }` | A requirement a compliant resource meets. All `Require` blocks must hold, and so must all `Must` statements inside one. |
@@ -248,7 +254,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `AllOf { }` | Inside `AnyOf`, one alternative made of several statements that must all hold. |
 | `Field name` | A field: a short name, a standard field (`name`, `type`, `location`, `tags`, ...), or a full alias. `-AllowUnknownAlias` accepts an alias missing from the snapshot. |
 | `Element` | The element itself, inside `Each` over an array of plain values, or in a field count's `-Where`. |
-| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter, and `Tag (Current name)` from a value count. |
+| `Tag name` | A tag field, `tags['name']`. `Tag (Param TagName)` takes the name from a parameter. |
 | `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
 | `Count path[*]`, `Count -Value list` | The number of array elements, or list members, that match `-Where`, piped to `Must`. See [Counts](#counts). |
 | `Current [name]` | Inside `Count -Where`: the element or member being counted. |
@@ -264,7 +270,10 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `AuditIfNotExists -Type ... { }` | The `auditIfNotExists` effect: audits a resource with no related resource in the compliant state. See [Related resources](#related-resources-auditifnotexists-and-deployifnotexists). |
 | `DeployIfNotExists -Type ... -Role ... { }` | The `deployIfNotExists` effect: the same, and deploys a template to fix it. |
 | `Deployment` | Inside `DeployIfNotExists`: the template to deploy, and the values passed to it. |
-| `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
+| `Initiative 'name' { }` | An initiative (policy set definition), alongside `Policy`. It takes `Properties`, `Parameter`, `PolicyDefinition` and `DefinitionGroup`. See [Initiatives](#initiatives). |
+| `PolicyDefinition 'name'`, `PolicyDefinition -Id ...` | Inside `Initiative`: a policy it includes, from this build by name, or any definition by ID. |
+| `DefinitionGroup 'name'` | Inside `Initiative`: a policy definition group, such as a regulatory compliance control. |
+| `Param Name` | A parameter's value, for example `Must -BeIn (Param AllowedLocations)`. `Param Name -Length` is the number of members of an `Array` parameter (or characters of a `String`), `[length(parameters('name'))]`. Write `Param Name` or `(Param Name)`, not `Param(Name)`: at the start of a block, PowerShell reads `param(` as a parameter declaration. |
 | `Arm '[...]'` | A raw ARM template expression, for anything else. |
 
 `Each` over objects uses the element's fields. Over plain values, it uses `Element`:
@@ -293,7 +302,24 @@ Require 'No rule allows inbound traffic from the internet' {
 }
 ```
 
-Keywords other than `Policy` exist only inside a `Policy` block, so they don't clash with commands of the same name, and calling them elsewhere gives a clear error. `Must` was chosen over `Should` so Bylaw and Pester can be used in the same session.
+Keywords other than `Policy` and `Initiative` exist only inside those blocks, so they don't clash with commands of the same name, and calling them elsewhere gives a clear error. `Must` was chosen over `Should` so Bylaw and Pester can be used in the same session.
+
+### Parameters
+
+A parameter with one or two options fits on one line. When it has more, give them as a hashtable after the name, one option per line. Bylaw files don't use backtick line continuation.
+
+```powershell
+Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Deny
+
+Parameter AllowedValues @{
+    Type        = 'Array'
+    Default     = 'Public', 'Private', 'Confidential', 'Restricted'
+    DisplayName = 'Allowed values'
+    Description = 'Allowed classifications'
+}
+```
+
+The keys are the option names: `Type`, `AllowedValues`, `Default`, `DisplayName`, `Description`, `JsonName` and `Metadata`. An unknown key fails the build, and so does mixing the hashtable with `-Type` and the other options. The name can also go inside the hashtable as `Name`, as in `Parameter @{ Name = 'AllowedValues'; ... }`. When `Type` is left out, it is inferred from `Default` or `AllowedValues`.
 
 ## Operators
 
@@ -379,10 +405,22 @@ Require 'Few rules allow inbound traffic' {
 - **A value count** counts the members of a list: a literal array, `Param` or `Arm`. `Current` is the member being counted, and `-Name` gives it a name, which nested counts need:
 
   ```powershell
-  Require 'Every mandatory tag is set' {
-      Count -Value (Param MandatoryTags) -Name tagName -Where {
-          Tag (Current tagName) | Must -Exist
-      } | Must -Be (Arm "[length(parameters('mandatoryTags'))]")
+  Require 'The name matches an allowed pattern' {
+      Count -Value (Param NamePatterns) -Name pattern -Where {
+          Field name | Must -BeLike (Current pattern)
+      } | Must -BeGreaterThan 0
+  }
+  ```
+
+  `Current` can't name a tag: `Tag (Current tagName)` is a compile error (BYL1059), because Azure rejects a field named with `current()`.
+
+- **To compare with the length of a list**, use `Param Name -Length`. Here every pattern must match, not just one:
+
+  ```powershell
+  Require 'The name matches every pattern' {
+      Count -Value (Param NamePatterns) -Name pattern -Where {
+          Field name | Must -BeLike (Current pattern)
+      } | Must -Be (Param NamePatterns -Length)
   }
   ```
 
@@ -536,20 +574,75 @@ DeployIfNotExists -Type 'Microsoft.Insights/diagnosticSettings' -Role 'Contribut
 - **`-Scope Subscription`** deploys at subscription scope, and needs `-Location`. The deployment mode is always incremental.
 - The effect parameter may allow `DeployIfNotExists`, `AuditIfNotExists` and `Disabled`. Without `-Effect`, EPAC output gets a generated parameter allowing `DeployIfNotExists` and `Disabled`.
 
+## Initiatives
+
+An initiative groups policies so they're assigned together, and passes its own parameters to theirs. It sits beside policies, in the same or other files, and includes them by name. Built-in policies are included by ID.
+
+```powershell
+Initiative 'tagging-baseline' {
+
+    Properties @{
+        DisplayName = 'Tagging baseline'
+        Category    = 'Tags'
+        Version     = '1.0.0'
+    }
+
+    Parameter RequiredTag @{ Default = 'CostCenter' }
+
+    PolicyDefinition 'general-require-tag' -Parameters @{
+        tagName = Param RequiredTag
+    }
+
+    # The same policy twice, with a reference ID for each.
+    PolicyDefinition 'tags-inherit-from-resource-group' -ReferenceId 'inherit-cost-center' -Parameters @{ tagName = 'CostCenter' }
+    PolicyDefinition 'tags-inherit-from-resource-group' -ReferenceId 'inherit-owner' -Parameters @{ tagName = 'Owner' }
+
+    # A built-in policy, by its GUID.
+    PolicyDefinition -Id 96670d01-0a4d-4649-9c89-2d3abc0a5025 -ReferenceId 'require-environment' -Parameters @{
+        tagName = 'Environment'
+    }
+}
+```
+
+- **`PolicyDefinition`** takes `-ReferenceId` (the member's `policyDefinitionReferenceId`, defaulting to the policy name and required with `-Id`), `-Parameters`, `-Version` (a `definitionVersion` such as `1.*.*`) and `-Group`. Values passed are literals, `Param` (an initiative parameter), `Arm` or `ResourceGroupTag`.
+- **`DefinitionGroup 'name'`** declares a group, with `-DisplayName`, `-Category`, `-Description` and `-AdditionalMetadataId`. Members join it with `-Group`. EPAC's schema only allows a group's name and `-AdditionalMetadataId`, so the other options are an EPAC error.
+- **Checked when the build runs:** once every file has compiled, each member from the build is checked against the policy it names. The policy must exist, every value must go to one of its parameters, every parameter without a default must be given one, and values must fit the parameter's type and allowed values. An initiative parameter passed to a policy can't allow values the policy doesn't. The checks use the parameters each format emits, so in EPAC output you can pass `effect` to a policy with a literal effect, whose generated parameter has a default.
+- **`-Id`** takes a definition ID, or a built-in policy's GUID on its own, which is short for `/providers/Microsoft.Authorization/policyDefinitions/<guid>`. When a member's arguments make a long line, splat them from a hashtable, without backticks:
+
+  ```powershell
+  $requireEnvironment = @{
+      Id          = '96670d01-0a4d-4649-9c89-2d3abc0a5025'
+      ReferenceId = 'require-environment'
+      Version     = '1.*.*'
+      Parameters  = @{ tagName = 'Environment' }
+  }
+  PolicyDefinition @requireEnvironment
+  ```
+
+- **Not checked:** members by `-Id`. Bylaw has no copy of the built-in definitions, so only the shape of the ID is checked.
+- **`-Version`** on a member from the build must match the policy's `Version`. Azure matches it against a definition's top-level `version`, which Bylaw doesn't emit while custom versioning is in preview, so the build warns that the pin may not select the version you expect.
+- **Output:** EPAC initiatives reference members from the build by `policyDefinitionName`, as EPAC requires, and anything else by `policyDefinitionId`. Plain JSON needs a full ID for every member, so set the scope the build's policies are deployed at with `-DefinitionScope` or `definitionScope` in `bylaw.json`. Initiatives are written to `-InitiativeOutputPath`, which defaults to `-OutputPath`. For EPAC, use its two folders:
+
+  ```powershell
+  Build-Bylaw ./policies -OutputPath ./Definitions/policyDefinitions -InitiativeOutputPath ./Definitions/policySetDefinitions
+  ```
+
 ## Building
 
 ```powershell
-Build-Bylaw [[-Path] <string[]>] [[-OutputPath] <string>] [-Format <Epac|PlainJson>] [-PassThru]
+Build-Bylaw [[-Path] <string[]>] [[-OutputPath] <string>] [-InitiativeOutputPath <string>]
+            [-Format <Epac|PlainJson>] [-DefinitionScope <string>] [-PassThru]
             [-Settings <string>] [-AliasCachePath <string>] [-RoleCachePath <string>]
             [-AllowUnknownAlias] [-ThrottleLimit <int>] [-WhatIf]
 ```
 
 - **Formats:** `Epac`, the default, writes EPAC policy definition files with a `$schema`, and generates what EPAC requires: an `effect` parameter for a literal effect, and parameter display names. EPAC also needs `Category` and `Version` in `Properties`. `PlainJson` writes `{ "name", "properties" }`, the layout Azure publishes built-in definitions in, for `New-AzPolicyDefinition`, the Azure CLI, Bicep or Terraform. It emits the policy as written: a literal effect stays literal, nothing is generated, and `Category` and `Version` are optional. The policy rule is the same in both.
-- **Output layout:** one file per policy, named after the policy, in a folder structure that mirrors the sources. Files whose content hasn't changed aren't rewritten.
+- **Output layout:** one file per policy or initiative, named after it, in a folder structure that mirrors the sources. Initiatives go to `-InitiativeOutputPath` when it is set. Files whose content hasn't changed aren't rewritten.
 - **All or nothing:** every file is compiled and every error reported. If anything fails, nothing is written.
-- **No deletion:** Bylaw never deletes output. It warns about JSON files in the output folder that the build didn't produce, so you can remove policies you've deleted. Deployment template files are inputs, so they're never reported.
+- **No deletion:** Bylaw never deletes output. It warns about JSON files in the output folders that the build didn't produce, so you can remove policies and initiatives you've deleted. Deployment template files are inputs, so they're never reported.
 - **Isolation:** each file is compiled in a fresh runspace, so variables and functions can't leak between files. Several files compile at once; `-ThrottleLimit` sets how many, and `-ThrottleLimit 1` compiles one at a time. Files that change environment variables or other process-wide state should be built with `-ThrottleLimit 1`.
-- **Unique names:** policy names must be unique across a build, ignoring case.
+- **Unique names:** policy and initiative names must be unique across a build, ignoring case.
+- **`-PassThru`** returns a result for each policy and initiative, with its `Kind`, `Name`, source, output file, JSON and warnings.
 
 ### Aliases
 
@@ -584,11 +677,13 @@ An optional settings file. Bylaw looks for it from `-Path` upwards, stopping at 
 {
   "languageVersion": "1.0",
   "aliasCache": "./aliases.json",
-  "roleCache": "./roles.json"
+  "roleCache": "./roles.json",
+  "initiativeOutputPath": "./Definitions/policySetDefinitions",
+  "definitionScope": "/providers/Microsoft.Management/managementGroups/contoso"
 }
 ```
 
-`languageVersion` pins the language's behaviour, so upgrading Bylaw never changes the output of existing policies by surprise. It defaults to `1.0`. Unknown keys fail the build.
+`languageVersion` pins the language's behaviour, so upgrading Bylaw never changes the output of existing policies by surprise. It defaults to `1.0`. Paths are relative to `bylaw.json`. `definitionScope` is a management group or subscription ID. Command-line parameters take precedence over these settings, and unknown keys fail the build.
 
 ## Development
 

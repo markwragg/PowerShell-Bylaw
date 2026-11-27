@@ -8,7 +8,7 @@
 
 # Runs in the new runspace. The file is invoked from outside the module, as an author would run it.
 $script:BylawFileRunnerScript = @'
-param($ModuleManifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)
+param($ModuleManifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format, $DefinitionScope)
 Set-Location -LiteralPath ([System.IO.Path]::GetDirectoryName($File))
 $module = Import-Module -Name $ModuleManifest -PassThru -Force -ErrorAction Stop
 & $module { Reset-BylawFrontEnd }
@@ -20,9 +20,9 @@ catch {
     $thrown = $_
 }
 & $module {
-    param($File, $Thrown, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)
-    Invoke-BylawFileCompile -File $File -Thrown $Thrown -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format
-} $File $thrown $SnapshotData $RoleData $AllowUnknownAlias $Format
+    param($File, $Thrown, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format, $DefinitionScope)
+    Invoke-BylawFileCompile -File $File -Thrown $Thrown -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format -DefinitionScope $DefinitionScope
+} $File $thrown $SnapshotData $RoleData $AllowUnknownAlias $Format $DefinitionScope
 '@
 
 function Get-BylawDefaultThrottleLimit {
@@ -45,6 +45,8 @@ function Invoke-BylawFileInRunspace {
         [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
         [string] $Format = 'Epac',
+        # The scope the build's policies are deployed at, for plain JSON initiatives (ADR-0035).
+        [string] $DefinitionScope,
         [ValidateRange(1, 64)] [int] $ThrottleLimit = 1
     )
 
@@ -57,7 +59,7 @@ function Invoke-BylawFileInRunspace {
     try {
         while ($next -lt $File.Count -or $running.Count -gt 0) {
             while ($running.Count -lt $ThrottleLimit -and $next -lt $File.Count) {
-                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format))
+                $running.Add((Start-BylawFileJob -Index $next -File $File[$next] -Manifest $manifest -ExecutionPolicy $executionPolicy -SnapshotData $SnapshotData -RoleData $RoleData -AllowUnknownAlias $AllowUnknownAlias -Format $Format -DefinitionScope $DefinitionScope))
                 $next++
             }
             # Wait in short slices so Ctrl+C can stop the build.
@@ -95,7 +97,8 @@ function Start-BylawFileJob {
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
         [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
-        [string] $Format
+        [string] $Format,
+        [string] $DefinitionScope
     )
 
     $initialState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault2()
@@ -109,7 +112,7 @@ function Start-BylawFileJob {
         $shell = [powershell]::Create()
         $shell.Runspace = $runspace
         $null = $shell.AddScript($script:BylawFileRunnerScript)
-        foreach ($argument in @($Manifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format)) {
+        foreach ($argument in @($Manifest, $File, $SnapshotData, $RoleData, $AllowUnknownAlias, $Format, $DefinitionScope)) {
             $null = $shell.AddArgument($argument)
         }
         $async = $shell.BeginInvoke()
@@ -143,6 +146,7 @@ function Complete-BylawFileJob {
 
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $policies = @()
+        $initiatives = @()
         if ($null -ne $output) {
             foreach ($plain in $output.Diagnostics) {
                 $diagnostics.Add((ConvertFrom-BylawPlainDiagnostic -Plain $plain))
@@ -153,7 +157,19 @@ function Complete-BylawFileJob {
                         Line        = $policy.Line
                         Text        = $policy.Text
                         Inputs      = @($policy.Inputs)
+                        Version     = $policy.Version
+                        Parameters  = @($policy.Parameters)
                         Diagnostics = @($policy.Diagnostics | ForEach-Object { ConvertFrom-BylawPlainDiagnostic -Plain $_ })
+                    }
+                })
+            $initiatives = @(foreach ($initiative in $output.Initiatives) {
+                    [pscustomobject]@{
+                        Name        = $initiative.Name
+                        Line        = $initiative.Line
+                        Text        = $initiative.Text
+                        Parameters  = @($initiative.Parameters)
+                        Members     = @($initiative.Members)
+                        Diagnostics = @($initiative.Diagnostics | ForEach-Object { ConvertFrom-BylawPlainDiagnostic -Plain $_ })
                     }
                 })
         }
@@ -166,6 +182,7 @@ function Complete-BylawFileJob {
         [pscustomobject]@{
             Diagnostics = $diagnostics.ToArray()
             Policies    = $policies
+            Initiatives = $initiatives
         }
     }
     finally {
@@ -184,7 +201,8 @@ function Invoke-BylawFileCompile {
         [Parameter(Mandatory)] [hashtable] $SnapshotData,
         [Parameter(Mandatory)] [hashtable] $RoleData,
         [bool] $AllowUnknownAlias,
-        [string] $Format = 'Epac'
+        [string] $Format = 'Epac',
+        [string] $DefinitionScope
     )
 
     # Read by the Modify checks (ADR-0022). One runspace compiles one file, so a module variable
@@ -212,6 +230,7 @@ function Invoke-BylawFileCompile {
     foreach ($policy in Get-BylawCollectedPolicy) {
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $text = $null
+        $parameters = @()
         # After a front-end error the IR may be incomplete, so compiling would only add noise.
         if (-not $frontEndFailed) {
             if ($null -eq $snapshot) {
@@ -226,6 +245,8 @@ function Invoke-BylawFileCompile {
                     $diagnostics.Add($diagnostic)
                 }
                 $text = $emitted.Text
+                # The parameters as emitted, for the checks of initiative members (ADR-0034).
+                $parameters = @(ConvertTo-BylawPlainParameterList -Document $emitted.Document)
             }
         }
         $policies.Add([pscustomobject]@{
@@ -234,6 +255,38 @@ function Invoke-BylawFileCompile {
                 Text        = $text
                 # Files the policy reads, such as a deployment template (ADR-0031). They are inputs, never stale output.
                 Inputs      = @(Get-BylawPolicyInputFile -Policy $policy)
+                Version     = if ($policy.Properties) { $policy.Properties.Version } else { $null }
+                Parameters  = $parameters
+                Diagnostics = @($diagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
+            })
+    }
+
+    # Initiatives are checked on their own and emitted here (ADR-0033, ADR-0035). The checks against
+    # the build's policies come after every file has compiled (ADR-0034).
+    $initiatives = [System.Collections.Generic.List[object]]::new()
+    foreach ($initiative in Get-BylawCollectedInitiative) {
+        $diagnostics = [System.Collections.Generic.List[object]]::new()
+        $text = $null
+        $parameters = @()
+        if (-not $frontEndFailed) {
+            foreach ($diagnostic in Invoke-BylawInitiativeValidation -Initiative $initiative) {
+                $diagnostics.Add($diagnostic)
+            }
+            if (@($diagnostics | Where-Object Severity -EQ ([BylawSeverity]::Error)).Count -eq 0) {
+                $emitted = Invoke-BylawInitiativeEmitter -Initiative $initiative -Format $Format -DefinitionScope $DefinitionScope
+                foreach ($diagnostic in $emitted.Diagnostics) {
+                    $diagnostics.Add($diagnostic)
+                }
+                $text = $emitted.Text
+                $parameters = @(ConvertTo-BylawPlainParameterList -Document $emitted.Document)
+            }
+        }
+        $initiatives.Add([pscustomobject]@{
+                Name        = $initiative.Name
+                Line        = if ($initiative.Location) { $initiative.Location.Line } else { 0 }
+                Text        = $text
+                Parameters  = $parameters
+                Members     = @(ConvertTo-BylawPlainMemberList -Initiative $initiative)
                 Diagnostics = @($diagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
             })
     }
@@ -241,6 +294,7 @@ function Invoke-BylawFileCompile {
     [pscustomobject]@{
         Diagnostics = @($fileDiagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
         Policies    = $policies.ToArray()
+        Initiatives = $initiatives.ToArray()
     }
 }
 
