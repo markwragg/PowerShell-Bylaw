@@ -96,3 +96,10 @@ jobs:
           $prerelease = if ($version.Contains('-')) { 'true' } else { 'false' }
           gh release create "v$version" $zip --target '${{ steps.commit.outputs.sha }}' --title "v$version" --notes-file out/release-notes.md "--prerelease=$prerelease"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Last, so a wiki problem never holds up a release (ADR-0037).
+      - name: Update the wiki
+        shell: pwsh
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: ./build/build.ps1 -Task UpdateWiki

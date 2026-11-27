@@ -10,6 +10,8 @@
       Analyze    Run PSScriptAnalyzer over src, tests and build with the repository settings.
       Test       Run the Pester suite. With -CI, writes NUnit results and fails the process on failure.
       Package    Produce out/Bylaw: the manifest, data files and a single merged Bylaw.psm1.
+      Docs       Generate the wiki pages into out/wiki: commands, keywords and the sidebar (ADR-0037).
+      UpdateWiki Generate the pages and push them to the GitHub wiki with $env:GH_PAT.
       UpdateCoverageBadge  Set README.md's coverage badge from out/coverage.xml, written by
                  Test -Coverage.
       Publish    If CHANGELOG.md has a '## !Deploy' line: set the version, package, publish to the
@@ -26,7 +28,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Parameters are used inside nested functions via script scope; PSSA does not track that.')]
 [CmdletBinding()]
 param(
-    [ValidateSet('Bootstrap', 'Analyze', 'Test', 'Package', 'UpdateGolden', 'UpdateCoverageBadge', 'Publish')]
+    [ValidateSet('Bootstrap', 'Analyze', 'Test', 'Package', 'UpdateGolden', 'UpdateCoverageBadge', 'Publish', 'Docs', 'UpdateWiki')]
     [string[]] $Task = @('Analyze', 'Test'),
 
     # Pester paths to run. Defaults to the whole tests folder.
@@ -48,6 +50,8 @@ $outRoot = Join-Path $repoRoot 'out'
 $requirements = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot 'requirements.psd1')
 $coveragePath = Join-Path $outRoot 'coverage.xml'
 . (Join-Path $PSScriptRoot 'Release.ps1')
+. (Join-Path $PSScriptRoot 'Docs.ps1')
+$wikiPagesPath = Join-Path $outRoot 'wiki'
 
 function Import-PinnedModule {
     param([Parameter(Mandatory)] [string] $Name)
@@ -278,6 +282,62 @@ function Invoke-Publish {
     Write-Information "Published Bylaw $version to the PowerShell Gallery." -InformationAction Continue
 }
 
+function Invoke-Documentation {
+    # Generates every wiki page into out/wiki, replacing what was there (ADR-0037).
+    Import-PinnedModule -Name 'platyPS'
+    if (Test-Path $wikiPagesPath) {
+        Remove-Item -Path $wikiPagesPath -Recurse -Force
+    }
+    $pages = New-WikiPageSet -SourceRoot $sourceRoot -OutputPath $wikiPagesPath
+    Write-Information "Generated $(@($pages).Count) wiki pages in $wikiPagesPath." -InformationAction Continue
+    $pages
+}
+
+function Invoke-UpdateWiki {
+    # Pushes the generated pages to the GitHub wiki, which is the separate <repo>.wiki.git
+    # repository. Only pages the build generated are replaced or removed.
+    if (-not $env:GH_PAT) {
+        throw 'GH_PAT is not set. The wiki is updated with a personal access token that can push to the repository.'
+    }
+    $repository = $env:GITHUB_REPOSITORY
+    if (-not $repository) {
+        $origin = git -C $repoRoot config --get remote.origin.url
+        if ($origin -notmatch 'github\.com[:/](?<repo>[^/]+/[^/]+?)(\.git)?$') {
+            throw "Can't tell the GitHub repository from the origin remote '$origin'."
+        }
+        $repository = $Matches['repo']
+    }
+    $null = Invoke-Documentation
+
+    $wikiRepoPath = Join-Path $outRoot 'wiki-repo'
+    if (Test-Path $wikiRepoPath) {
+        Remove-Item -Path $wikiRepoPath -Recurse -Force
+    }
+    $wikiUrl = "https://github.com/$repository.wiki.git"
+    git clone --quiet "https://x-access-token:$($env:GH_PAT)@github.com/$repository.wiki.git" $wikiRepoPath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $wikiRepoPath '.git'))) {
+        throw "Couldn't clone $wikiUrl. Check the wiki is enabled, and create its first page in GitHub to initialise it."
+    }
+    # Never commit into the main repository by mistake.
+    $top = (git -C $wikiRepoPath rev-parse --show-toplevel).Replace('\', '/').TrimEnd('/')
+    if ($top -ne (Resolve-Path $wikiRepoPath).Path.Replace('\', '/').TrimEnd('/') -or (git -C $wikiRepoPath config --get remote.origin.url) -notmatch '\.wiki\.git$') {
+        throw "$wikiRepoPath is not a clone of the wiki. Nothing was published."
+    }
+
+    $pages = Sync-WikiPageSet -GeneratedPath $wikiPagesPath -WikiPath $wikiRepoPath
+    git -C $wikiRepoPath add --all
+    if (-not (git -C $wikiRepoPath status --porcelain)) {
+        Write-Information 'The wiki is up to date.' -InformationAction Continue
+        return
+    }
+    git -C $wikiRepoPath -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit --quiet -m "Update $($pages.Count) reference pages from $(git -C $repoRoot rev-parse --short HEAD)"
+    git -C $wikiRepoPath push --quiet origin HEAD
+    if ($LASTEXITCODE -ne 0) {
+        throw "Couldn't push to $wikiUrl."
+    }
+    Write-Information "Published $($pages.Count) pages to $wikiUrl." -InformationAction Continue
+}
+
 foreach ($name in $Task) {
     Write-Information "== $name" -InformationAction Continue
     switch ($name) {
@@ -288,5 +348,7 @@ foreach ($name in $Task) {
         'UpdateGolden' { Invoke-UpdateGolden }
         'UpdateCoverageBadge' { Invoke-UpdateCoverageBadge }
         'Publish' { Invoke-Publish }
+        'Docs' { $null = Invoke-Documentation }
+        'UpdateWiki' { Invoke-UpdateWiki }
     }
 }
