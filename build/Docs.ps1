@@ -149,14 +149,140 @@ function ConvertTo-KeywordPage {
     (($lines -join "`n").TrimEnd() + "`n")
 }
 
+function Get-SourceDiagnostic {
+    # Every diagnostic code src emits, once per place: the code, and its severity where the call says
+    # it ('' where it can't be read, as in a helper such as & $add 'BYL3111' ...).
+    param([Parameter(Mandatory)] [string] $SourceRoot)
+
+    foreach ($file in Get-ChildItem -Path $SourceRoot -Recurse -Filter '*.ps1' -File) {
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $null, [ref] $null)
+        $codes = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -cmatch '^BYL\d{4}$' }, $true)
+        foreach ($code in $codes) {
+            $command = $code.Parent
+            while ($command -and $command -isnot [System.Management.Automation.Language.CommandAst]) {
+                $command = $command.Parent
+            }
+            $severity = ''
+            if ($command) {
+                $elements = $command.CommandElements
+                for ($i = 0; $i -lt $elements.Count - 1; $i++) {
+                    if ($elements[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and $elements[$i].ParameterName -eq 'Severity') {
+                        $severity = $elements[$i + 1].Extent.Text -replace '^\[BylawSeverity\]::', ''
+                    }
+                }
+                # Add-BylawResolutionDiagnostic reports an error unless it says otherwise.
+                if (-not $severity -and $command.GetCommandName() -eq 'Add-BylawResolutionDiagnostic') {
+                    $severity = 'Error'
+                }
+            }
+            [pscustomobject]@{ Code = $code.Value; Severity = $severity; File = $file.Name; Line = $code.Extent.StartLineNumber }
+        }
+    }
+}
+
+function Get-DiagnosticCatalogue {
+    # The catalogue ranges in docs/diagnostics, in order: one data file per range (ADR-0037).
+    param([Parameter(Mandatory)] [string] $Path)
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+    foreach ($file in Get-ChildItem -Path $Path -Filter 'BYL*xxx.psd1' -File | Sort-Object Name) {
+        $data = Import-PowerShellDataFile -Path $file.FullName
+        $data['File'] = $file.Name
+        $data
+    }
+}
+
+function Get-AdrLink {
+    # A markdown link to an ADR by its number, or '' when there is no such ADR.
+    param([Parameter(Mandatory)] [string] $Number, [Parameter(Mandatory)] [string] $AdrPath, [Parameter(Mandatory)] [string] $RepositoryUrl)
+
+    $file = Get-ChildItem -Path $AdrPath -Filter "$Number-*.md" -File | Select-Object -First 1
+    if (-not $file) {
+        return ''
+    }
+    "[ADR-$Number]($RepositoryUrl/blob/main/docs/adr/$($file.Name))"
+}
+
+function ConvertTo-DiagnosticRangePage {
+    # The wiki page for one range: a table of its codes, then a section per code, so a code can be
+    # linked as Diagnostics-BYL3xxx#byl3029.
+    param(
+        [Parameter(Mandatory)] [System.Collections.IDictionary] $Range,
+        [Parameter(Mandatory)] [string] $AdrPath,
+        [Parameter(Mandatory)] [string] $RepositoryUrl
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add("# $($Range.Range): $($Range.Title)")
+    $lines.Add('')
+    $lines.Add($Range.Description)
+    $lines.Add('')
+    $lines.Add('| Code | Severity | Meaning |')
+    $lines.Add('|---|---|---|')
+    foreach ($entry in $Range.Diagnostics) {
+        $lines.Add("| [$($entry.Code)](#$($entry.Code.ToLowerInvariant())) | $($entry.Severity) | $($entry.Title) |")
+    }
+    foreach ($entry in $Range.Diagnostics) {
+        $lines.Add('')
+        $lines.Add("## $($entry.Code)")
+        $lines.Add('')
+        $lines.Add("**$($entry.Title)** ($($entry.Severity.ToLowerInvariant()))")
+        $lines.Add('')
+        $lines.Add($entry.Explanation)
+        $lines.Add('')
+        $lines.Add("**To fix it:** $($entry.Fix)")
+        if ($entry.ContainsKey('Example')) {
+            $lines.Add('')
+            $lines.Add('For example:')
+            $lines.Add('')
+            $lines.Add('```powershell')
+            $lines.Add(($entry.Example -replace "`r", '').TrimEnd())
+            $lines.Add('```')
+        }
+        if ($entry.ContainsKey('Adr')) {
+            $link = Get-AdrLink -Number $entry.Adr -AdrPath $AdrPath -RepositoryUrl $RepositoryUrl
+            if ($link) {
+                $lines.Add('')
+                $lines.Add("See $link.")
+            }
+        }
+    }
+    (($lines -join "`n") + "`n")
+}
+
+function ConvertTo-DiagnosticIndexPage {
+    # The Diagnostics page: what a diagnostic is, and the ranges.
+    param([Parameter(Mandatory)] [object[]] $Ranges)
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('# Diagnostics')
+    $lines.Add('')
+    $lines.Add('Build-Bylaw reports problems as diagnostics, written as `file:line [Keyword] BYLnnnn: message`. An error stops the build, and no files are written; a warning is reported and the build carries on. Each code below explains what the problem is and how to fix it.')
+    $lines.Add('')
+    $lines.Add('| Codes | Reported | Count |')
+    $lines.Add('|---|---|---|')
+    foreach ($range in $Ranges) {
+        # A markdown link: the | in a [[label|page]] link would split the table cell.
+        $lines.Add("| [$($range.Range)](Diagnostics-$($range.Range)) | $($range.Title) | $(@($range.Diagnostics).Count) |")
+    }
+    (($lines -join "`n") + "`n")
+}
+
 function New-WikiPageSet {
-    # Writes every generated page to OutputPath: commands, keywords and the sidebar. Returns the page
-    # names written, without .md.
+    # Writes every generated page to OutputPath: commands, keywords, diagnostics and the sidebar.
+    # Returns the page names written, without .md.
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([string[]])]
     param(
         [Parameter(Mandatory)] [string] $SourceRoot,
-        [Parameter(Mandatory)] [string] $OutputPath
+        [Parameter(Mandatory)] [string] $OutputPath,
+
+        # The diagnostics catalogue and the ADRs it links to. Default: docs/ beside SourceRoot.
+        [string] $DiagnosticsPath = (Join-Path (Split-Path -Parent $SourceRoot) 'docs/diagnostics'),
+        [string] $AdrPath = (Join-Path (Split-Path -Parent $SourceRoot) 'docs/adr'),
+        [string] $RepositoryUrl = 'https://github.com/markwragg/PowerShell-Bylaw'
     )
 
     if (-not $PSCmdlet.ShouldProcess($OutputPath, 'Generate wiki pages')) {
@@ -187,6 +313,19 @@ function New-WikiPageSet {
         [System.IO.File]::WriteAllText((Join-Path $OutputPath "$keyword.md"), (ConvertTo-KeywordPage -Name $keyword -Help $help -UsedIn $usedIn), $utf8NoBom)
     }
 
+    # Diagnostics: a page per range in the catalogue, and an index.
+    $ranges = @(Get-DiagnosticCatalogue -Path $DiagnosticsPath)
+    $diagnosticPages = @()
+    if ($ranges.Count -gt 0) {
+        foreach ($range in $ranges) {
+            $page = "Diagnostics-$($range.Range)"
+            [System.IO.File]::WriteAllText((Join-Path $OutputPath "$page.md"), (ConvertTo-DiagnosticRangePage -Range $range -AdrPath $AdrPath -RepositoryUrl $RepositoryUrl), $utf8NoBom)
+            $diagnosticPages += $page
+        }
+        [System.IO.File]::WriteAllText((Join-Path $OutputPath 'Diagnostics.md'), (ConvertTo-DiagnosticIndexPage -Ranges $ranges), $utf8NoBom)
+        $diagnosticPages = @('Diagnostics') + $diagnosticPages
+    }
+
     $sidebar = [System.Collections.Generic.List[string]]::new()
     $sidebar.Add('**[[Home]]**')
     $sidebar.Add('')
@@ -195,9 +334,14 @@ function New-WikiPageSet {
     $sidebar.Add('')
     $sidebar.Add('**Keywords**')
     foreach ($keyword in $keywords) { $sidebar.Add("* [[$keyword]]") }
+    if ($ranges.Count -gt 0) {
+        $sidebar.Add('')
+        $sidebar.Add('**[[Diagnostics]]**')
+        foreach ($range in $ranges) { $sidebar.Add("* [[$($range.Range): $($range.Title)|Diagnostics-$($range.Range)]]") }
+    }
     [System.IO.File]::WriteAllText((Join-Path $OutputPath '_Sidebar.md'), (($sidebar -join "`n") + "`n"), $utf8NoBom)
 
-    [string[]] (@($commands) + @($keywords) + '_Sidebar')
+    [string[]] (@($commands) + @($keywords) + $diagnosticPages + '_Sidebar')
 }
 
 function Sync-WikiPageSet {

@@ -68,12 +68,32 @@ Describe 'Keyword pages' {
     }
 }
 
+Describe 'Diagnostics pages' {
+    It 'has an index that links every range page' {
+        $ranges = @($Pages | Where-Object { $_ -like 'Diagnostics-BYL*' })
+        $ranges | Should -Not -BeNullOrEmpty
+        $index = Get-Page 'Diagnostics'
+        foreach ($range in $ranges) {
+            $index | Should -Match "\]\($([regex]::Escape($range))\) \|"
+        }
+    }
+
+    It 'has a section for every code in <_>, linked from its table' -ForEach @('BYL1xxx') {
+        $page = Get-Page "Diagnostics-$_"
+        $codes = [regex]::Matches($page, '(?m)^## (BYL\d{4})$') | ForEach-Object { $_.Groups[1].Value }
+        $codes | Should -Not -BeNullOrEmpty
+        foreach ($code in $codes) {
+            $page | Should -Match "\| \[$code\]\(#$($code.ToLowerInvariant())\) \|"
+        }
+    }
+}
+
 Describe 'The sidebar' {
     It 'links Home and every generated page' {
         $sidebar = Get-Page '_Sidebar'
         $sidebar | Should -Match '\[\[Home\]\]'
         foreach ($page in $Pages | Where-Object { $_ -ne '_Sidebar' }) {
-            $sidebar | Should -Match "\[\[$([regex]::Escape($page))\]\]"
+            $sidebar | Should -Match "\[\[([^\]|]*\|)?$([regex]::Escape($page))\]\]"
         }
     }
 
