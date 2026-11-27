@@ -3,6 +3,7 @@
 
 # Local verification output
 /build/verify-missing-field/out/
+/build/verify-initiatives/out/
 
 # Editor
 .vscode/*
