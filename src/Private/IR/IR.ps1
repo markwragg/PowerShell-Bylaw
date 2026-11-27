@@ -172,7 +172,8 @@ class BylawFieldRef : BylawNode {
     # Full alias or reserved field name, set by the alias resolution pass.
     [string] $Resolved
     [bool] $AllowUnknownAlias
-    # For Kind Tag: the tag name as a BylawLiteral string, a BylawParamRef, or a BylawCurrent.
+    # For Kind Tag: the tag name as a BylawLiteral string or a BylawParamRef. Never a BylawCurrent:
+    # Azure rejects a field named with current() (BYL1059, ADR-0032).
     [BylawValue] $TagName
 
     BylawFieldRef() {}

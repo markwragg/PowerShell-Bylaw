@@ -357,11 +357,6 @@ function Get-BylawTagFieldName {
     # gives '', and validation reports it.
     param([Parameter(Mandatory)] [BylawFieldRef] $Field, [Parameter(Mandatory)] [BylawPolicy] $Policy)
 
-    if ($Field.TagName -is [BylawCurrent]) {
-        # The member a value count is at (ADR-0032), as ALZ's tag policies write it.
-        $current = Get-BylawCurrentExpression -Current $Field.TagName
-        return "[concat('tags[', $current, ']')]"
-    }
     if ($Field.TagName -isnot [BylawParamRef]) {
         return "tags['$($Field.TagName.Value)']"
     }
