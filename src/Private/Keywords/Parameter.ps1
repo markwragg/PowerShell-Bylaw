@@ -28,7 +28,7 @@ function Parameter {
     )
 
     $location = [BylawSourceLocation]::FromInvocation($MyInvocation, 'Parameter')
-    $frame = Test-BylawParent -Keyword 'Parameter' -Allowed 'Policy' -Location $location
+    $frame = Test-BylawParent -Keyword 'Parameter' -Allowed 'Policy', 'Initiative' -Location $location
     if ($null -eq $frame) {
         return
     }

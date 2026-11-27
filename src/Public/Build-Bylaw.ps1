@@ -157,8 +157,8 @@ function Build-Bylaw {
                 $diagnostics.AddRange([object[]] @($policy.Diagnostics))
                 $compiled.Add([pscustomobject]@{ Source = $source; Policy = $policy; FileDiagnostics = $result.Diagnostics })
             }
-            if ($result.Policies.Count -eq 0 -and $result.Diagnostics.Count -eq 0) {
-                $diagnostics.Add([BylawDiagnostic]::new([BylawSeverity]::Warning, 'BYL5021', 'The file contains no Policy blocks.', [BylawSourceLocation]::new($source.File, 0, 0, $null)))
+            if ($result.Policies.Count -eq 0 -and @($result.Initiatives).Count -eq 0 -and $result.Diagnostics.Count -eq 0) {
+                $diagnostics.Add([BylawDiagnostic]::new([BylawSeverity]::Warning, 'BYL5021', 'The file contains no Policy or Initiative blocks.', [BylawSourceLocation]::new($source.File, 0, 0, $null)))
             }
         }
 

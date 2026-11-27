@@ -135,13 +135,13 @@ function Invoke-BylawValidation {
 }
 
 function Test-BylawPolicyProperty {
-    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [Parameter(Mandatory)] [scriptblock] $Add)
+    param([Parameter(Mandatory)] [BylawNode] $Policy, [Parameter(Mandatory)] [scriptblock] $Add)
 
     $properties = $Policy.Properties
     $location = if ($properties) { $properties.Location } else { $Policy.Location }
 
     if (-not $properties -or [string]::IsNullOrWhiteSpace($properties.DisplayName)) {
-        & $Add 'BYL3002' "Policy '$($Policy.Name)' needs a DisplayName: Properties @{ DisplayName = '...' } (ADR-0016)." $location
+        & $Add 'BYL3002' "$(if ($Policy -is [BylawInitiative]) { 'Initiative' } else { 'Policy' }) '$($Policy.Name)' needs a DisplayName: Properties @{ DisplayName = '...' } (ADR-0016)." $location
     }
     elseif ($properties.DisplayName.Length -gt 128) {
         & $Add 'BYL3002' "DisplayName is $($properties.DisplayName.Length) characters; Azure allows at most 128." $location
@@ -180,7 +180,7 @@ function Test-BylawPolicyProperty {
 }
 
 function Test-BylawPolicyParameter {
-    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [Parameter(Mandatory)] [scriptblock] $Add)
+    param([Parameter(Mandatory)] [BylawNode] $Policy, [Parameter(Mandatory)] [scriptblock] $Add)
 
     $seen = @{}
     foreach ($parameter in $Policy.Parameters) {

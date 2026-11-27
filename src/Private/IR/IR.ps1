@@ -678,6 +678,66 @@ class BylawPolicy : BylawNode {
     }
 }
 
+class BylawInitiativeMember : BylawNode {
+    # Member 'policy-name' or Member -Id ... (ADR-0033). Exactly one of PolicyName and DefinitionId.
+    # A policy in the build, by its Policy name as written.
+    [string] $PolicyName
+    # A definition ID as written, for a built-in or any definition outside the build.
+    [string] $DefinitionId
+    # policyDefinitionReferenceId: -ReferenceId, or the policy name.
+    [string] $ReferenceId
+    # Member parameter name as written -> BylawValue, in order (sorted for a plain hashtable).
+    [System.Collections.Specialized.OrderedDictionary] $Parameters = [System.Collections.Specialized.OrderedDictionary]::new()
+    # definitionVersion, e.g. '1.*.*', or $null.
+    [string] $Version
+    # groupNames, as written.
+    [string[]] $GroupNames = @()
+
+    BylawInitiativeMember() {}
+}
+
+class BylawDefinitionGroup : BylawNode {
+    # DefinitionGroup 'name' (ADR-0033): one entry of policyDefinitionGroups.
+    [string] $Name
+    [string] $DisplayName
+    [string] $Category
+    [string] $Description
+    [string] $AdditionalMetadataId
+
+    BylawDefinitionGroup() {}
+
+    BylawDefinitionGroup([string] $name) {
+        $this.Name = $name
+    }
+}
+
+class BylawInitiative : BylawNode {
+    # Initiative 'name' { ... } (ADR-0033): a policy set definition.
+    # Definition name, exactly as given (ADR-0010).
+    [string] $Name
+    [BylawProperties] $Properties
+    [System.Collections.Generic.List[object]] $Parameters = [System.Collections.Generic.List[object]]::new()
+    # BylawInitiativeMember nodes, in source order.
+    [System.Collections.Generic.List[object]] $Members = [System.Collections.Generic.List[object]]::new()
+    # BylawDefinitionGroup nodes, in source order.
+    [System.Collections.Generic.List[object]] $Groups = [System.Collections.Generic.List[object]]::new()
+
+    BylawInitiative() {}
+
+    BylawInitiative([string] $name) {
+        $this.Name = $name
+    }
+
+    [BylawParameter] FindParameter([string] $name) {
+        foreach ($parameter in $this.Parameters) {
+            if ([string]::Equals($parameter.Name, $name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return $parameter
+            }
+        }
+        return $null
+    }
+}
+
 #endregion
 
 #region Alias snapshot (ADR-0008)

@@ -22,6 +22,7 @@ function Invoke-BylawTestScript {
         [pscustomobject]@{
             Path        = $Path
             Policies    = @(Get-BylawCollectedPolicy)
+            Initiatives = @(Get-BylawCollectedInitiative)
             Diagnostics = @(Get-BylawFrontEndDiagnostic)
             Codes       = @(Get-BylawFrontEndDiagnostic | ForEach-Object Code)
             Thrown      = $Thrown

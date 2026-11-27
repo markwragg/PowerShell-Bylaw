@@ -143,6 +143,7 @@ function Complete-BylawFileJob {
 
         $diagnostics = [System.Collections.Generic.List[object]]::new()
         $policies = @()
+        $initiatives = @()
         if ($null -ne $output) {
             foreach ($plain in $output.Diagnostics) {
                 $diagnostics.Add((ConvertFrom-BylawPlainDiagnostic -Plain $plain))
@@ -156,6 +157,9 @@ function Complete-BylawFileJob {
                         Diagnostics = @($policy.Diagnostics | ForEach-Object { ConvertFrom-BylawPlainDiagnostic -Plain $_ })
                     }
                 })
+            $initiatives = @(foreach ($initiative in $output.Initiatives) {
+                    [pscustomobject]@{ Name = $initiative.Name; Line = $initiative.Line }
+                })
         }
         foreach ($record in $shell.Streams.Error) {
             $diagnostics.Add((ConvertTo-BylawErrorRecordDiagnostic -ErrorRecord $record -File $File -Code 'BYL5011' -Prefix 'The file wrote an error'))
@@ -166,6 +170,7 @@ function Complete-BylawFileJob {
         [pscustomobject]@{
             Diagnostics = $diagnostics.ToArray()
             Policies    = $policies
+            Initiatives = $initiatives
         }
     }
     finally {
@@ -238,9 +243,22 @@ function Invoke-BylawFileCompile {
             })
     }
 
+    # Initiatives are checked on their own here (ADR-0033). Their output and the checks against the
+    # build's policies come after every file has compiled (ADR-0034, ADR-0035).
+    if (-not $frontEndFailed) {
+        foreach ($initiative in Get-BylawCollectedInitiative) {
+            foreach ($diagnostic in Invoke-BylawInitiativeValidation -Initiative $initiative) {
+                $fileDiagnostics.Add($diagnostic)
+            }
+        }
+    }
+
     [pscustomobject]@{
         Diagnostics = @($fileDiagnostics | ForEach-Object { ConvertTo-BylawPlainDiagnostic -Diagnostic $_ })
         Policies    = $policies.ToArray()
+        Initiatives = @(foreach ($initiative in Get-BylawCollectedInitiative) {
+                [pscustomobject]@{ Name = $initiative.Name; Line = if ($initiative.Location) { $initiative.Location.Line } else { 0 } }
+            })
     }
 }
 
