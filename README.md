@@ -594,8 +594,8 @@ Initiative 'tagging-baseline' {
     PolicyDefinition 'tags-inherit-from-resource-group' -ReferenceId 'inherit-cost-center' -Parameters @{ tagName = 'CostCenter' }
     PolicyDefinition 'tags-inherit-from-resource-group' -ReferenceId 'inherit-owner' -Parameters @{ tagName = 'Owner' }
 
-    # A built-in policy, by ID.
-    PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/96670d01-0a4d-4649-9c89-2d3abc0a5025' -ReferenceId 'require-environment' -Parameters @{
+    # A built-in policy, by its GUID.
+    PolicyDefinition -Id 96670d01-0a4d-4649-9c89-2d3abc0a5025 -ReferenceId 'require-environment' -Parameters @{
         tagName = 'Environment'
     }
 }
@@ -604,6 +604,18 @@ Initiative 'tagging-baseline' {
 - **`PolicyDefinition`** takes `-ReferenceId` (the member's `policyDefinitionReferenceId`, defaulting to the policy name and required with `-Id`), `-Parameters`, `-Version` (a `definitionVersion` such as `1.*.*`) and `-Group`. Values passed are literals, `Param` (an initiative parameter), `Arm` or `ResourceGroupTag`.
 - **`DefinitionGroup 'name'`** declares a group, with `-DisplayName`, `-Category`, `-Description` and `-AdditionalMetadataId`. Members join it with `-Group`. EPAC's schema only allows a group's name and `-AdditionalMetadataId`, so the other options are an EPAC error.
 - **Checked when the build runs:** once every file has compiled, each member from the build is checked against the policy it names. The policy must exist, every value must go to one of its parameters, every parameter without a default must be given one, and values must fit the parameter's type and allowed values. An initiative parameter passed to a policy can't allow values the policy doesn't. The checks use the parameters each format emits, so in EPAC output you can pass `effect` to a policy with a literal effect, whose generated parameter has a default.
+- **`-Id`** takes a definition ID, or a built-in policy's GUID on its own, which is short for `/providers/Microsoft.Authorization/policyDefinitions/<guid>`. When a member's arguments make a long line, splat them from a hashtable, without backticks:
+
+  ```powershell
+  $requireEnvironment = @{
+      Id          = '96670d01-0a4d-4649-9c89-2d3abc0a5025'
+      ReferenceId = 'require-environment'
+      Version     = '1.*.*'
+      Parameters  = @{ tagName = 'Environment' }
+  }
+  PolicyDefinition @requireEnvironment
+  ```
+
 - **Not checked:** members by `-Id`. Bylaw has no copy of the built-in definitions, so only the shape of the ID is checked.
 - **`-Version`** on a member from the build must match the policy's `Version`. Azure matches it against a definition's top-level `version`, which Bylaw doesn't emit while custom versioning is in preview, so the build warns that the pin may not select the version you expect.
 - **Output:** EPAC initiatives reference members from the build by `policyDefinitionName`, as EPAC requires, and anything else by `policyDefinitionId`. Plain JSON needs a full ID for every member, so set the scope the build's policies are deployed at with `-DefinitionScope` or `definitionScope` in `bylaw.json`. Initiatives are written to `-InitiativeOutputPath`, which defaults to `-OutputPath`. For EPAC, use its two folders:

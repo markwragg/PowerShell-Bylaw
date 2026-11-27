@@ -9,10 +9,19 @@ function PolicyDefinition {
         A policy the initiative includes: a policy from this build by name, or any definition by ID.
 
     .EXAMPLE
-        PolicyDefinition 'tags-require-mandatory-tags' -Parameters @{ effect = Param Effect }
+        PolicyDefinition 'general-require-tag' -Parameters @{ tagName = Param RequiredTag }
 
     .EXAMPLE
-        PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{ tagName = 'CostCenter' }
+        PolicyDefinition -Id cd3aa116-8754-49c9-a813-ad46512ece54 -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{ tagName = 'CostCenter' }
+
+    .EXAMPLE
+        $inheritCostCenter = @{
+            Id          = 'cd3aa116-8754-49c9-a813-ad46512ece54'
+            ReferenceId = 'InheritCostCenter'
+            Version     = '1.*.*'
+            Parameters  = @{ tagName = 'CostCenter' }
+        }
+        PolicyDefinition @inheritCostCenter
     #>
     [CmdletBinding()]
     param(
@@ -20,7 +29,8 @@ function PolicyDefinition {
         [Parameter(Position = 0)]
         [string] $Name,
 
-        # A definition ID, for a built-in policy or one outside this build.
+        # A definition ID, for a built-in policy or one outside this build. A GUID on its own is a
+        # built-in policy: /providers/Microsoft.Authorization/policyDefinitions/<guid>.
         [string] $Id,
 
         # The member's policyDefinitionReferenceId. Defaults to the policy name; required with -Id.
@@ -58,6 +68,10 @@ function PolicyDefinition {
 
     if ($hasName) {
         $member.PolicyName = $Name
+    }
+    elseif ($Id -match '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
+        # Built-in policies are named by GUID, at the tenant root (ADR-0033).
+        $member.DefinitionId = "/providers/Microsoft.Authorization/policyDefinitions/$Id"
     }
     else {
         $member.DefinitionId = $Id

@@ -1,6 +1,7 @@
 # A tagging baseline: resources have a required tag, and inherit two tags from their resource
 # group. The inherit policy is included twice, once per tag, with a reference ID for each. A
-# built-in policy is included by ID, pinned to its major version.
+# built-in policy is included by its GUID, pinned to its major version, with its arguments splatted
+# from a hashtable to keep the lines short.
 
 Initiative 'tagging-baseline' {
 
@@ -28,7 +29,11 @@ Initiative 'tagging-baseline' {
     }
 
     # Built-in: "Require a tag on resource groups".
-    PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/96670d01-0a4d-4649-9c89-2d3abc0a5025' -ReferenceId 'require-environment-on-resource-groups' -Version '1.*.*' -Parameters @{
-        tagName = 'Environment'
+    $requireEnvironment = @{
+        Id          = '96670d01-0a4d-4649-9c89-2d3abc0a5025'
+        ReferenceId = 'require-environment-on-resource-groups'
+        Version     = '1.*.*'
+        Parameters  = @{ tagName = 'Environment' }
     }
+    PolicyDefinition @requireEnvironment
 }

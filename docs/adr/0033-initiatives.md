@@ -54,7 +54,7 @@ Initiative 'tagging-baseline' {
     }
 
     # A built-in policy, by ID, pinned to its major version.
-    PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{
+    PolicyDefinition -Id cd3aa116-8754-49c9-a813-ad46512ece54 -ReferenceId 'InheritCostCenter' -Version '1.*.*' -Parameters @{
         tagName = 'CostCenter'
     }
 }
@@ -72,7 +72,8 @@ Initiative 'tagging-baseline' {
 ### PolicyDefinition
 
 * `PolicyDefinition 'policy-name'` includes a policy from the same build, by its `Policy` name, matched ignoring case. Whether it exists is checked once every file has compiled (ADR-0034).
-* `PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>'` includes a built-in policy. Any other definition ID, such as a custom definition deployed outside this build, is also accepted: `-Id` emits the ID as written.
+* `PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/<guid>'` includes a built-in policy. Built-in policies are named by GUID, so `-Id <guid>` on its own is short for that ID, and keeps the line short. Any other definition ID, such as a custom definition deployed outside this build, is also accepted: `-Id` emits the ID as written.
+* When a member's arguments make a long line, they can be splatted from a hashtable: `PolicyDefinition @member`. Bylaw needs no syntax of its own for this.
 * `-ReferenceId` is the member's `policyDefinitionReferenceId`. It defaults to the policy name for a member from the build, and is required for `-Id`. Reference IDs are unique within an initiative, ignoring case. A policy can be a member more than once, with different reference IDs, as 15 ALZ members are.
 * `-Parameters @{ name = value }` passes values to the member's parameters. A value is a literal, `Param` (an initiative parameter), `Arm`, or `ResourceGroupTag`. Each is emitted as `{ "value": ... }`. An `[ordered]` hashtable keeps its order, and a plain one is sorted, as for `Deployment -Parameters` (ADR-0031). Names are emitted as written and matched against the member's parameters ignoring case, as ARM does (ADR-0034).
 * `-Version '1.*.*'` emits `definitionVersion`. It is a major version, then a minor version or `*`, then a patch or `*`, with an optional `-preview` suffix: `^\d+\.(\d+|\*)\.(\d+|\*)(-preview)?$`. For a member from the build, the pattern must match the policy's `Version` (ADR-0034).

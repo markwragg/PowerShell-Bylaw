@@ -245,9 +245,29 @@ $(Format-Initiative -Body "PolicyDefinition 'p'")
             (Invoke-InitiativeScript -Script (Format-Initiative -Body "PolicyDefinition -Id '$Id' -ReferenceId r")).Errors | Should -BeNullOrEmpty
         }
 
+        It 'takes a built-in policy''s GUID on its own, in <Case>' -ForEach @(
+            @{ Case = 'lower case'; Id = 'cd3aa116-8754-49c9-a813-ad46512ece54' }
+            @{ Case = 'upper case'; Id = 'CD3AA116-8754-49C9-A813-AD46512ECE54' }
+        ) {
+            $result = Invoke-InitiativeScript -Script (Format-Initiative -Body "PolicyDefinition -Id '$Id' -ReferenceId r")
+            $result.Diagnostics | Should -BeNullOrEmpty
+            $result.Initiative.Members[0].DefinitionId | Should -BeExactly "/providers/Microsoft.Authorization/policyDefinitions/$Id"
+        }
+
+        It 'takes its arguments splatted from a hashtable' {
+            $body = "`$member = @{ Id = 'cd3aa116-8754-49c9-a813-ad46512ece54'; ReferenceId = 'InheritCostCenter'; Version = '1.*.*'; Parameters = @{ tagName = 'CostCenter' } }; PolicyDefinition @member"
+            $result = Invoke-InitiativeScript -Script (Format-Initiative -Body $body)
+            $result.Diagnostics | Should -BeNullOrEmpty
+            $member = $result.Initiative.Members[0]
+            $member.DefinitionId | Should -BeExactly $InheritTag
+            $member.ReferenceId | Should -BeExactly 'InheritCostCenter'
+            $member.Version | Should -BeExactly '1.*.*'
+            $member.Parameters['tagName'].Value | Should -BeExactly 'CostCenter'
+        }
+
         It 'reports BYL3111 for -Id <Case>' -ForEach @(
             @{ Case = 'that is an initiative'; Id = '/providers/Microsoft.Authorization/policySetDefinitions/x'; Message = "*is an initiative. An initiative can't include another initiative*" }
-            @{ Case = 'that is a bare GUID'; Id = 'cd3aa116-8754-49c9-a813-ad46512ece54'; Message = '*is not a policy definition ID*' }
+            @{ Case = 'that is a bare name, not a GUID'; Id = 'my-policy'; Message = '*is not a policy definition ID*a built-in policy''s GUID*' }
             @{ Case = 'of another resource type'; Id = '/providers/Microsoft.Authorization/roleDefinitions/x'; Message = '*is not a policy definition ID*' }
         ) {
             $result = Invoke-InitiativeScript -Script (Format-Initiative -Body "PolicyDefinition -Id '$Id' -ReferenceId r")

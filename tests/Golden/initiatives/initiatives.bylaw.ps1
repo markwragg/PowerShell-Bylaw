@@ -64,7 +64,7 @@ Initiative 'golden-initiative' {
     }
 }
 
-# The minimum: one built-in member and nothing else.
+# The minimum: one built-in member and nothing else, by its GUID on its own.
 Initiative 'golden-initiative-minimal' {
 
     Properties @{
@@ -73,7 +73,7 @@ Initiative 'golden-initiative-minimal' {
         Version     = '1.0.0'
     }
 
-    PolicyDefinition -Id '/providers/Microsoft.Authorization/policyDefinitions/cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Parameters @{
+    PolicyDefinition -Id 'cd3aa116-8754-49c9-a813-ad46512ece54' -ReferenceId 'InheritCostCenter' -Parameters @{
         tagName = 'CostCenter'
     }
 }

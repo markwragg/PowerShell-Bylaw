@@ -57,7 +57,7 @@ function Invoke-BylawInitiativeValidation {
                 & $add 'BYL3111' "PolicyDefinition -Id '$($member.DefinitionId)' is an initiative. An initiative can't include another initiative: include its policies instead." $member.Location
             }
             elseif ($member.DefinitionId -notmatch $script:BylawPolicyDefinitionIdPattern) {
-                & $add 'BYL3111' "PolicyDefinition -Id '$($member.DefinitionId)' is not a policy definition ID. Use /providers/Microsoft.Authorization/policyDefinitions/<name>, optionally after a management group or subscription scope." $member.Location
+                & $add 'BYL3111' "PolicyDefinition -Id '$($member.DefinitionId)' is not a policy definition ID. Use /providers/Microsoft.Authorization/policyDefinitions/<name>, optionally after a management group or subscription scope, or a built-in policy's GUID on its own." $member.Location
             }
         }
 
