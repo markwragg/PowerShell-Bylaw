@@ -1,7 +1,7 @@
 # Bylaw
 
 [![CI](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml/badge.svg)](https://github.com/markwragg/PowerShell-Bylaw/actions/workflows/ci.yml)
-![coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)
+![coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)
 [![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/bylaw?label=PS%20Gallery)](https://www.powershellgallery.com/packages/bylaw)
 [![PowerShell Gallery Downloads](https://img.shields.io/powershellgallery/dt/bylaw?color=D3D3D3)](https://www.powershellgallery.com/packages/bylaw)
 
