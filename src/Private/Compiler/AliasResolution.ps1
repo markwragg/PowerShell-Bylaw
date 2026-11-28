@@ -182,6 +182,10 @@ function Resolve-BylawNodeAlias {
         }
         return
     }
+    if ($Node -is [BylawRawCondition]) {
+        Resolve-BylawRawConditionAlias -Condition $Node.Condition -Context $Context -ArrayAlias $ArrayAlias
+        return
+    }
     if ($Node -is [BylawEach]) {
         $resolved = Resolve-BylawFieldAlias -Field $Node.Field -Context $Context -ArrayAlias $ArrayAlias -IsArrayPath -PassThru
         if (-not $resolved) {
@@ -218,7 +222,10 @@ function Get-BylawResolvedAlias {
         [Parameter(Mandatory)] [BylawFieldRef] $Field,
         [Parameter(Mandatory)] [pscustomobject] $Context,
         [AllowNull()] [string] $ArrayAlias,
-        [switch] $IsArrayPath
+        [switch] $IsArrayPath,
+
+        # A raw condition may use [*] fields outside Each (ADR-0040).
+        [switch] $AllowArrayField
     )
 
     $snapshot = $Context.Snapshot
@@ -233,7 +240,7 @@ function Get-BylawResolvedAlias {
 
     $name = $Field.Name
     $withoutOwnArray = if ($IsArrayPath) { $name.Substring(0, $name.Length - 3) } else { $name }
-    if ($withoutOwnArray.Contains('[*]')) {
+    if (-not $AllowArrayField -and $withoutOwnArray.Contains('[*]')) {
         $arrayPath = $name.Substring(0, $name.IndexOf('[*]') + 3)
         $elementField = $name.Substring($name.IndexOf('[*]') + 3).TrimStart('.')
         $hint = if ($IsArrayPath) {

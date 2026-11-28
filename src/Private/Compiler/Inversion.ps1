@@ -25,6 +25,9 @@
 # Count (ADR-0032) is a value condition on a number: inverted like one and never guarded. Its
 # -Where statements select what to count and are emitted as written.
 #
+# A Condition statement (ADR-0040) is already a policy-layer condition: as written in When and Count
+# -Where; in Require and Each, as written for -Violation and not(...) for -Compliant, with no guards.
+#
 # Run the alias resolution pass first: conditions use FieldRef.Resolved.
 
 function ConvertTo-BylawPolicyRule {
@@ -112,6 +115,9 @@ function ConvertTo-BylawCompliance {
     # Each path[*] { P } holds when no element violates P: count(where: violation(P)) equals 0.
     param([Parameter(Mandatory)] [BylawNode] $Node)
 
+    if ($Node -is [BylawRawCondition]) {
+        return Get-BylawRawConditionForm -Node $Node -Compliant
+    }
     if ($Node -is [BylawConditionGroup]) {
         $children = foreach ($child in $Node.Children) {
             ConvertTo-BylawCompliance -Node $child
@@ -161,6 +167,9 @@ function ConvertTo-BylawApplicabilityCondition {
         [Parameter(Mandatory)] [BylawNode] $Node
     )
 
+    if ($Node -is [BylawRawCondition]) {
+        return $Node.Condition
+    }
     if ($Node -is [BylawConditionGroup]) {
         $children = foreach ($child in $Node.Children) {
             ConvertTo-BylawApplicabilityCondition -Node $child
@@ -231,6 +240,9 @@ function ConvertTo-BylawViolation {
         [Parameter(Mandatory)] [bool] $InEach
     )
 
+    if ($Node -is [BylawRawCondition]) {
+        return Get-BylawRawConditionForm -Node $Node
+    }
     if ($Node -is [BylawConditionGroup]) {
         # De Morgan: the violation of AnyOf is allOf of the violations, and the reverse for AllOf.
         $children = foreach ($child in $Node.Children) {
@@ -320,4 +332,20 @@ function New-BylawGuardedCondition {
     $group.Location = $Condition.Location
     $group.Origin = $Condition.Origin
     $group
+}
+
+function Get-BylawRawConditionForm {
+    # A Condition statement in Require or Each (ADR-0040): its violation, or with -Compliant its
+    # compliant form, for an existence condition. -Violation is the violation as written; -Compliant
+    # is the compliant state, so each is the other's not(...).
+    param([Parameter(Mandatory)] [BylawRawCondition] $Node, [switch] $Compliant)
+
+    $asWritten = ($Node.Form -eq 'Violation') -ne [bool] $Compliant
+    if ($asWritten) {
+        return $Node.Condition
+    }
+    $not = [BylawNot]::new($Node.Condition)
+    $not.Location = $Node.Location
+    $not.Origin = $Node
+    $not
 }

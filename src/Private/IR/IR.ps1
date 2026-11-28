@@ -572,6 +572,25 @@ class BylawAssertion : BylawNode {
     }
 }
 
+class BylawRawCondition : BylawNode {
+    # A Condition statement (ADR-0040): a raw policy condition, read into the policy layer. Form is
+    # AsWritten in When and Count -Where; in Require and Each, Violation (emitted as written, as the
+    # violation) or Compliant (emitted as not(...), with no missing-field guards).
+    [BylawCondition] $Condition
+    [string] $Form
+
+    BylawRawCondition() {}
+
+    BylawRawCondition([BylawCondition] $condition, [string] $form) {
+        $this.Condition = $condition
+        $this.Form = $form
+    }
+
+    [string] ToString() {
+        return 'Condition -{0}' -f $this.Form
+    }
+}
+
 class BylawConditionGroup : BylawNode {
     # AnyOf { } or AllOf { } (ADR-0026), describing the compliant state like everything else in the
     # DSL layer: AnyOf holds when any child holds. Children are BylawAssertion, BylawEach and nested

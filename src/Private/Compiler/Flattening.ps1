@@ -72,6 +72,10 @@ function Optimize-BylawCondition {
 
     if ($Condition -is [BylawNot]) {
         $child = Optimize-BylawCondition -Condition $Condition.Child
+        # not(not x) is x, e.g. a Condition -Compliant whose raw condition is itself a not (ADR-0040).
+        if ($child -is [BylawNot]) {
+            return $child.Child
+        }
         if ([object]::ReferenceEquals($child, $Condition.Child)) {
             return $Condition
         }
