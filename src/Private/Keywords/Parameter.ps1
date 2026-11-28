@@ -14,6 +14,9 @@ function Parameter {
         When -Type is omitted it is inferred from -Default or -AllowedValues.
 
     .EXAMPLE
+        Parameter Effect -AllowedValues Audit, Deny, Disabled -Default Audit
+
+    .EXAMPLE
         Parameter AllowedValues @{
             Type        = 'Array'
             Default     = 'Public', 'Private', 'Confidential', 'Restricted'
@@ -32,12 +35,27 @@ function Parameter {
         [Parameter(Position = 1)]
         [object] $Options,
 
+        # String, Array, Object, Boolean, Integer, Float or DateTime. Inferred from -Default or
+        # -AllowedValues when left out.
         [string] $Type,
+
+        # The values an assignment may choose from.
         [object[]] $AllowedValues,
+
+        # The value used when an assignment doesn't set one.
         [AllowNull()] [object] $Default,
+
+        # The name shown in the portal. Defaults to the parameter name, split into words.
         [string] $DisplayName,
+
+        # The description shown in the portal.
         [string] $Description,
+
+        # The name in the emitted JSON. Defaults to the parameter name with a lower-case first
+        # letter, e.g. allowedLocations for AllowedLocations.
         [string] $JsonName,
+
+        # Other parameter metadata, such as @{ strongType = 'location' }.
         [System.Collections.IDictionary] $Metadata
     )
 

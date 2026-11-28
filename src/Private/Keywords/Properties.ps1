@@ -2,10 +2,25 @@ function Properties {
     <#
     .SYNOPSIS
         Policy metadata: DisplayName, Description, Category, Version, Mode, Preview, Deprecated, Metadata.
+
+    .DESCRIPTION
+        DisplayName, Description, Category, Version and Mode are strings; Preview and Deprecated
+        are $true or $false; Metadata is a hashtable of any other metadata. EPAC output needs
+        Category and Version. Mode is All (the default) or Indexed. An initiative takes the same
+        keys except Mode. Unknown keys fail the build.
+
+    .EXAMPLE
+        Properties @{
+            DisplayName = 'Storage accounts require TLS 1.2'
+            Category    = 'Storage'
+            Version     = '1.0.0'
+            Mode        = 'Indexed'
+        }
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'DSL keyword (ADR-0005).')]
     [CmdletBinding()]
     param(
+        # The properties, as a hashtable.
         [Parameter(Mandatory, Position = 0)]
         [System.Collections.IDictionary] $Values
     )

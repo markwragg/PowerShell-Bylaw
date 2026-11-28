@@ -40,3 +40,4 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0034](0034-initiative-member-checks.md) | Initiative members are checked against the emitted definitions after every file has compiled | Accepted |
 | [0035](0035-initiative-output.md) | Initiatives are emitted as EPAC policy set definitions or plain JSON, to their own output folder | Accepted |
 | [0036](0036-release-process.md) | Releases are published from main when CHANGELOG.md has a "## !Deploy" heading | Accepted |
+| [0037](0037-wiki-documentation.md) | Reference documentation is generated from the source and published to the GitHub wiki | Accepted |

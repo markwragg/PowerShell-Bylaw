@@ -4,11 +4,12 @@ function Policy {
         Declares one Azure Policy definition.
 
     .DESCRIPTION
-        The only top-level Bylaw DSL command. The scriptblock describes the compliant state of a
-        resource using the inner keywords (Properties, Parameter, Resource, When, Require, Each,
-        AnyOf, AllOf, Field, Element, Tag, ResourceGroupTag, Must, Effect, Modify, AddOrReplace,
-        Add, Remove, Append, DenyAction, Manual, AuditIfNotExists, DeployIfNotExists, Deployment,
-        Count, Current, Param, Arm), which exist only while the block runs.
+        A top-level block of a .bylaw.ps1 file, like Initiative. The scriptblock describes the
+        compliant state of a resource using the inner keywords (Properties, Parameter, Resource,
+        When, Require, Each, AnyOf, AllOf, Field, Element, Tag, ResourceGroupTag, Must, Effect,
+        Modify, AddOrReplace, Add, Remove, Append, DenyAction, Manual, AuditIfNotExists,
+        DeployIfNotExists, Deployment, Count, Current, Param, Arm), which exist only while the
+        block runs.
 
         Errors inside the block are recorded as diagnostics with file, line and keyword, and are
         reported together by Build-Bylaw.

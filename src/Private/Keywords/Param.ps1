@@ -8,15 +8,16 @@ function Param {
         Field location | Must -BeIn (Param AllowedLocations)
 
     .EXAMPLE
-        Count -Value (Param MandatoryTags) -Name tagName -Where {
-            Tag (Current tagName) | Must -Exist
-        } | Must -Be (Param MandatoryTags -Length)
+        Count -Value (Param NamePatterns) -Name pattern -Where {
+            Field name | Must -BeLike (Current pattern)
+        } | Must -Be (Param NamePatterns -Length)
     #>
     # 'param' is a language keyword only at the start of a scriptblock; as a command it parses
     # normally (verified with the parser). The name is part of the DSL spec.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidReservedWordsAsFunctionNames', '', Justification = 'DSL keyword required by the spec (ADR-0005).')]
     [CmdletBinding()]
     param(
+        # The parameter's name, as declared with Parameter.
         [Parameter(Mandatory, Position = 0)]
         [string] $Name,
 
