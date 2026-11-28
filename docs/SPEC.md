@@ -248,11 +248,20 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 - Round-trip test harness: decompile, recompile, compare semantically (not textually)
 - Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed). Do not commit ALZ content to the repo without checking with me about licensing and attribution first.
 
+### Future milestone: policy behaviour tests (not yet numbered)
+
+To be scheduled. The design is proposed in ADR-0038, to be revisited and accepted before work starts.
+
+- `Test-BylawPolicy`: evaluate a compiled policy, or any policy JSON, against example resources, with a trace of each condition, and an inconclusive result for anything the evaluator doesn't support
+- Pester assertions: `Should -BeCompliantWith`, `Should -ViolatePolicy` and `Should -NotApplyTo`
+- Alias paths in the alias snapshot (schema version 2), so fields can be read from a resource
+- A conformance suite whose expected results come from a recorded sandbox run
+- README: behaviour tests in Testing policies
+
 ### Later (do not build yet, but don't design them out)
 
 - Resource provider modes, such as `Microsoft.Kubernetes.Data`
 - Bicep emitter
-- `Test-PolicyRule` local evaluator against sample resource JSON
 - VS Code syntax support and argument completers for `Field` driven by the enclosing `Resource` type
 - To consider after Milestone 4: an optional file name suffix, as a `bylaw.json` setting, writing `<name>.policy.json` and `<name>.initiative.json`. It would tell policies and initiatives apart in a shared output folder, let editors match plain JSON files to a schema by name, and limit the stale-output check to Bylaw's own files. A project would choose it once, because switching renames every output file.
 

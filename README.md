@@ -744,7 +744,7 @@ The only full proof is Azure itself. In a test subscription:
 
 Remove the resources and the assignment afterwards. The scripts in [build/](build/), such as `build/verify-initiatives`, show this pattern: deploy, record what Azure did, and remove everything again.
 
-Sandbox tests are slow and need Azure access, so they suit the rules that matter most and the patterns you're unsure of. Testing policies against example resources without Azure is planned ([ADR-0038](docs/adr/0038-policy-behaviour-tests.md)).
+Sandbox tests are slow and need Azure access, so they suit the rules that matter most and the patterns you're unsure of. Testing policies against example resources without Azure is being considered for a later release ([ADR-0038](docs/adr/0038-policy-behaviour-tests.md), proposed).
 
 ## Development
 
