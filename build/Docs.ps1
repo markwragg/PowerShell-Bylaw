@@ -159,10 +159,33 @@ function Get-SourceDiagnostic {
         $codes = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -cmatch '^BYL\d{4}$' }, $true)
         foreach ($code in $codes) {
             $command = $code.Parent
-            while ($command -and $command -isnot [System.Management.Automation.Language.CommandAst]) {
+            while ($command -and $command -isnot [System.Management.Automation.Language.CommandAst] -and $command -isnot [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $command -isnot [System.Management.Automation.Language.HashtableAst]) {
                 $command = $command.Parent
             }
             $severity = ''
+            if ($command -is [System.Management.Automation.Language.HashtableAst]) {
+                # A problem record, @{ Code = 'BYL3128'; Warning = $true; Message = ... }: a warning
+                # when it says so, otherwise an error.
+                $keys = @($command.KeyValuePairs | ForEach-Object { $_.Item1.Extent.Text })
+                $severity = if ('Warning' -in $keys) { 'Warning' } else { 'Error' }
+                $command = $null
+            }
+            if ($command -is [System.Management.Automation.Language.InvokeMemberExpressionAst]) {
+                # [BylawDiagnostic]::new([BylawSeverity]::Error, 'BYL3051', ...)
+                $first = @($command.Arguments)[0]
+                if ($first -and $first.Extent.Text -match '^\[BylawSeverity\]::(?<severity>\w+)$') {
+                    $severity = $Matches['severity']
+                }
+                $command = $null
+            }
+            if ($command -and $command.InvocationOperator -eq 'Ampersand' -and $command.CommandElements[0].Extent.Text -in '$add', '$Add', '$new') {
+                # & $add 'BYL3001' message location [severity], and & $new 'BYL3120' message
+                # [severity]: the helpers report an error unless the severity argument says otherwise.
+                $elements = $command.CommandElements
+                $position = if ($elements[0].Extent.Text -eq '$new') { 3 } else { 4 }
+                $severity = if ($elements.Count -gt $position -and $elements[$position].Extent.Text -match '\[BylawSeverity\]::(?<severity>\w+)') { $Matches['severity'] } else { 'Error' }
+                $command = $null
+            }
             if ($command) {
                 $elements = $command.CommandElements
                 for ($i = 0; $i -lt $elements.Count - 1; $i++) {
@@ -176,6 +199,34 @@ function Get-SourceDiagnostic {
                 }
             }
             [pscustomobject]@{ Code = $code.Value; Severity = $severity; File = $file.Name; Line = $code.Extent.StartLineNumber }
+        }
+
+        # Codes at the start of a message that is thrown or written as a warning, as in
+        # throw "BYL2010: Alias snapshot ... was not found." A code mentioned inside a message, as in
+        # "(BYL1059)", has no colon after it and isn't counted.
+        $messages = $ast.FindAll({ param($node) ($node -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $node -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) -and $node.Value -cmatch '(?:^|\s)BYL\d{4}: ' }, $true)
+        foreach ($message in $messages) {
+            $severity = ''
+            for ($node = $message.Parent; $node; $node = $node.Parent) {
+                if ($node -is [System.Management.Automation.Language.ThrowStatementAst]) {
+                    $severity = 'Error'
+                    break
+                }
+                if ($node -is [System.Management.Automation.Language.CommandAst]) {
+                    $name = $node.GetCommandName()
+                    if ($name -eq 'Write-Warning') {
+                        $severity = 'Warning'
+                        break
+                    }
+                    if ($name -eq 'New-BylawErrorRecord') {
+                        $severity = 'Error'
+                        break
+                    }
+                }
+            }
+            foreach ($match in [regex]::Matches($message.Value, '(?:^|\s)(BYL\d{4}): ')) {
+                [pscustomobject]@{ Code = $match.Groups[1].Value; Severity = $severity; File = $file.Name; Line = $message.Extent.StartLineNumber }
+            }
         }
     }
 }
