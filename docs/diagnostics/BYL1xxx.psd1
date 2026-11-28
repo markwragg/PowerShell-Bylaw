@@ -532,5 +532,29 @@ Tag (Param TagName) | Must -Exist
 '@
             Adr         = '0032'
         }
+        @{
+            Code        = 'BYL1060'
+            Severity    = 'Error'
+            Title       = 'Invalid raw condition'
+            Explanation = 'Condition takes one Azure Policy condition, as a hashtable or JSON text: exactly one of allOf, anyOf, not, field, value or count, and for a field, value or count condition exactly one operator. A count needs field (an array alias ending in [*]) or value (a list), and name only for a value count. The message says where in the condition the problem is, e.g. condition.anyOf[1].'
+            Fix         = 'Correct the condition at the place the message names. It has the same shape as in policy JSON, with Param and Arm allowed for values.'
+            Example     = @'
+Condition -Violation @{ field = 'location'; notIn = (Param AllowedLocations) }
+'@
+            Adr         = '0040'
+        }
+        @{
+            Code        = 'BYL1061'
+            Severity    = 'Error'
+            Title       = 'Condition needs -Violation or -Compliant'
+            Explanation = 'Statements in Require and Each describe the compliant state and are inverted, which Bylaw can''t do correctly for a raw condition. So a Condition there says which form it is: -Violation finds a non-compliant resource and is emitted as written; -Compliant is the compliant state and is emitted as not(...). In When and Count -Where, conditions are emitted as written, so the switches mean nothing there, and one switch at a time is allowed.'
+            Fix         = 'In Require and Each, add -Violation or -Compliant. In When and Count -Where, remove the switch.'
+            Example     = @'
+Require 'No test resources' {
+    Condition -Violation @{ field = 'name'; like = 'test-*' }
+}
+'@
+            Adr         = '0040'
+        }
     )
 }

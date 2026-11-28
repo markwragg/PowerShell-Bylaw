@@ -34,7 +34,7 @@ The JSON files are also the golden files for the tests: `tests/Golden/Golden.Tes
 
 Template files live in `templates` folders. They are inputs, not golden files.
 
-`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, every `Modify` operation and option, the other effects with their options (`effects/`), the count patterns of the Azure Landing Zones Library (`count/`), and initiatives (`initiatives/`). `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
+`tests/Golden/` has more cases, written to cover the compiler rather than as policies to use: every operator in its strict, negated and `-IfPresent` forms, `-Strict` inside `Each`, `AnyOf` and `AllOf` in `When` and `Require`, values from parameters and ARM expressions, tags and value conditions, every `Modify` operation and option, the other effects with their options (`effects/`), the count patterns of the Azure Landing Zones Library (`count/`), raw conditions with `Condition` (`conditions/`), and initiatives (`initiatives/`). `tests/GoldenPlainJson/` has the same kind of cases built with `-Format PlainJson`.
 
 After an intended change to the compiler's output, regenerate the golden files and review the diff:
 

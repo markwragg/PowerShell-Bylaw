@@ -264,6 +264,7 @@ A file can hold any number of `Policy` blocks. Bylaw finds every `*.bylaw.ps1` f
 | `ResourceGroupTag name` | The resource group's value for a tag, for example `Tag CostCenter \| Must -Be (ResourceGroupTag CostCenter)`. |
 | `Count path[*]`, `Count -Value list` | The number of array elements, or list members, that match `-Where`, piped to `Must`. See [Counts](#counts). |
 | `Current [name]` | Inside `Count -Where`: the element or member being counted. |
+| `Condition @{ }` | A raw policy condition, for what the language can't express. In `Require` and `Each` it needs `-Violation` or `-Compliant`. See [Raw conditions](#raw-conditions). |
 | `Must` | An assertion about the `Field`, `Tag`, `Element` or `Count` piped into it. See the operators below. |
 | `Effect` | `Audit`, `Deny` or `Disabled`, or `(Param Effect)`. The other effects have their own keywords, in place of `Effect`. |
 | `Modify -Role ... { }` | The `modify` effect: what to change on a non-compliant resource. See [Modify](#modify). |
@@ -433,6 +434,35 @@ Require 'Few rules allow inbound traffic' {
 - **In `Require`**, the comparison is inverted like any other: `-BeGreaterThan 0` emits `lessOrEquals 0`. A count is never missing, so it gets no guard.
 - **`Each path[*] { P }`** is the same as `Count path[*] -Where { <violation of P> } | Must -Be 0`, and stays the simple way to say "every element".
 - Azure allows at most 5 field counts per array, 10 value counts per rule, and 100 iterations over literal lists. The build checks all three.
+
+## Raw conditions
+
+For a condition the language can't express, `Condition` takes one Azure Policy condition as it would appear in policy JSON, as a hashtable or as JSON text:
+
+```powershell
+When {
+    Condition @{ value = '[requestContext().apiVersion]'; greaterOrEquals = '2020-01-01' }
+}
+
+Require 'No rule allows SSH from anywhere' {
+    Condition -Violation @{
+        count   = @{
+            field = 'securityRules[*]'
+            where = @{ allOf = @(
+                    @{ field = 'securityRules[*].sourceAddressPrefix'; equals = '*' }
+                    @{ field = 'securityRules[*].destinationPortRange'; equals = '22' }
+                ) }
+        }
+        greater = 0
+    }
+}
+```
+
+- **In `When` and `Count -Where`**, it is emitted as written, like everything else there.
+- **In `Require` and `Each`**, statements describe the compliant state and are inverted, which Bylaw can't do correctly for raw JSON. So say which form you wrote: `-Violation` is the condition that finds a non-compliant resource, emitted as written; `-Compliant` is the compliant state, emitted as `not(...)`.
+- **Field names** resolve like `Field`: a short name against the `Resource` type, or relative to the element inside `Each`. A full alias, a path with `[*]` (as policy JSON writes it inside a `count`'s `where`), or an ARM expression is used as written. Unknown aliases are still an error.
+- **Values** can be `Param` and `Arm`, so parameters are still declared and checked. Use a `[ordered]` hashtable, or JSON text, where the order of a literal object's keys matters.
+- **Nothing else is checked.** Bylaw adds no missing-field handling to a raw condition, and can't tell whether it means what its `Require` says. Prefer the language wherever it can express the condition.
 
 ## Modify
 
