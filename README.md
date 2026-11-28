@@ -691,6 +691,61 @@ An optional settings file. Bylaw looks for it from `-Path` upwards, stopping at 
 
 `languageVersion` pins the language's behaviour, so upgrading Bylaw never changes the output of existing policies by surprise. It defaults to `1.0`. Paths are relative to `bylaw.json`. `definitionScope` is a management group or subscription ID. Command-line parameters take precedence over these settings, and unknown keys fail the build.
 
+## Testing policies
+
+`Build-Bylaw` already rejects many mistakes: misspelled aliases, invalid operators, undeclared parameters and Azure's limits. A build that passes means the policy is valid, not that it does what you meant. Two kinds of test help with that.
+
+### Snapshot tests: did the output change?
+
+Commit the compiled JSON beside your sources, or in your EPAC `Definitions` folder, and have a Pester test fail when a build produces anything different. The output is deterministic, so any difference is a real change, and reviewing the JSON diff in a pull request shows what a change to a policy does to its rule.
+
+```powershell
+# tests/Policies.Tests.ps1
+BeforeDiscovery {
+    Import-Module Bylaw
+    # -PassThru without -OutputPath compiles in memory and writes nothing.
+    $script:Results = Build-Bylaw -Path "$PSScriptRoot/../policies" -PassThru -WarningAction SilentlyContinue |
+        ForEach-Object { @{ Name = $_.Name; Json = $_.Json; Warnings = @($_.Warnings) } }
+}
+
+Describe '<Name>' -ForEach $Results {
+    It 'matches the approved definition' {
+        $approved = Get-ChildItem -Path "$PSScriptRoot/../Definitions" -Recurse -Filter "$Name.json" | Select-Object -First 1
+        $approved | Should -Not -BeNullOrEmpty -Because "$Name needs an approved definition"
+        $Json | Should -BeExactly ([System.IO.File]::ReadAllText($approved.FullName))
+    }
+
+    It 'compiles without warnings' {
+        # Allow warnings you have accepted, e.g. BYL4010 for Append in EPAC output.
+        @($Warnings | Where-Object { $_ -notmatch ' BYL4010: ' }) | Should -BeNullOrEmpty
+    }
+}
+```
+
+To approve a change, rebuild into the committed folder and review the diff:
+
+```powershell
+Build-Bylaw ./policies -OutputPath ./Definitions/policyDefinitions
+git diff ./Definitions
+```
+
+Bylaw writes LF line endings. Add `*.json text eol=lf` to `.gitattributes`, so a Windows checkout doesn't convert the approved files to CRLF and fail the comparison.
+
+A snapshot test catches regressions, but not a rule that is wrong from the start: a policy that compiles to exactly what you wrote passes, even when what you wrote isn't what you meant.
+
+### Sandbox tests: does Azure do what you expect?
+
+The only full proof is Azure itself. In a test subscription:
+
+1. Deploy the definitions, and assign them to a resource group with the effect set to `Audit`.
+2. Create resources that should be compliant and resources that shouldn't, for each requirement and each edge case: a property that is missing, an array that is empty, a value in a different case.
+3. Run `Start-AzPolicyComplianceScan -ResourceGroupName <group>`, then compare `Get-AzPolicyState` with what you expected.
+4. For `Deny`, assign with `Deny` instead, and check that deploying a non-compliant resource fails with `RequestDisallowedByPolicy`.
+
+Remove the resources and the assignment afterwards. The scripts in [build/](build/), such as `build/verify-initiatives`, show this pattern: deploy, record what Azure did, and remove everything again.
+
+Sandbox tests are slow and need Azure access, so they suit the rules that matter most and the patterns you're unsure of. Testing policies against example resources without Azure is being considered for a later release ([ADR-0038](docs/adr/0038-policy-behaviour-tests.md), proposed).
+
 ## Development
 
 ```powershell

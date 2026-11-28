@@ -246,13 +246,27 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 - `ConvertFrom-PolicyJson`: JSON definition (and initiative) to `.bylaw.ps1`
 - An escape hatch for raw conditions the language can't express
 - Round-trip test harness: decompile, recompile, compare semantically (not textually)
-- Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed). Do not commit ALZ content to the repo without checking with me about licensing and attribution first.
+- Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed).
+- ALZ content may be committed as test data. The [Azure Landing Zones Library](https://github.com/Azure/Azure-Landing-Zones-Library) is under the MIT License, copyright Microsoft Corporation, which allows copying and modifying it if the copyright notice and licence text go with it (checked 2026-11-28). So:
+  - Keep it in a folder of its own, such as `tests/Alz/`, with a `THIRD-PARTY-NOTICES.md` beside it: Microsoft's copyright line, the full MIT text, the source repository and the commit it was taken from.
+  - Pin it to one ALZ commit, so results are reproducible. The script can still fetch the latest into an ignored folder, to check against it.
+  - Never ship it: it stays out of `src/`, so `Package` doesn't publish it.
+  - Check the licence again when updating the pinned commit, in case it has changed.
+
+### Future milestone: policy behaviour tests (not yet numbered)
+
+To be scheduled. The design is proposed in ADR-0038, to be revisited and accepted before work starts.
+
+- `Test-BylawPolicy`: evaluate a compiled policy, or any policy JSON, against example resources, with a trace of each condition, and an inconclusive result for anything the evaluator doesn't support
+- Pester assertions: `Should -BeCompliantWith`, `Should -ViolatePolicy` and `Should -NotApplyTo`
+- Alias paths in the alias snapshot (schema version 2), so fields can be read from a resource
+- A conformance suite whose expected results come from a recorded sandbox run
+- README: behaviour tests in Testing policies
 
 ### Later (do not build yet, but don't design them out)
 
 - Resource provider modes, such as `Microsoft.Kubernetes.Data`
 - Bicep emitter
-- `Test-PolicyRule` local evaluator against sample resource JSON
 - VS Code syntax support and argument completers for `Field` driven by the enclosing `Resource` type
 - To consider after Milestone 4: an optional file name suffix, as a `bylaw.json` setting, writing `<name>.policy.json` and `<name>.initiative.json`. It would tell policies and initiatives apart in a shared output folder, let editors match plain JSON files to a schema by name, and limit the stale-output check to Bylaw's own files. A project would choose it once, because switching renames every output file.
 
