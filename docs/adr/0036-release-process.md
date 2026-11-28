@@ -46,7 +46,7 @@ The text changes are functions in `build/Release.ps1`, tested by `tests/Build/Re
 
 ### The pipeline
 
-A `release` job runs after the test matrix, on pushes to `main` only:
+A `release` job runs after the test matrix, on pushes to `main` only. While Actions minutes are short, the workflow runs only when started by hand (`workflow_dispatch`), and a manual run on `main` also runs this job:
 
 1. Runs the tests with code coverage (`Test -CI -Coverage`, written to `out/coverage.xml`). Coverage roughly doubles the test time, so pull requests don't measure it.
 2. `UpdateCoverageBadge` sets the shields.io badge in the README to the share of commands covered, rounded down.

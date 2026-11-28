@@ -1,9 +1,11 @@
 name: CI
 
+# Manual only for now, to save Actions minutes: run it from the Actions tab (Run workflow). To run
+# it on every push to main and on pull requests again, restore these triggers:
+#   push:
+#     branches: [main]
+#   pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -37,12 +39,13 @@ jobs:
           path: out/testResults.xml
           if-no-files-found: ignore
 
-  # On main only: measure coverage for the README badge and, when CHANGELOG.md has a "## !Deploy"
-  # line, publish to the PowerShell Gallery and create a GitHub release (ADR-0036).
+  # On main only (a push, or a manual run on main): measure coverage for the README badge and,
+  # when CHANGELOG.md has a "## !Deploy" line, publish to the PowerShell Gallery and create a
+  # GitHub release (ADR-0036).
   release:
     name: Coverage and release
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: write
