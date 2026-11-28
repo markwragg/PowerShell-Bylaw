@@ -180,6 +180,7 @@ Policy 'test-policy' {
             @{ Code = 'BYL1061'; Case = 'a switch in When'; Statements = "When { Condition -Violation @{ field = 'name'; equals = 'x' } }; Require 'r' { Field name | Must -Be 'x' }" }
             @{ Code = 'BYL1061'; Case = 'a switch in Count -Where'; Statements = "Require 'r' { Count securityRules[*] -Where { Condition -Compliant @{ field = 'access'; equals = 'x' } } | Must -Be 0 }" }
             @{ Code = 'BYL1060'; Case = 'invalid JSON'; Statements = "Require 'r' { Condition -Violation '{ ""field"": ' }" }
+            @{ Code = 'BYL1060'; Case = 'a duplicate JSON key'; Statements = "Require 'r' { Condition -Violation '{ ""field"": ""name"", ""field"": ""location"", ""equals"": ""x"" }' }" }
             @{ Code = 'BYL1060'; Case = 'no condition kind'; Statements = "Require 'r' { Condition -Violation @{ equals = 'x' } }" }
             @{ Code = 'BYL1060'; Case = 'two condition kinds'; Statements = "Require 'r' { Condition -Violation @{ field = 'name'; value = 'x'; equals = 'x' } }" }
             @{ Code = 'BYL1060'; Case = 'an unknown operator'; Statements = "Require 'r' { Condition -Violation @{ field = 'name'; startsWith = 'x' } }" }

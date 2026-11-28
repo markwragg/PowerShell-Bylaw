@@ -232,4 +232,19 @@ Describe 'Optimize-BylawCondition repeated conditions' {
             (Optimize-BylawCondition -Condition $tree).Children.Count | Should -Be 4
         }
     }
+
+    It 'keeps two literals that differ only below 20 levels of nesting' {
+        InModuleScope Bylaw {
+            function Get-DeepValue([string] $Leaf) {
+                $value = $Leaf
+                for ($i = 0; $i -lt 25; $i++) { $value = [ordered]@{ inner = $value } }
+                $value
+            }
+            $field = [BylawFieldRef]::new('a')
+            $first = [BylawFieldCondition]::new($field, 'equals', [BylawLiteral]::new((Get-DeepValue 'x')))
+            $second = [BylawFieldCondition]::new($field, 'equals', [BylawLiteral]::new((Get-DeepValue 'y')))
+            $tree = [BylawGroup]::new([BylawGroupKind]::AnyOf, [BylawCondition[]] @($first, $second))
+            (Optimize-BylawCondition -Condition $tree).Children.Count | Should -Be 2
+        }
+    }
 }

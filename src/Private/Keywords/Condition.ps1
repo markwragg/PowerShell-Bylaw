@@ -89,7 +89,8 @@ function Condition {
     $object = $Value
     if ($Value -is [string]) {
         try {
-            $object = ConvertFrom-BylawJsonText -Text $Value
+            # Bylaw's reader keeps key order and rejects duplicate keys (JsonReader.ps1).
+            $object = ConvertFrom-BylawJson -Json $Value
         }
         catch {
             Add-BylawDiagnostic -Severity Error -Code 'BYL1060' -Location $location -Message (

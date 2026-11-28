@@ -27,6 +27,27 @@ Describe 'Bylaw classes in type names' {
     }
 }
 
+Describe 'Function names in src' {
+    # Every file is loaded into one module scope (ADR-0006), so a second function with the same name
+    # silently replaces the first, whichever loads last.
+    It 'defines each function once' {
+        $definitions = foreach ($file in $sourceFiles) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullPath, [ref] $null, [ref] $null)
+            foreach ($function in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+                # Class constructors and methods are members, not functions.
+                $inClass = $false
+                for ($parent = $function.Parent; $parent; $parent = $parent.Parent) {
+                    if ($parent -is [System.Management.Automation.Language.TypeDefinitionAst]) { $inClass = $true; break }
+                }
+                if (-not $inClass) {
+                    [pscustomobject]@{ Name = $function.Name; Where = "$($file.Path):$($function.Extent.StartLineNumber)" }
+                }
+            }
+        }
+        $repeated = @($definitions | Group-Object Name | Where-Object Count -GT 1 | ForEach-Object { "$($_.Name) ($($_.Group.Where -join ', '))" })
+        $repeated | Should -BeNullOrEmpty
+    }
+}
 Describe 'Repository text files' {
     It '<Path> uses LF line endings' -ForEach $textFiles {
         $bytes = [System.IO.File]::ReadAllBytes($FullPath)

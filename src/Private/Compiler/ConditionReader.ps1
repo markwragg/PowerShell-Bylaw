@@ -7,51 +7,6 @@
 
 $script:BylawRawCountOperators = @('equals', 'notEquals', 'greater', 'greaterOrEquals', 'less', 'lessOrEquals', 'in', 'notIn')
 
-function ConvertFrom-BylawJsonText {
-    # JSON text as ordered dictionaries, arrays and plain values, so key order is kept and output
-    # stays deterministic (a Hashtable's order varies between runs). Throws on invalid JSON.
-    param([Parameter(Mandatory)] [string] $Text)
-
-    $document = [System.Text.Json.JsonDocument]::Parse($Text)
-    try {
-        ConvertFrom-BylawJsonElement -Element $document.RootElement
-    }
-    finally {
-        $document.Dispose()
-    }
-}
-
-function ConvertFrom-BylawJsonElement {
-    param([Parameter(Mandatory)] [System.Text.Json.JsonElement] $Element)
-
-    switch ($Element.ValueKind) {
-        'Object' {
-            $result = [ordered]@{}
-            foreach ($property in $Element.EnumerateObject()) {
-                $result[$property.Name] = ConvertFrom-BylawJsonElement -Element $property.Value
-            }
-            return $result
-        }
-        'Array' {
-            $items = foreach ($item in $Element.EnumerateArray()) {
-                , (ConvertFrom-BylawJsonElement -Element $item)
-            }
-            return , [object[]] @($items)
-        }
-        'String' { return $Element.GetString() }
-        'Number' {
-            $long = 0L
-            if ($Element.TryGetInt64([ref] $long)) {
-                return $long
-            }
-            return $Element.GetDouble()
-        }
-        'True' { return $true }
-        'False' { return $false }
-        default { return $null }
-    }
-}
-
 function Find-BylawConditionKey {
     # The key in Dictionary that matches Name ignoring case, or $null.
     param([Parameter(Mandatory)] [System.Collections.IDictionary] $Dictionary, [Parameter(Mandatory)] [string] $Name)
