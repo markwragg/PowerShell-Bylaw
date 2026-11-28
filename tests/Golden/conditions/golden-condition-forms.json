@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-definition-schema.json",
+  "name": "golden-condition-forms",
+  "properties": {
+    "displayName": "Golden: raw conditions in When and Require",
+    "policyType": "Custom",
+    "mode": "All",
+    "metadata": {
+      "version": "1.0.0",
+      "category": "Network"
+    },
+    "parameters": {
+      "maxRules": {
+        "type": "Integer",
+        "metadata": {
+          "displayName": "Max rules"
+        },
+        "defaultValue": 50
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Network/networkSecurityGroups"
+          },
+          {
+            "value": "[requestContext().apiVersion]",
+            "greaterOrEquals": "2020-01-01"
+          },
+          {
+            "anyOf": [
+              {
+                "count": {
+                  "field": "Microsoft.Network/networkSecurityGroups/securityRules[*]",
+                  "where": {
+                    "allOf": [
+                      {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefix",
+                        "equals": "*"
+                      },
+                      {
+                        "field": "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRange",
+                        "equals": "22"
+                      }
+                    ]
+                  }
+                },
+                "greater": 0
+              },
+              {
+                "field": "name",
+                "notLike": "nsg-*"
+              },
+              {
+                "not": {
+                  "count": {
+                    "field": "Microsoft.Network/networkSecurityGroups/securityRules[*]"
+                  },
+                  "lessOrEquals": "[parameters('maxRules')]"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

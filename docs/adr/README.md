@@ -42,3 +42,7 @@ Bylaw records significant design decisions as [MADR 4.0.0](https://adr.github.io
 | [0036](0036-release-process.md) | Releases are published from main when CHANGELOG.md has a "## !Deploy" heading | Accepted |
 | [0037](0037-wiki-documentation.md) | Reference documentation is generated from the source and published to the GitHub wiki | Accepted |
 | [0038](0038-policy-behaviour-tests.md) | Policies are tested against example resources with a local evaluator | Proposed |
+| [0039](0039-decompiler.md) | ConvertTo-Bylaw turns policy JSON into Bylaw files that compile back to the same rule | Accepted |
+| [0040](0040-raw-conditions.md) | Condition writes a raw policy condition, for what the language can't express | Accepted |
+| [0041](0041-semantic-comparison.md) | Definitions are compared by meaning, through a normal form and a truth table over their conditions | Accepted |
+| [0042](0042-alz-coverage.md) | A pinned copy of the Azure Landing Zones Library is test data, with a coverage report and a regression baseline | Accepted |

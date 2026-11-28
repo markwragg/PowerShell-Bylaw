@@ -72,6 +72,10 @@ function Optimize-BylawCondition {
 
     if ($Condition -is [BylawNot]) {
         $child = Optimize-BylawCondition -Condition $Condition.Child
+        # not(not x) is x, e.g. a Condition -Compliant whose raw condition is itself a not (ADR-0040).
+        if ($child -is [BylawNot]) {
+            return $child.Child
+        }
         if ([object]::ReferenceEquals($child, $Condition.Child)) {
             return $Condition
         }
@@ -137,6 +141,7 @@ function Get-BylawValueKey {
         # The emitted expression: Currents of different counts can name the same member (ADR-0032).
         return 'current:' + (Get-BylawCurrentExpression -Current $Value)
     }
-    # Literals: JSON text tells true from 'true' and 5 from '5'.
-    'literal:' + (ConvertTo-Json -InputObject $Value.Value -Compress -Depth 20)
+    # Literals: JSON text tells true from 'true' and 5 from '5'. Bylaw's writer, not ConvertTo-Json,
+    # which silently truncates past its -Depth, so two deep literals could get the same key.
+    'literal:' + (ConvertTo-BylawJson -InputObject $Value.Value)
 }

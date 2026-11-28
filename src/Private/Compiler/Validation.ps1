@@ -73,7 +73,9 @@ function Invoke-BylawValidation {
     $assertions = if ($null -ne $scope) { @(Get-BylawAssertion -Scope $scope) } else { @() }
     # Assertions in an existence condition describe the related resource (ADR-0030).
     $relatedAssertions = if ($Policy.Effect -is [BylawIfNotExists]) { @(Get-BylawAssertion -Requirements $Policy.Effect.Requirements) } else { @() }
-    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions (@($assertions) + @($relatedAssertions))
+    # Condition statements (ADR-0040) use parameters too.
+    $rawStatements = @(if ($null -ne $scope) { Get-BylawRawStatement -Scope $scope }) + @(if ($Policy.Effect -is [BylawIfNotExists]) { Get-BylawRawStatement -Requirements @($Policy.Effect.Requirements) })
+    $used = Get-BylawUsedParameterName -Policy $Policy -Assertions (@($assertions) + @($relatedAssertions)) -RawStatements $rawStatements
     foreach ($parameter in $Policy.Parameters) {
         if (-not $used.Contains($parameter.Name)) {
             & $add 'BYL3029' "Parameter '$($parameter.Name)' is declared but never used." $parameter.Location ([BylawSeverity]::Warning)
@@ -84,6 +86,9 @@ function Invoke-BylawValidation {
         foreach ($assertion in @($assertions) + @($relatedAssertions)) {
             Test-BylawAssertionValue -Assertion $assertion -Policy $Policy -Add $add
             Test-BylawTagParameter -Assertion $assertion -Policy $Policy -Add $add
+        }
+        foreach ($statement in $rawStatements) {
+            Test-BylawRawConditionParameter -Statement $statement -Policy $Policy -Add $add
         }
         if ($Policy.Effect -is [BylawIfNotExists]) {
             Test-BylawIfNotExistsEffect -Effect $Policy.Effect -Policy $Policy -Add $add
@@ -585,9 +590,14 @@ function Get-BylawUsedParameterName {
     # DSL names of the parameters a policy references: Param values and value-condition subjects in
     # assertions, tag names in Tag and ResourceGroupTag, the effect, and parameters('...') inside
     # Arm expressions (ADR-0021).
-    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [object[]] $Assertions = @())
+    param([Parameter(Mandatory)] [BylawPolicy] $Policy, [object[]] $Assertions = @(), [object[]] $RawStatements = @())
 
     $values = [System.Collections.Generic.List[object]]::new()
+    foreach ($statement in $RawStatements) {
+        foreach ($value in Get-BylawRawConditionValue -Condition $statement.Condition) {
+            $values.Add($value)
+        }
+    }
     foreach ($assertion in $Assertions) {
         foreach ($value in $assertion.Value, $assertion.Subject) {
             if ($null -ne $value) {

@@ -37,7 +37,7 @@ Bylaw/
   src/
     Bylaw.psd1
     Bylaw.psm1
-    Public/          # Build-Bylaw, ConvertFrom-PolicyJson, Update-BylawAliasCache, Policy
+    Public/          # Build-Bylaw, ConvertTo-Bylaw, Update-BylawAliasCache, Policy
     Private/
       Keywords/      # Properties, Parameter, Resource, When, Require, Each, Field, Tag, Must, Element, Effect, Modify, Param, Arm
       IR/            # IR node classes
@@ -243,10 +243,10 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 
 ### Milestone 5: decompiler and ALZ round-trip
 
-- `ConvertFrom-PolicyJson`: JSON definition (and initiative) to `.bylaw.ps1`
-- An escape hatch for raw conditions the language can't express
-- Round-trip test harness: decompile, recompile, compare semantically (not textually)
-- Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed).
+- `ConvertTo-Bylaw`: JSON definition (and initiative) to `.bylaw.ps1`, proven by compiling it back and comparing (ADR-0039)
+- An escape hatch for raw conditions the language can't express: `Condition` (ADR-0040)
+- Round-trip test harness: decompile, recompile, compare semantically (not textually) (ADR-0041)
+- Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed), with a pinned copy and a regression baseline (ADR-0042).
 - ALZ content may be committed as test data. The [Azure Landing Zones Library](https://github.com/Azure/Azure-Landing-Zones-Library) is under the MIT License, copyright Microsoft Corporation, which allows copying and modifying it if the copyright notice and licence text go with it (checked 2026-11-28). So:
   - Keep it in a folder of its own, such as `tests/Alz/`, with a `THIRD-PARTY-NOTICES.md` beside it: Microsoft's copyright line, the full MIT text, the source repository and the commit it was taken from.
   - Pin it to one ALZ commit, so results are reproducible. The script can still fetch the latest into an ignored folder, to check against it.

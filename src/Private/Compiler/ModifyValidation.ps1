@@ -175,6 +175,11 @@ function Get-BylawRequirementFieldName {
         elseif ($node -is [BylawAssertion] -and $null -ne $node.Field -and $node.Field.Resolved) {
             $null = $names.Add($node.Field.Resolved)
         }
+        elseif ($node -is [BylawRawCondition]) {
+            foreach ($name in Get-BylawRawConditionField -Condition $node.Condition) {
+                $null = $names.Add($name)
+            }
+        }
     }
     , $names
 }
