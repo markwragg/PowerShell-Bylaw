@@ -754,9 +754,10 @@ Sandbox tests are slow and need Azure access, so they suit the rules that matter
 ./build/build.ps1 -Task Package        # build out/Bylaw
 ./build/build.ps1 -Task UpdateGolden   # regenerate the expected JSON after an intended output change
 ./build/build.ps1 -Task Test -Coverage # test, writing code coverage to out/coverage.xml
+./build/build.ps1 -Task Docs           # generate the wiki pages into out/wiki
 ```
 
-Releases are driven by [CHANGELOG.md](CHANGELOG.md): add your changes under a `## !Deploy` heading, optionally with a version such as `## !Deploy 0.2.0`, and when it reaches `main` the build publishes to the PowerShell Gallery, dates the changelog and creates a GitHub release. Every build of `main` also updates the coverage badge ([ADR-0036](docs/adr/0036-release-process.md)).
+Releases are driven by [CHANGELOG.md](CHANGELOG.md): add your changes under a `## !Deploy` heading, optionally with a version such as `## !Deploy 0.2.0`, and when it reaches `main` the build publishes to the PowerShell Gallery, dates the changelog and creates a GitHub release. Every build of `main` also updates the coverage badge ([ADR-0036](docs/adr/0036-release-process.md)), and publishes the command and keyword reference to the [wiki](https://github.com/markwragg/PowerShell-Bylaw/wiki) ([ADR-0037](docs/adr/0037-wiki-documentation.md)).
 
 The tests include golden files: [examples/](examples/), [tests/Golden/](tests/Golden/) and [tests/GoldenPlainJson/](tests/GoldenPlainJson/) hold each policy source next to the exact JSON it must compile to. [tests/Golden/GoldenRoots.psd1](tests/Golden/GoldenRoots.psd1) lists the folders and the format each is built in.
 

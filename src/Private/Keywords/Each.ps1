@@ -2,12 +2,32 @@ function Each {
     <#
     .SYNOPSIS
         Every element of an array must satisfy the block. Compiles to count/where (ADR-0002).
+
+    .DESCRIPTION
+        Field names inside Each are relative to the element, and Element is the element itself
+        when the array holds plain values. A missing or empty array is compliant, as in Azure.
+        Inside Each, a missing field on an element is compliant unless -Strict is used on Must.
+
+    .EXAMPLE
+        Each networkAcls.ipRules[*] {
+            Field value | Must -Not -Be '0.0.0.0/0'
+        }
+
+    .EXAMPLE
+        Each accessPolicies[*] {
+            Each permissions.keys[*] {
+                Element | Must -Not -Be 'purge'
+            }
+        }
     #>
     [CmdletBinding()]
     param(
+        # The array, ending in [*], e.g. networkAcls.ipRules[*]. Inside another Each, it is
+        # relative to that element.
         [Parameter(Mandatory, Position = 0)]
         [string] $Path,
 
+        # The requirement every element must meet.
         [Parameter(Mandatory, Position = 1)]
         [scriptblock] $Body
     )

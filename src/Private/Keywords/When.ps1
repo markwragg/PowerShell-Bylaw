@@ -2,9 +2,20 @@ function When {
     <#
     .SYNOPSIS
         Applicability conditions. Emitted as written; not inverted (ADR-0002).
+
+    .DESCRIPTION
+        When narrows the resources the policy applies to: only resources that meet every statement
+        in it are checked against the Require blocks. Unlike Require, it is emitted as written and
+        gets no missing-field checks, so -IfPresent and -Strict can't be used in it.
+
+    .EXAMPLE
+        When {
+            Field networkAcls.defaultAction | Must -Be 'Deny'
+        }
     #>
     [CmdletBinding()]
     param(
+        # The statements a resource must meet for the policy to apply to it.
         [Parameter(Mandatory, Position = 0)]
         [scriptblock] $Body
     )

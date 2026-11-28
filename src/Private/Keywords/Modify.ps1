@@ -116,9 +116,11 @@ function AddOrReplace {
     #>
     [CmdletBinding()]
     param(
+        # The field to change: a Field or Tag, piped to the operation.
         [Parameter(ValueFromPipeline)]
         [object] $InputObject,
 
+        # The value to set: a literal, Param, Arm or ResourceGroupTag.
         [Parameter(Position = 0)]
         [AllowNull()] [object] $Value,
 
@@ -156,9 +158,11 @@ function Add {
     #>
     [CmdletBinding()]
     param(
+        # The field to change: a Field or Tag, piped to the operation.
         [Parameter(ValueFromPipeline)]
         [object] $InputObject,
 
+        # The value to set: a literal, Param, Arm or ResourceGroupTag.
         [Parameter(Position = 0)]
         [AllowNull()] [object] $Value,
 
@@ -195,6 +199,7 @@ function Remove {
     #>
     [CmdletBinding()]
     param(
+        # The tag to remove, piped to Remove.
         [Parameter(ValueFromPipeline)]
         [object] $InputObject,
 

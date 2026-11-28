@@ -146,8 +146,13 @@ function DefinitionGroup {
         [AllowEmptyString()]
         [string] $Name,
 
+        # The group's name as shown in the portal. Not allowed in EPAC output.
         [string] $DisplayName,
+
+        # The group's category, such as a regulatory domain. Not allowed in EPAC output.
         [string] $Category,
+
+        # A description of the group. Not allowed in EPAC output.
         [string] $Description,
 
         # The ID of a policyMetadata object with more about the group, such as a control's details.
