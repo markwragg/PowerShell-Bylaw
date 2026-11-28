@@ -78,7 +78,7 @@ Describe 'Diagnostics pages' {
         }
     }
 
-    It 'has a section for every code in <_>, linked from its table' -ForEach @('BYL1xxx') {
+    It 'has a section for every code in <_>, linked from its table' -ForEach @('BYL1xxx', 'BYL2xxx', 'BYL3xxx', 'BYL4xxx', 'BYL5xxx') {
         $page = Get-Page "Diagnostics-$_"
         $codes = [regex]::Matches($page, '(?m)^## (BYL\d{4})$') | ForEach-Object { $_.Groups[1].Value }
         $codes | Should -Not -BeNullOrEmpty

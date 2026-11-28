@@ -27,22 +27,14 @@ BeforeAll {
 }
 
 Describe 'Diagnostics catalogue for <Range>' -ForEach $Ranges {
-    # Until every range has been written, a range without a file is skipped, not failed.
     It 'has a catalogue file' {
-        if (-not $Catalogue) {
-            Set-ItResult -Skipped -Because "docs/diagnostics/$Range.psd1 hasn't been written yet"
-            return
-        }
+        $Catalogue | Should -Not -BeNullOrEmpty -Because "docs/diagnostics/$Range.psd1 should document the $Range codes"
         $Catalogue.File | Should -Be "$Range.psd1"
         $Catalogue.Title | Should -Not -BeNullOrEmpty
         $Catalogue.Description | Should -Not -BeNullOrEmpty
     }
 
     It 'has an entry for every code src emits, and none it does not' {
-        if (-not $Catalogue) {
-            Set-ItResult -Skipped -Because "docs/diagnostics/$Range.psd1 hasn't been written yet"
-            return
-        }
         $documented = @($Catalogue.Diagnostics.Code)
         $codes = @($Emitted.Code | Sort-Object -Unique)
         @($codes | Where-Object { $_ -notin $documented }) | Should -BeNullOrEmpty -Because 'every code needs an entry'
@@ -50,19 +42,11 @@ Describe 'Diagnostics catalogue for <Range>' -ForEach $Ranges {
     }
 
     It 'lists each code once, in order' {
-        if (-not $Catalogue) {
-            Set-ItResult -Skipped -Because "docs/diagnostics/$Range.psd1 hasn't been written yet"
-            return
-        }
         $documented = @($Catalogue.Diagnostics.Code)
         $documented | Should -Be @($documented | Sort-Object -Unique)
     }
 
     It 'gives each code the severity src reports it with' {
-        if (-not $Catalogue) {
-            Set-ItResult -Skipped -Because "docs/diagnostics/$Range.psd1 hasn't been written yet"
-            return
-        }
         foreach ($entry in $Catalogue.Diagnostics) {
             $known = @($Emitted | Where-Object { $_.Code -eq $entry.Code -and $_.Severity } | ForEach-Object Severity | Sort-Object -Unique)
             foreach ($severity in $known) {

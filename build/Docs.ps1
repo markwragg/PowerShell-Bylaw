@@ -179,11 +179,14 @@ function Get-SourceDiagnostic {
                 $command = $null
             }
             if ($command -and $command.InvocationOperator -eq 'Ampersand' -and $command.CommandElements[0].Extent.Text -in '$add', '$Add', '$new') {
-                # & $add 'BYL3001' message location [severity], and & $new 'BYL3120' message
-                # [severity]: the helpers report an error unless the severity argument says otherwise.
-                $elements = $command.CommandElements
-                $position = if ($elements[0].Extent.Text -eq '$new') { 3 } else { 4 }
-                $severity = if ($elements.Count -gt $position -and $elements[$position].Extent.Text -match '\[BylawSeverity\]::(?<severity>\w+)') { $Matches['severity'] } else { 'Error' }
+                # & $add 'BYL3001' message location [severity], and the & $new helpers: they report an
+                # error unless a [BylawSeverity] argument, wherever it is, says otherwise.
+                $severity = 'Error'
+                foreach ($element in $command.CommandElements | Select-Object -Skip 2) {
+                    if ($element.Extent.Text -match '^\(?\[BylawSeverity\]::(?<severity>\w+)\)?$') {
+                        $severity = $Matches['severity']
+                    }
+                }
                 $command = $null
             }
             if ($command) {
