@@ -4,8 +4,10 @@
 BeforeDiscovery {
     $manifest = Join-Path $PSScriptRoot '../../src/Bylaw.psd1'
     $module = Import-Module -Name $manifest -Force -PassThru
-    $script:Commands = @($module.ExportedFunctions.Keys | Sort-Object | ForEach-Object { @{ Name = $_ } })
-    $script:Keywords = @(& $module { $script:BylawKeywordNames } | Sort-Object | ForEach-Object { @{ Name = $_ } })
+    . (Join-Path $PSScriptRoot '../../build/Docs.ps1')
+    # Policy and Initiative are exported, but documented as keywords.
+    $script:Commands = @($module.ExportedFunctions.Keys | Where-Object { $_ -notin $TopLevelKeywords } | Sort-Object | ForEach-Object { @{ Name = $_ } })
+    $script:Keywords = @(@($TopLevelKeywords) + @(& $module { $script:BylawKeywordNames } | Sort-Object) | ForEach-Object { @{ Name = $_ } })
     Remove-Module -Name Bylaw -Force
 }
 
@@ -89,6 +91,14 @@ Describe 'Diagnostics pages' {
 }
 
 Describe 'The sidebar' {
+    It 'lists Policy and Initiative first under Keywords, not under Commands' {
+        $sidebar = Get-Page '_Sidebar'
+        $commands = [regex]::Match($sidebar, '(?s)\*\*Commands\*\*(.*?)\*\*Keywords\*\*').Groups[1].Value
+        $commands | Should -Not -Match '\[\[(Policy|Initiative)\]\]'
+        $keywords = [regex]::Match($sidebar, '(?s)\*\*Keywords\*\*\n(.*?)\n\n').Groups[1].Value -split "`n"
+        $keywords[0..1] | Should -Be @('* [[Policy]]', '* [[Initiative]]')
+    }
+
     It 'links Home and every generated page' {
         $sidebar = Get-Page '_Sidebar'
         $sidebar | Should -Match '\[\[Home\]\]'

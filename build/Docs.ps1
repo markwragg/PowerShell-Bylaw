@@ -6,9 +6,15 @@
 # so it only ever replaces or removes its own pages.
 $script:GeneratedPagesFile = '.bylaw-generated-pages'
 
-# Where keywords are used that don't say so in a Test-BylawParent call: values, and the Modify
-# operations that check their parent through a helper.
+# Policy and Initiative are exported, but they're the outer blocks of a .bylaw.ps1 file, not commands
+# you run, so they get keyword pages and are listed first under Keywords.
+$script:TopLevelKeywords = @('Policy', 'Initiative')
+
+# Where keywords are used that don't say so in a Test-BylawParent call: the top-level blocks, values,
+# and the Modify operations that check their parent through a helper.
 $script:KeywordUsageFallback = @{
+    Policy           = 'The top level of a .bylaw.ps1 file'
+    Initiative       = 'The top level of a .bylaw.ps1 file'
     AddOrReplace     = 'Modify'
     Remove           = 'Modify'
     Param            = 'Anywhere in a Policy or Initiative, as a value'
@@ -345,8 +351,10 @@ function New-WikiPageSet {
     $null = New-Item -ItemType Directory -Path $OutputPath -Force
     $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     $module = Import-Module -Name (Join-Path $SourceRoot 'Bylaw.psd1') -Force -PassThru -ErrorAction Stop
-    $commands = @($module.ExportedFunctions.Keys | Sort-Object)
-    $keywords = @(& $module { $script:BylawKeywordNames } | Sort-Object)
+    $topLevel = @($script:TopLevelKeywords | Where-Object { $module.ExportedFunctions.ContainsKey($_) })
+    $commands = @($module.ExportedFunctions.Keys | Where-Object { $_ -notin $topLevel } | Sort-Object)
+    # The top-level blocks first, then the other keywords in order.
+    $keywords = @($topLevel) + @(& $module { $script:BylawKeywordNames } | Sort-Object)
 
     # Commands: PlatyPS, as in the maintainer's other modules.
     $null = New-MarkdownHelp -Command $commands -OutputFolder $OutputPath -NoMetadata -Force -ErrorAction Stop
