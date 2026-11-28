@@ -309,10 +309,11 @@ function Invoke-UpdateWiki {
     }
     $null = Invoke-Documentation
 
-    $wikiRepoPath = Join-Path $outRoot 'wiki-repo'
-    if (Test-Path $wikiRepoPath) {
-        Remove-Item -Path $wikiRepoPath -Recurse -Force
+    # A new clone each run: an earlier one can't be deleted while an editor has a file in it open.
+    foreach ($old in @(Get-ChildItem -Path $outRoot -Directory -Filter 'wiki-repo*' -ErrorAction SilentlyContinue)) {
+        Remove-Item -Path $old.FullName -Recurse -Force -ErrorAction SilentlyContinue
     }
+    $wikiRepoPath = Join-Path $outRoot "wiki-repo-$([datetime]::UtcNow.ToString('yyyyMMddHHmmss'))"
     $wikiUrl = "https://github.com/$repository.wiki.git"
     git clone --quiet "https://x-access-token:$($env:GH_PAT)@github.com/$repository.wiki.git" $wikiRepoPath
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $wikiRepoPath '.git'))) {
