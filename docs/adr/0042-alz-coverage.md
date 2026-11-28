@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-28
 decision-makers: Bylaw maintainers
 ---
@@ -37,7 +37,7 @@ Chosen option: "A pinned copy committed as test data, with a baseline".
 
 ### The coverage report
 
-* `build/alz/Get-AlzCoverage.ps1` converts every definition in the copy with `ConvertFrom-PolicyJson`, and reports per definition: `Converted`, `EscapeHatch` (with the conditions that needed `Condition`, ADR-0040), or `Failed` (with the diagnostics). It writes `out/alz-coverage.md` and `out/alz-coverage.json`.
+* `build/alz/Get-AlzCoverage.ps1` converts every definition in the copy with `ConvertTo-Bylaw`, and reports per definition: `Converted`, `EscapeHatch` (with the conditions that needed `Condition`, ADR-0040), or `Failed` (with the diagnostics). It writes `out/alz-coverage.md` and `out/alz-coverage.json`.
 * It can also run against the latest ALZ, fetched into an ignored folder, to see what an update would change before pinning it.
 * The README gives the totals for the pinned commit, such as "143 of 149 converted, 4 with the escape hatch, 2 failed", updated when the copy or the baseline changes.
 

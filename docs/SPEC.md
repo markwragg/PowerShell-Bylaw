@@ -37,7 +37,7 @@ Bylaw/
   src/
     Bylaw.psd1
     Bylaw.psm1
-    Public/          # Build-Bylaw, ConvertFrom-PolicyJson, Update-BylawAliasCache, Policy
+    Public/          # Build-Bylaw, ConvertTo-Bylaw, Update-BylawAliasCache, Policy
     Private/
       Keywords/      # Properties, Parameter, Resource, When, Require, Each, Field, Tag, Must, Element, Effect, Modify, Param, Arm
       IR/            # IR node classes
@@ -243,7 +243,7 @@ Every effect Azure Policy supports, and the conditions Bylaw can't yet express, 
 
 ### Milestone 5: decompiler and ALZ round-trip
 
-- `ConvertFrom-PolicyJson`: JSON definition (and initiative) to `.bylaw.ps1`, proven by compiling it back and comparing (ADR-0039)
+- `ConvertTo-Bylaw`: JSON definition (and initiative) to `.bylaw.ps1`, proven by compiling it back and comparing (ADR-0039)
 - An escape hatch for raw conditions the language can't express: `Condition` (ADR-0040)
 - Round-trip test harness: decompile, recompile, compare semantically (not textually) (ADR-0041)
 - Script to pull custom policy definitions from the Azure Landing Zones Library and produce a coverage report (supported / escape hatch / failed), with a pinned copy and a regression baseline (ADR-0042).

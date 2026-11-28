@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-28
 decision-makers: Bylaw maintainers
 ---

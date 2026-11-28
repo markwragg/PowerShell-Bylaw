@@ -1,16 +1,16 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-28
 decision-makers: Bylaw maintainers
 ---
 
-# ConvertFrom-PolicyJson turns policy JSON into Bylaw files that compile back to the same rule
+# ConvertTo-Bylaw turns policy JSON into Bylaw files that compile back to the same rule
 
 ## Context and Problem Statement
 
-Teams adopting Bylaw already have policy definitions as JSON: their own, EPAC's, the Azure Landing Zones Library's, or exported from Azure. Rewriting them by hand is slow, and easy to get subtly wrong, which is the problem Bylaw exists to solve. A decompiler, `ConvertFrom-PolicyJson`, was planned from the start (ADR-0005, ADR-0006), and the IR already keeps `Not` and generic groups for it.
+Teams adopting Bylaw already have policy definitions as JSON: their own, EPAC's, the Azure Landing Zones Library's, or exported from Azure. Rewriting them by hand is slow, and easy to get subtly wrong, which is the problem Bylaw exists to solve. A decompiler, `ConvertTo-Bylaw`, was planned from the start (ADR-0005, ADR-0006), and the IR already keeps `Not` and generic groups for it.
 
-Decompiling isn't the reverse of a single step. An `if` condition finds violations, while Bylaw describes compliance, split into `When` and `Require`. Compiling also adds missing-field guards (ADR-0004), generates effect parameters (ADR-0017) and resolves short alias names (ADR-0008). Hand-written JSON follows none of Bylaw's patterns. How does `ConvertFrom-PolicyJson` produce a readable `.bylaw.ps1` file, and how does it know the file is right?
+Decompiling isn't the reverse of a single step. An `if` condition finds violations, while Bylaw describes compliance, split into `When` and `Require`. Compiling also adds missing-field guards (ADR-0004), generates effect parameters (ADR-0017) and resolves short alias names (ADR-0008). Hand-written JSON follows none of Bylaw's patterns. How does `ConvertTo-Bylaw` produce a readable `.bylaw.ps1` file, and how does it know the file is right?
 
 ## Decision Drivers
 
@@ -31,9 +31,11 @@ Chosen option: "Convert, then prove the result by compiling it and comparing".
 
 ### The command
 
+The command is `ConvertTo-Bylaw`: it reads as "convert this JSON to Bylaw", and carries Bylaw's name like the other commands, so it is unlikely to clash with another module's. The spec's earlier name was `ConvertFrom-PolicyJson`.
+
 ```powershell
-ConvertFrom-PolicyJson -Path ./Definitions -OutputPath ./policies
-Get-AzPolicyDefinition -Custom | ConvertFrom-PolicyJson -OutputPath ./policies
+ConvertTo-Bylaw -Path ./Definitions -OutputPath ./policies
+Get-AzPolicyDefinition -Custom | ConvertTo-Bylaw -OutputPath ./policies
 ```
 
 * **Input:** `-Path` takes files and folders of policy and policy set definitions in the EPAC format, plain `{ name, properties }` JSON, or a bare `properties` object, and objects from `Get-AzPolicyDefinition` and `Get-AzPolicySetDefinition` on the pipeline. Built-in definitions can be converted too.
@@ -86,7 +88,3 @@ The round-trip tests (ADR-0041) convert every golden file and every example back
 
 * Good, because it is always exact.
 * Bad, because the output isn't Bylaw in any useful sense: no checked aliases, no inversion, nothing to read.
-
-## Open questions
-
-* The command's name. The spec says `ConvertFrom-PolicyJson`. The other commands are named for Bylaw (`Build-Bylaw`, `Update-BylawAliasCache`), and a generic name is more likely to clash with another module's command. `ConvertTo-Bylaw` would read as "convert this JSON to Bylaw".
